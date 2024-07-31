@@ -3,8 +3,9 @@ class to simplify text rendering
 '''
 
 import pygame as pg
-from typing import Tuple, Final
+from typing import Final
 
+from utils import Point
 from const import S_INIT_WIN, ColorType, BlitPair
 
 FONT_RATIO: Final[int] = S_INIT_WIN.h // 32
@@ -19,7 +20,7 @@ class Text:
         '_text', '_renderer', '_img', '_pos'
     )
 
-    def __init__(self, text: str, pos: Tuple[int, int]) -> None:
+    def __init__(self, text: str, pos: Point) -> None:
         '''
         creates text image
         takes text and position
@@ -29,14 +30,14 @@ class Text:
         self._renderer: pg.Font = pg.font.Font(None, S_INIT_WIN.h // FONT_RATIO)
         self._img: pg.SurfaceType = self._renderer.render(self._text, True, WHITE)
 
-        self._pos: Tuple[int, int] = pos
+        self._pos: Point = pos
 
     def blit(self) -> BlitPair:
         '''
         return a pair to add in the blit sequence
         '''
 
-        return self._img, self._pos
+        return self._img, (self._pos.x, self._pos.y)
 
     def handle_resize(self, new_h: int):
         '''

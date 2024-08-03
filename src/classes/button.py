@@ -1,46 +1,48 @@
-'''
+"""
 class to create a button, when hovered changes image and text appears on top of it
-'''
+"""
 
 import pygame as pg
 from typing import Tuple
 
 from src.classes.text import Text
-from src.utils import Point, RectPos
+from src.utils import Point, RectPos, Size
 from src.const import BlitSequence
 
 
 class Button:
-    '''
+    """
     class to create a button, when hovered changes image and text appears on top of it
-    '''
+    """
 
     __slots__ = (
-        '_imgs', '_img_i', '_pos', '_rect', '_can_click', '_text'
+        '_init_pos', '_imgs', '_init_size', '_rect', '_img_i', '_hovering', '_text'
     )
 
-    def __init__(
-        self, imgs: Tuple[pg.SurfaceType, pg.SurfaceType], pos: RectPos, text: str
-    ) -> None:
-        '''
-        creates button rect and text object
-        takes two images, position and text
-        '''
+    def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...], text: str) -> None:
+        """
+        creates button surface, rect and text object
+        takes position, two images and text
+        """
 
-        self._imgs: Tuple[pg.SurfaceType, pg.SurfaceType] = imgs
-        self._img_i = 0
+        self._init_pos: RectPos = pos
 
-        self._pos: RectPos = pos
-        self._rect: pg.Rect = self._imgs[0].get_rect(**{self._pos.pos: self._pos.xy})
+        self._imgs: Tuple[pg.SurfaceType, ...] = imgs
+        self._rect: pg.FRect = self._imgs[0].get_frect(**{self._init_pos.pos: self._init_pos.xy})
 
-        self._can_click: bool = True
+        self._init_size: Size = Size(int(self._rect.w), int(self._rect.h))
 
-        self._text = Text(32, text, RectPos(self._rect.midtop, 'midbottom'))
+        self._img_i: int = 0
+        self._hovering: bool = False
+
+        self._text: Text = Text(
+            RectPos(int(self._rect.centerx), int(self._rect.y), 'midbottom'), 32, text
+        )
 
     def blit(self) -> BlitSequence:
-        '''
+        """
         return a sequence to add in the main blit sequence
-        '''
+        """
 
         sequence: BlitSequence = ((self._imgs[self._img_i], self._rect.topleft),)
         if self._img_i == 1:
@@ -48,26 +50,45 @@ class Button:
 
         return sequence
 
-    def click(self, mouse_pos: Point, mouse_buttons: Tuple[bool, bool, bool]) -> bool:
-        '''
-        updates the button image if the mouse is hovering it
-        takes mouse position and buttons state
+    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+        """
+        resizes objects
+        takes window size ratio
+        """
+
+        size: Tuple[int, int] = (
+            int(self._init_size.w * win_ratio_w), int(self._init_size.h * win_ratio_h)
+        )
+        pos: Tuple[float, float] = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
+
+        self._imgs = tuple(pg.transform.scale(img, size) for img in self._imgs)
+        self._rect = self._imgs[0].get_frect(**{self._init_pos.pos: pos})
+
+        self._text.handle_resize(win_ratio_w, win_ratio_h)
+
+    def upt(self, mouse_pos: Point, released_left: bool, toggle_on_press: bool = False) -> bool:
+        """
+        updates the button image if the mouse is _hovering it
+        takes mouse position, left button state and the toggle_on_press flag
         returns whatever the button was clicked or not
-        '''
+        """
 
         if not self._rect.collidepoint(mouse_pos.xy):
+            if self._hovering:
+                self._img_i = 0
+                self._hovering = False
+                pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+
+            return False
+
+        if not self._hovering:
+            self._img_i = 1
+            self._hovering = True
+            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
+
+        if toggle_on_press and released_left:
             self._img_i = 0
-            return False
+            self._hovering = False
+            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
-        self._img_i = 1
-
-        if not mouse_buttons[0]:
-            self._can_click = True
-            return False
-
-        if not self._can_click:
-            return False
-
-        self._can_click = False
-
-        return True
+        return released_left

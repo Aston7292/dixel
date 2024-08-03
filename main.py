@@ -1,126 +1,124 @@
-'''
+"""
 drawing program for pixel art
-'''
+"""
 
 import pygame as pg
-from pygetwindow import getWindowsWithTitle, BaseWindow  # type: ignore
-from screeninfo import get_monitors, Monitor
 
 from copy import copy
 from traceback import print_exc
 from typing import Tuple, Final
 
-from src.classes.grid import Grid
+from src.classes.color_manager import ColorPicker
+from src.classes.grid_manager import GridManager
 from src.classes.text import Text
 from src.classes.button import Button
-from src.utils import Point, RectPos, Size
-from src.const import S_INIT_WIN, BLACK, BlitSequence
+from src.utils import Point, RectPos, Size, get_monitor_size
+from src.const import INIT_WIN_SIZE, BLACK, BlitSequence
 
 pg.init()
 
 ADD_FLAGS: Final[int] = pg.DOUBLEBUF | pg.HWSURFACE
 WIN: Final[pg.SurfaceType] = pg.display.set_mode(
-    (S_INIT_WIN.w, S_INIT_WIN.h), pg.RESIZABLE | ADD_FLAGS
+    (INIT_WIN_SIZE.w, INIT_WIN_SIZE.h), pg.RESIZABLE | ADD_FLAGS
 )
 pg.display.set_caption('Dixel')
 
-img1 = pg.Surface((100, 100))
-img1.fill('white')
-img2 = pg.Surface((100, 100))
-img2.fill('red')
+ADD_COLOR_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
+ADD_COLOR_1.fill('goldenrod')
+ADD_COLOR_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
+ADD_COLOR_2.fill('darkgoldenrod4')
 
-GRID: Final[Grid] = Grid(RectPos((S_INIT_WIN.w // 2, S_INIT_WIN.h // 2), 'center'))
-PICK_COLOR: Final[Button] = Button((img1, img2), RectPos((100, 100), 'center'), 'hello world')
-FPS_TEXT: Final[Text] = Text(32, 'FPS: 0', RectPos((10, 0), 'topleft'))
+GRID: Final[GridManager] = GridManager(
+    RectPos(INIT_WIN_SIZE.w // 2, INIT_WIN_SIZE.h // 2, 'center')
+)
+ADD_COLOR: Final[Button] = Button(
+    RectPos(INIT_WIN_SIZE.w - 50, INIT_WIN_SIZE.h - 50, 'bottomright'),
+    (ADD_COLOR_1, ADD_COLOR_2), 'add color'
+)
+FPS_TEXT: Final[Text] = Text(RectPos(0, 0, 'topleft'), 32, 'FPS: 0')
+
+COLOR_PICKER: Final[ColorPicker] = ColorPicker(
+    RectPos(INIT_WIN_SIZE.w // 2, INIT_WIN_SIZE.h // 2, 'center')
+)
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
 pg.time.set_timer(FPS_UPT, 1_000)
 CLOCK: Final[pg.Clock] = pg.time.Clock()
 
 
-# TODO: https://stackoverflow.com/questions/34910086/pygame-how-do-i-resize-a-surface-and-keep-all-objects-within-proportionate-to-t
 class Dixel:
-    '''
+    """
     drawing program for pixel art
-    '''
+    """
 
     __slots__ = (
-        '_s_win', '_s_prev_win', '_flag', '_full_screen', '_focused', '_win', '_picking_color'
+        '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win', '_state'
     )
 
     def __init__(self) -> None:
-        '''
+        """
         initializes the window
-        '''
+        """
 
-        self._s_win: Size = copy(S_INIT_WIN)
-        self._s_prev_win: Size = copy(self._s_win)
+        self._win_size: Size = copy(INIT_WIN_SIZE)
+        self._prev_win_size: Tuple[int, int] = self._win_size.wh
         self._flag: int = pg.RESIZABLE
         self._full_screen: bool = False
         self._focused: bool = True
+
         self._win: pg.SurfaceType = WIN
 
-        self._picking_color: bool = False
-
-    def _get_monitor_size(self) -> tuple[int, int]:
-        '''
-        returns the size of the monitor in which the window is in
-        '''
-
-        win_handler: BaseWindow = getWindowsWithTitle('Dixel')[0]
-        monitors: Tuple[Monitor, ...] = tuple(get_monitors())
-        for monitor in monitors:
-            if (
-                monitor.x <= win_handler.left < monitor.x + monitor.width and
-                monitor.y <= win_handler.top < monitor.y + monitor.height
-            ):
-                return monitor.width, monitor.height
-
-        return 0, 0
+        self._state: int = 0
 
     def _handle_resize(self) -> None:
-        '''
+        """
         resizes objects
-        '''
+        """
 
-        GRID.handle_resize(self._s_win)
-        FPS_TEXT.handle_resize(self._s_win)
+        win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
+        win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
+
+        GRID.handle_resize(win_ratio_w, win_ratio_h)
+        ADD_COLOR.handle_resize(win_ratio_w, win_ratio_h)
+        FPS_TEXT.handle_resize(win_ratio_w, win_ratio_h)
+
+        COLOR_PICKER.handle_resize(win_ratio_w, win_ratio_h)
 
     def _handle_keys(self, k: int) -> None:
-        '''
+        """
         handles keyboard inputs
         takes the pressed key
         raises KeyboardInterrupt when esc is pressed
-        '''
+        """
 
         if k == pg.K_ESCAPE:
             raise KeyboardInterrupt
 
         if k == pg.K_F1:
-            if self._s_win.w != S_INIT_WIN.w or self._s_win.h != S_INIT_WIN.h:
-                self._s_win, self._flag = Size(S_INIT_WIN.w, S_INIT_WIN.h), pg.RESIZABLE
-                self._full_screen = False
-                self._win = pg.display.set_mode(self._s_win.size, self._flag | ADD_FLAGS)
+            self._win_size, self._flag = Size(INIT_WIN_SIZE.w, INIT_WIN_SIZE.h), pg.RESIZABLE
+            self._full_screen = False
+            self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
 
-                self._handle_resize()
+            self._handle_resize()
         elif k == pg.K_F11:
             self._full_screen = not self._full_screen
 
             if not self._full_screen:
-                self._s_win, self._flag = copy(self._s_prev_win), pg.RESIZABLE
+                # exiting full screen triggers VIDEORESIZE so handle resize is not necessary
+                self._win_size, self._flag = Size(*self._prev_win_size), pg.RESIZABLE
             else:
-                # fullscreen looks better on a big window
-                self._s_prev_win = copy(self._s_win)
-                self._s_win, self._flag = Size(*self._get_monitor_size()), pg.FULLSCREEN
-            self._win = pg.display.set_mode(self._s_win.size, self._flag | ADD_FLAGS)
+                self._prev_win_size = self._win_size.wh
+                self._win_size, self._flag = Size(*get_monitor_size()), pg.FULLSCREEN
+                self._handle_resize()
 
-            self._handle_resize()
+            self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
+
 
     def _handle_events(self) -> None:
-        '''
+        """
         handles events,
         raises KeyboardInterrupt when window is closed
-        '''
+        """
 
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -129,10 +127,10 @@ class Dixel:
             if event.type == pg.ACTIVEEVENT and event.state & pg.APPACTIVE:
                 self._focused = event.gain == 1
             elif event.type == pg.VIDEORESIZE:
-                if event.w < S_INIT_WIN.w or event.h < S_INIT_WIN.h:
-                    event.w, event.h = max(event.w, S_INIT_WIN.w), max(event.h, S_INIT_WIN.h)
+                if event.w < INIT_WIN_SIZE.w or event.h < INIT_WIN_SIZE.h:
+                    event.w, event.h = max(event.w, INIT_WIN_SIZE.w), max(event.h, INIT_WIN_SIZE.h)
                     self._win = pg.display.set_mode((event.w, event.h), self._flag | ADD_FLAGS)
-                self._s_win = Size(event.w, event.h)
+                self._win_size = Size(event.w, event.h)
 
                 self._handle_resize()
             elif event.type == pg.KEYDOWN:
@@ -142,28 +140,31 @@ class Dixel:
                 FPS_TEXT.modify_text('FPS: ' + str(int(CLOCK.get_fps())))
 
     def _redraw(self) -> None:
-        '''
+        """
         redraws the screen
-        '''
+        """
 
         self._win.fill(BLACK)
 
         blit_sequence: BlitSequence = tuple()
         blit_sequence += GRID.blit()
-        blit_sequence += PICK_COLOR.blit()
+        blit_sequence += ADD_COLOR.blit()
         blit_sequence += FPS_TEXT.blit()
+
+        if self._state == 1:
+            blit_sequence += COLOR_PICKER.blit()
 
         self._win.fblits(blit_sequence)
         pg.display.flip()
 
     def run(self) -> None:
-        '''
+        """
         game loop
-        '''
+        """
 
         try:
             while True:
-                CLOCK.tick(60)
+                CLOCK.tick(6000)
 
                 self._handle_events()
                 if not self._focused:
@@ -171,18 +172,24 @@ class Dixel:
 
                 mouse_pos: Point = Point(*pg.mouse.get_pos())
                 mouse_buttons: Tuple[bool, bool, bool] = pg.mouse.get_pressed()
+                released_left: bool = pg.mouse.get_just_released()[0]
 
-                if not self._picking_color:
-                    GRID.upt(mouse_pos, mouse_buttons)
+                match self._state:
+                    case 0:
+                        GRID.upt(mouse_pos, mouse_buttons)
 
-                    if PICK_COLOR.click(mouse_pos, mouse_buttons):
-                        print(1)
+                        if ADD_COLOR.upt(mouse_pos, released_left, True):
+                            self._state = 1
+                    case 1:
+                        if COLOR_PICKER.upt(mouse_pos, released_left):
+                            self._state = 0
 
                 self._redraw()
         except KeyboardInterrupt:
             pass  # save only if user is already working on a file
         except Exception:  # pylint: disable=broad-exception-caught
             print_exc()  # save no matter what
+
 
 if __name__ == '__main__':
     Dixel().run()

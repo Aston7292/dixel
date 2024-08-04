@@ -6,7 +6,7 @@ import pygame as pg
 from typing import Tuple
 
 from src.classes.text import Text
-from src.utils import Point, RectPos, Size
+from src.utils import RectPos, Size, MouseInfo
 from src.const import BlitSequence
 
 
@@ -66,14 +66,14 @@ class Button:
 
         self._text.handle_resize(win_ratio_w, win_ratio_h)
 
-    def upt(self, mouse_pos: Point, released_left: bool, toggle_on_press: bool = False) -> bool:
+    def upt(self, mouse_info: MouseInfo, toggle_on_press: bool = False) -> bool:
         """
         updates the button image if the mouse is _hovering it
-        takes mouse position, left button state and the toggle_on_press flag
+        takes mouse info and the toggle_on_press flag
         returns whatever the button was clicked or not
         """
 
-        if not self._rect.collidepoint(mouse_pos.xy):
+        if not self._rect.collidepoint(mouse_info.xy):
             if self._hovering:
                 self._img_i = 0
                 self._hovering = False
@@ -86,9 +86,9 @@ class Button:
             self._hovering = True
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
 
-        if toggle_on_press and released_left:
+        if toggle_on_press and mouse_info.released[0]:
             self._img_i = 0
             self._hovering = False
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
-        return released_left
+        return mouse_info.released[0]

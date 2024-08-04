@@ -6,15 +6,17 @@ import pygame as pg
 from typing import Tuple, Final
 
 from src.classes.button import Button
-from src.utils import Point, RectPos, Size
+from src.classes.text import Text
+from src.utils import Point, RectPos, Size, MouseInfo
 from src.const import BlitSequence
 
 INTERFACE: Final[pg.SurfaceType] = pg.Surface((500, 700))
-INTERFACE.fill('lightgray')
+INTERFACE.fill((44, 44, 44))
 
 BAR: Final[pg.SurfaceType] = pg.Surface((255, 25))
-BAR.fill('darkgray')
+BAR.fill((31, 31, 31))
 SLIDER: Final[pg.SurfaceType] = pg.Surface((10, 35))
+SLIDER.fill((61, 61, 61))
 
 CLOSE_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
 CLOSE_1.fill('red')
@@ -28,7 +30,8 @@ class ScrollBar:
 
     __slots__ = (
         '_bar_init_pos', '_bar_img', '_bar_rect', '_bar_init_size',
-        '_slider_init_pos', '_slider_img', '_slider_rect', '_slider_init_size'
+        '_value', '_slider_init_pos', '_slider_img', '_slider_rect', '_slider_init_size',
+        '_hovering', '_scrolling', '_text'
     )
 
     def __init__(self, pos: Point) -> None:
@@ -44,21 +47,35 @@ class ScrollBar:
 
         self._bar_init_size: Size = Size(int(self._bar_rect.w), int(self._bar_rect.h))
 
-        self._slider_init_pos: Point = Point(int(self._bar_rect.x), int(self._bar_rect.centery))
+        self._value: int = 0
+        self._slider_init_pos: Point = Point(
+            int(self._bar_rect.x + self._value), int(self._bar_rect.centery)
+        )
 
         self._slider_img: pg.SurfaceType = SLIDER
         self._slider_rect: pg.FRect = self._slider_img.get_frect(midleft=self._slider_init_pos.xy)
 
         self._slider_init_size: Size = Size(int(self._slider_rect.w), int(self._slider_rect.h))
 
+        self._hovering: bool = False
+        self._scrolling: bool = False
+
+        self._text: Text = Text(
+            RectPos(int(self._bar_rect.x), int(self._bar_rect.centery), 'midright'),
+            32, str(self._value)
+        )
+
     def blit(self) -> BlitSequence:
         """
         return a sequence to add in the main blit sequence
         """
 
-        return (
+        sequence: BlitSequence = (
             (self._bar_img, self._bar_rect.topleft), (self._slider_img, self._slider_rect.topleft)
         )
+        sequence += self._text.blit()
+
+        return sequence
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -80,17 +97,44 @@ class ScrollBar:
             int(self._slider_init_size.w * win_ratio_w), int(self._slider_init_size.h * win_ratio_h)
         )
         slider_pos: Tuple[float, float] = (
-            self._slider_init_pos.x * win_ratio_w, self._slider_init_pos.y * win_ratio_h
+            (self._slider_init_pos.x + self._value) * win_ratio_w,
+            self._slider_init_pos.y * win_ratio_h
         )
 
         self._slider_img = pg.transform.scale(self._slider_img, slider_size)
         self._slider_rect = self._slider_img.get_frect(midleft=slider_pos)
 
-    def upt(self, mouse_pos: Point, mouse_buttons: Tuple[bool, bool, bool]) -> None:
+        self._text.handle_resize(win_ratio_w, win_ratio_h)
+
+    def upt(self, mouse_info: MouseInfo) -> None:
         """
-        makes the object interactable
-        takes mouse position and buttons state
+        Makes the object interactable.
+        Takes mouse info.
         """
+
+        if (
+            not (self._bar_rect.collidepoint(mouse_info.xy) or
+            self._slider_rect.collidepoint(mouse_info.xy))
+        ):
+            if not self._hovering:
+                pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+                self._hovering = True
+
+            if not mouse_info.buttons[0]:
+                self._scrolling = False
+        else:
+            if self._hovering:
+                pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
+                self._hovering = False
+
+            self._scrolling = bool(mouse_info.buttons[0])
+
+        if self._scrolling:
+            self._slider_rect.x = max(
+                min(mouse_info.x, self._bar_rect.right), self._bar_rect.left
+            )
+            self._value = int(self._slider_rect.x - self._bar_rect.x)
+            self._text.modify_text(str(self._value))
 
 
 class ColorPicker:
@@ -150,14 +194,16 @@ class ColorPicker:
         self._r.handle_resize(win_ratio_w, win_ratio_h)
         self._close.handle_resize(win_ratio_w, win_ratio_h)
 
-    def upt(self, mouse_pos: Point, released_left: bool) -> bool:
+    def upt(self, mouse_info: MouseInfo) -> bool:
         """
         makes the object interactable
-        takes mouse position and left button state
+        takes mouse info
         return whatever the interface was closed or not
         """
 
-        if self._close.upt(mouse_pos, released_left, True):
+        self._r.upt(mouse_info)
+
+        if self._close.upt(mouse_info, True):
             return True
 
         return False

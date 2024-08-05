@@ -35,16 +35,14 @@ class Button:
         self._img_i: int = 0
         self._hovering: bool = False
 
-        self._text: Text = Text(
-            RectPos(int(self._rect.centerx), int(self._rect.y), 'midbottom'), 32, text
-        )
+        self._text: Text = Text(RectPos(*self._rect.midtop, 'midbottom'), 32, text)
 
     def blit(self) -> BlitSequence:
         """
         return a sequence to add in the main blit sequence
         """
 
-        sequence: BlitSequence = ((self._imgs[self._img_i], self._rect.topleft),)
+        sequence: BlitSequence = [(self._imgs[self._img_i], self._rect.topleft)]
         if self._img_i == 1:
             sequence += self._text.blit()
 

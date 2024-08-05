@@ -47,7 +47,7 @@ class Text:
         return a sequence to add in the main blit sequence
         """
 
-        return ((self._surf, self._topleft),)
+        return [(self._surf, self._topleft)]
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """

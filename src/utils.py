@@ -34,12 +34,12 @@ class RectPos:
     takes x and y as tuple and the value they represent (e.g. topleft)
     """
 
-    x: int
-    y: int
+    x: float
+    y: float
     pos: str
 
     @property
-    def xy(self) -> Tuple[int, int]:
+    def xy(self) -> Tuple[float, float]:
         """
         returns x and y as a tuple
         """
@@ -66,6 +66,26 @@ class Size:
         return self.w, self.h
 
 
+@dataclass
+class MouseInfo:
+    """
+    dataclass for storing every info needed about the mouse
+    """
+
+    x: int
+    y: int
+    buttons: Tuple[bool, ...]
+    released: Tuple[bool, ...]
+
+    @property
+    def xy(self) -> Tuple[int, int]:
+        """
+        returns x and y as a tuple
+        """
+
+        return self.x, self.y
+
+
 def get_monitor_size() -> tuple[int, int]:
     """
     returns the size of the monitor in which the window is in
@@ -77,10 +97,10 @@ def get_monitor_size() -> tuple[int, int]:
     monitors: Tuple[Monitor, ...] = tuple(get_monitors())
     for monitor in monitors:
         if (
-            win_handler.right >= monitor.x and
-            win_handler.left <= monitor.x + monitor.width and
-            win_handler.bottom >= monitor.y and
-            win_handler.top <= monitor.y + monitor.height
+                win_handler.right >= monitor.x and
+                win_handler.left <= monitor.x + monitor.width and
+                win_handler.bottom >= monitor.y and
+                win_handler.top <= monitor.y + monitor.height
         ):
             return monitor.width, monitor.height
 

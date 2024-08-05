@@ -8,14 +8,14 @@ from copy import copy
 from traceback import print_exc
 from typing import Tuple, Final
 
+pg.init()
+
 from src.classes.color_manager import ColorPicker
 from src.classes.grid_manager import GridManager
 from src.classes.text import Text
 from src.classes.button import Button
-from src.utils import Point, RectPos, Size, get_monitor_size
+from src.utils import RectPos, Size, MouseInfo, get_monitor_size
 from src.const import INIT_WIN_SIZE, BLACK, BlitSequence
-
-pg.init()
 
 ADD_FLAGS: Final[int] = pg.DOUBLEBUF | pg.HWSURFACE
 WIN: Final[pg.SurfaceType] = pg.display.set_mode(
@@ -29,7 +29,7 @@ ADD_COLOR_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
 ADD_COLOR_2.fill('darkgoldenrod4')
 
 GRID: Final[GridManager] = GridManager(
-    RectPos(INIT_WIN_SIZE.w // 2, INIT_WIN_SIZE.h // 2, 'center')
+    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center')
 )
 ADD_COLOR: Final[Button] = Button(
     RectPos(INIT_WIN_SIZE.w - 50, INIT_WIN_SIZE.h - 50, 'bottomright'),
@@ -38,7 +38,7 @@ ADD_COLOR: Final[Button] = Button(
 FPS_TEXT: Final[Text] = Text(RectPos(0, 0, 'topleft'), 32, 'FPS: 0')
 
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
-    RectPos(INIT_WIN_SIZE.w // 2, INIT_WIN_SIZE.h // 2, 'center')
+    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center')
 )
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
@@ -113,7 +113,6 @@ class Dixel:
 
             self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
 
-
     def _handle_events(self) -> None:
         """
         handles events,
@@ -146,7 +145,7 @@ class Dixel:
 
         self._win.fill(BLACK)
 
-        blit_sequence: BlitSequence = tuple()
+        blit_sequence: BlitSequence = []
         blit_sequence += GRID.blit()
         blit_sequence += ADD_COLOR.blit()
         blit_sequence += FPS_TEXT.blit()
@@ -164,24 +163,24 @@ class Dixel:
 
         try:
             while True:
-                CLOCK.tick(6000)
+                CLOCK.tick(60)
 
                 self._handle_events()
                 if not self._focused:
                     continue
 
-                mouse_pos: Point = Point(*pg.mouse.get_pos())
-                mouse_buttons: Tuple[bool, bool, bool] = pg.mouse.get_pressed()
-                released_left: bool = pg.mouse.get_just_released()[0]
+                mouse_info: MouseInfo = MouseInfo(
+                    *pg.mouse.get_pos(), pg.mouse.get_pressed(), pg.mouse.get_just_released()
+                )
 
                 match self._state:
                     case 0:
-                        GRID.upt(mouse_pos, mouse_buttons)
+                        GRID.upt(mouse_info)
 
-                        if ADD_COLOR.upt(mouse_pos, released_left, True):
+                        if ADD_COLOR.upt(mouse_info, True):
                             self._state = 1
                     case 1:
-                        if COLOR_PICKER.upt(mouse_pos, released_left):
+                        if COLOR_PICKER.upt(mouse_info):
                             self._state = 0
 
                 self._redraw()

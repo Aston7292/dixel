@@ -3,12 +3,12 @@ constants shared between files
 """
 
 from pygame import SurfaceType
-from typing import Tuple, Final
+from typing import Tuple, List, Final
 
 from src.utils import Size
 
 ColorType = Tuple[int, int, int]
-BlitSequence = Tuple[Tuple[SurfaceType, Tuple[float, float]], ...]
+BlitSequence = List[Tuple[SurfaceType, Tuple[float, float]]]
 
 INIT_WIN_SIZE: Final[Size] = Size(1_200, 900)
 

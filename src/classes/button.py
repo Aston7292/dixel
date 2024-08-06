@@ -16,7 +16,7 @@ class Button:
     """
 
     __slots__ = (
-        '_init_pos', '_imgs', '_init_size', '_rect', '_img_i', '_hovering', '_text'
+        '_init_pos', '_imgs', '_init_size', 'rect', '_img_i', '_hovering', '_text'
     )
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...], text: str) -> None:
@@ -28,21 +28,21 @@ class Button:
         self._init_pos: RectPos = pos
 
         self._imgs: Tuple[pg.SurfaceType, ...] = imgs
-        self._rect: pg.FRect = self._imgs[0].get_frect(**{self._init_pos.pos: self._init_pos.xy})
+        self.rect: pg.FRect = self._imgs[0].get_frect(**{self._init_pos.pos: self._init_pos.xy})
 
-        self._init_size: Size = Size(int(self._rect.w), int(self._rect.h))
+        self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
 
         self._img_i: int = 0
         self._hovering: bool = False
 
-        self._text: Text = Text(RectPos(*self._rect.midtop, 'midbottom'), 32, text)
+        self._text: Text = Text(RectPos(*self.rect.midtop, 'midbottom'), 32, text)
 
     def blit(self) -> BlitSequence:
         """
         return a sequence to add in the main blit sequence
         """
 
-        sequence: BlitSequence = [(self._imgs[self._img_i], self._rect.topleft)]
+        sequence: BlitSequence = [(self._imgs[self._img_i], self.rect.topleft)]
         if self._img_i == 1:
             sequence += self._text.blit()
 
@@ -60,7 +60,7 @@ class Button:
         pos: Tuple[float, float] = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
 
         self._imgs = tuple(pg.transform.scale(img, size) for img in self._imgs)
-        self._rect = self._imgs[0].get_frect(**{self._init_pos.pos: pos})
+        self.rect = self._imgs[0].get_frect(**{self._init_pos.pos: pos})
 
         self._text.handle_resize(win_ratio_w, win_ratio_h)
 
@@ -71,7 +71,7 @@ class Button:
         returns whatever the button was clicked or not
         """
 
-        if not self._rect.collidepoint(mouse_info.xy):
+        if not self.rect.collidepoint(mouse_info.xy):
             if self._hovering:
                 self._img_i = 0
                 self._hovering = False

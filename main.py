@@ -5,8 +5,12 @@ drawing program for pixel art
 import pygame as pg
 
 from copy import copy
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename, asksaveasfilename
+from PIL.Image import fromarray
+from os.path import exists
 from traceback import print_exc
-from typing import Tuple, Final
+from typing import Tuple, Final, Optional
 
 pg.init()
 
@@ -15,30 +19,56 @@ from src.classes.grid_manager import GridManager
 from src.classes.text import Text
 from src.classes.button import Button
 from src.utils import RectPos, Size, MouseInfo, get_monitor_size
-from src.const import INIT_WIN_SIZE, BLACK, BlitSequence
+from src.const import INIT_WIN_SIZE, BLACK, ColorType, BlitSequence
 
 ADD_FLAGS: Final[int] = pg.DOUBLEBUF | pg.HWSURFACE
-WIN: Final[pg.SurfaceType] = pg.display.set_mode(
+INIT_WIN: Final[pg.SurfaceType] = pg.display.set_mode(
     (INIT_WIN_SIZE.w, INIT_WIN_SIZE.h), pg.RESIZABLE | ADD_FLAGS
 )
 pg.display.set_caption('Dixel')
+pg.display.set_icon(pg.image.load('icon.png').convert_alpha())
 
 ADD_COLOR_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
 ADD_COLOR_1.fill('goldenrod')
 ADD_COLOR_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
 ADD_COLOR_2.fill('darkgoldenrod4')
 
-GRID: Final[GridManager] = GridManager(
+SAVE_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
+SAVE_1.fill('goldenrod')
+SAVE_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
+SAVE_2.fill('darkgoldenrod4')
+LOAD_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
+LOAD_1.fill('goldenrod')
+LOAD_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
+LOAD_2.fill('darkgoldenrod4')
+CLOSE_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
+CLOSE_1.fill('goldenrod')
+CLOSE_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
+CLOSE_2.fill('darkgoldenrod4')
+
+GRID_MANAGER: Final[GridManager] = GridManager(
     RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center')
 )
 ADD_COLOR: Final[Button] = Button(
     RectPos(INIT_WIN_SIZE.w - 50, INIT_WIN_SIZE.h - 50, 'bottomright'),
     (ADD_COLOR_1, ADD_COLOR_2), 'add color'
 )
+
+SAVE_AS: Final[Button] = Button(
+    RectPos(50, INIT_WIN_SIZE.h - 50, 'bottomleft'), (SAVE_1, SAVE_2), 'save as'
+)
+LOAD: Final[Button] = Button(
+    RectPos(50, SAVE_AS.rect.y - 50, 'bottomleft'), (LOAD_1, LOAD_2), 'load'
+)
+CLOSE: Final[Button] = Button(
+    RectPos(50, LOAD.rect.y - 50, 'bottomleft'), (CLOSE_1, CLOSE_2), 'close'
+)
+
 FPS_TEXT: Final[Text] = Text(RectPos(0, 0, 'topleft'), 32, 'FPS: 0')
 
+INIT_COLOR: Final[ColorType] = (0, 0, 0)
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
-    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center')
+    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), INIT_COLOR
 )
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
@@ -52,7 +82,8 @@ class Dixel:
     """
 
     __slots__ = (
-        '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win', '_state'
+        '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win', '_color',
+        '_file_path', '_state'
     )
 
     def __init__(self) -> None:
@@ -66,9 +97,41 @@ class Dixel:
         self._full_screen: bool = False
         self._focused: bool = True
 
-        self._win: pg.SurfaceType = WIN
+        self._win: pg.SurfaceType = INIT_WIN
+
+        self._color: ColorType = INIT_COLOR
 
         self._state: int = 0
+
+        self._file_path: str
+        if not exists('data.txt'):
+            self._file_path = ''
+        else:
+            with open('data.txt', encoding='utf-8') as f:
+                prev_path: str = f.read()
+            self._file_path = prev_path if exists(prev_path) else ''
+        GRID_MANAGER.load_path(self._file_path)
+
+    def _redraw(self) -> None:
+        """
+        redraws the screen
+        """
+
+        self._win.fill(BLACK)
+
+        blit_sequence: BlitSequence = []
+        blit_sequence += GRID_MANAGER.blit()
+        blit_sequence += ADD_COLOR.blit()
+        blit_sequence += SAVE_AS.blit()
+        blit_sequence += LOAD.blit()
+        blit_sequence += CLOSE.blit()
+        blit_sequence += FPS_TEXT.blit()
+
+        if self._state == 1:
+            blit_sequence += COLOR_PICKER.blit()
+
+        self._win.fblits(blit_sequence)
+        pg.display.flip()
 
     def _handle_resize(self) -> None:
         """
@@ -78,8 +141,11 @@ class Dixel:
         win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
         win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
 
-        GRID.handle_resize(win_ratio_w, win_ratio_h)
+        GRID_MANAGER.handle_resize(win_ratio_w, win_ratio_h)
         ADD_COLOR.handle_resize(win_ratio_w, win_ratio_h)
+        SAVE_AS.handle_resize(win_ratio_w, win_ratio_h)
+        LOAD.handle_resize(win_ratio_w, win_ratio_h)
+        CLOSE.handle_resize(win_ratio_w, win_ratio_h)
         FPS_TEXT.handle_resize(win_ratio_w, win_ratio_h)
 
         COLOR_PICKER.handle_resize(win_ratio_w, win_ratio_h)
@@ -138,23 +204,52 @@ class Dixel:
             if event.type == FPS_UPT:
                 FPS_TEXT.modify_text('FPS: ' + str(int(CLOCK.get_fps())))
 
-    def _redraw(self) -> None:
+    def _handle_file_operations(self, mouse_info: MouseInfo) -> None:
         """
-        redraws the screen
+        handles the save as, open and close button actions
+        takes mouse info
         """
 
-        self._win.fill(BLACK)
+        root: Tk
+        path: str
+        if SAVE_AS.upt(mouse_info, True):
+            root = Tk()
+            root.withdraw()
 
-        blit_sequence: BlitSequence = []
-        blit_sequence += GRID.blit()
-        blit_sequence += ADD_COLOR.blit()
-        blit_sequence += FPS_TEXT.blit()
+            path = asksaveasfilename(
+                defaultextension='.png',
+                filetypes=(('png Files', '*.png'),),
+                title='Save as'
+            )
+            root.destroy()
 
-        if self._state == 1:
-            blit_sequence += COLOR_PICKER.blit()
+            if path:
+                self._file_path = path
+                fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
-        self._win.fblits(blit_sequence)
-        pg.display.flip()
+        if LOAD.upt(mouse_info, True):
+            if self._file_path:
+                fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+
+            root = Tk()
+            root.withdraw()
+
+            path = askopenfilename(
+                defaultextension='.png',
+                filetypes=(('png Files', '*.png'),),
+                title='Open'
+            )
+            root.destroy()
+
+            if path:
+                self._file_path = path
+                GRID_MANAGER.load_path(self._file_path)
+
+        if CLOSE.upt(mouse_info) and self._file_path:
+            fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+
+            self._file_path = ''
+            GRID_MANAGER.load_path(self._file_path)
 
     def run(self) -> None:
         """
@@ -175,19 +270,43 @@ class Dixel:
 
                 match self._state:
                     case 0:
-                        GRID.upt(mouse_info)
+                        GRID_MANAGER.upt(mouse_info, self._color)
 
                         if ADD_COLOR.upt(mouse_info, True):
                             self._state = 1
+                            COLOR_PICKER.set(BLACK)
+
+                        self._handle_file_operations(mouse_info)
                     case 1:
-                        if COLOR_PICKER.upt(mouse_info):
+                        closed: bool
+                        new_color: Optional[ColorType]
+                        closed, new_color = COLOR_PICKER.upt(mouse_info)
+                        if closed:
+                            if new_color:
+                                self._color = new_color
+
                             self._state = 0
 
                 self._redraw()
         except KeyboardInterrupt:
-            pass  # save only if user is already working on a file
+            if self._file_path:
+                fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+            with open('data.txt', 'w', encoding='utf-8') as f:
+                f.write(self._file_path)
         except Exception:  # pylint: disable=broad-exception-caught
-            print_exc()  # save no matter what
+            if not self._file_path:
+                name: str = 'new_file.png'
+                i: int = 0
+                while exists(name):
+                    i += 1
+                    name = f'new_file_{i}.png'
+                self._file_path = name
+
+            fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+            with open('data.txt', 'w', encoding='utf-8') as f:
+                f.write(self._file_path)
+
+            print_exc()
 
 
 if __name__ == '__main__':

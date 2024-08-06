@@ -4,7 +4,7 @@ interface for choosing a color
 
 import pygame as pg
 from math import ceil
-from typing import Tuple, List, Final
+from typing import Tuple, List, Final, Optional
 
 from src.classes.button import Button
 from src.classes.text import Text
@@ -16,6 +16,11 @@ INTERFACE.fill((44, 44, 44))
 
 SLIDER: Final[pg.SurfaceType] = pg.Surface((10, 35))
 SLIDER.fill((61, 61, 61))
+
+CONFIRM_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
+CONFIRM_1.fill('yellow')
+CONFIRM_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
+CONFIRM_2.fill('darkgoldenrod4')
 
 CLOSE_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
 CLOSE_1.fill('red')
@@ -30,14 +35,14 @@ class ScrollBar:
 
     __slots__ = (
         '_bar_init_pos', '_unit_w', '_channel', '_bar_img', '_bar_rect', '_bar_init_size',
-        'value', '_slider_init_y', '_slider_img', '_slider_rect', '_slider_init_size',
+        'value', '_slider_init_pos', '_slider_img', '_slider_rect', '_slider_init_size',
         '_hovering', '_scrolling', '_channel_text', '_value_text'
     )
 
-    def __init__(self, pos: Point, channel: int) -> None:
+    def __init__(self, pos: Point, channel: int, color: ColorType) -> None:
         """
         creates a bar and a slider
-        takes position and the channel this scroll bar uses
+        takes position, the channel this scroll bar uses and starting color
         """
 
         self._bar_init_pos: Point = pos
@@ -50,13 +55,13 @@ class ScrollBar:
 
         self._bar_init_size: Size = Size(int(self._bar_rect.w), int(self._bar_rect.h))
 
-        self.value: int = 0
-        # slider x is calculated using the bar rect for more accuracy
-        self._slider_init_y: int = int(self._bar_rect.centery)
+        self.value: int = color[self._channel]
+        self._slider_init_pos: RectPos = RectPos(*self._bar_rect.midleft, 'midleft')
+        slider_x: float = self._slider_init_pos.x + self._unit_w * self.value
 
         self._slider_img: pg.SurfaceType = SLIDER
         self._slider_rect: pg.FRect = self._slider_img.get_frect(
-            midleft=(self._bar_rect.x + self._unit_w * self.value, self._slider_init_y)
+            **{self._slider_init_pos.pos: (slider_x, self._slider_init_pos.y)}
         )
 
         self._slider_init_size: Size = Size(int(self._slider_rect.w), int(self._slider_rect.h))
@@ -72,7 +77,7 @@ class ScrollBar:
             32, str(self.value)
         )
 
-        self.get_bar((0, 0, 0))
+        self.get_bar(color)
 
     def blit(self) -> BlitSequence:
         """
@@ -109,12 +114,12 @@ class ScrollBar:
             int(self._slider_init_size.h * win_ratio_h)
         )
         slider_pos: Tuple[float, float] = (
-            self._bar_rect.x + self._unit_w * self.value,
-            self._slider_init_y * win_ratio_h
+            self._slider_init_pos.x * win_ratio_w + self._unit_w * self.value,
+            self._slider_init_pos.y * win_ratio_h
         )
 
         self._slider_img = pg.transform.scale(self._slider_img, slider_size)
-        self._slider_rect = self._slider_img.get_frect(midleft=slider_pos)
+        self._slider_rect = self._slider_img.get_frect(**{self._slider_init_pos.pos: slider_pos})
 
         self._channel_text.handle_resize(win_ratio_w, win_ratio_h)
         self._value_text.handle_resize(win_ratio_w, win_ratio_h)
@@ -128,7 +133,7 @@ class ScrollBar:
         sequence: BlitSequence = []
 
         original_size: Tuple[int, int] = self._bar_img.get_size()
-        self._bar_img = pg.Surface(self._bar_init_size.wh)
+        self._bar_img = pg.Surface((255, self._bar_init_size.h))
         sect_surf: pg.SurfaceType = pg.Surface((1, self._bar_init_size.h))
 
         color: List[int] = list(current_color)
@@ -141,6 +146,18 @@ class ScrollBar:
         #  drawing on the normal size bar is inaccurate
         self._bar_img = pg.transform.scale(self._bar_img, original_size)
 
+    def set(self, color: ColorType) -> None:
+        """
+        sets the bar on a specif value
+        takes color
+        """
+
+        self.value = color[self._channel]
+        self._slider_rect.x = self._bar_rect.x + self._unit_w * self.value
+        self._value_text.modify_text(str(self.value))
+
+        self.get_bar(color)
+
     def upt(self, mouse_info: MouseInfo) -> None:
         """
         Makes the object interactable.
@@ -148,8 +165,10 @@ class ScrollBar:
         """
 
         if (
-                not (self._bar_rect.collidepoint(mouse_info.xy) or
-                     self._slider_rect.collidepoint(mouse_info.xy))
+                not (
+                        self._bar_rect.collidepoint(mouse_info.xy) or
+                        self._slider_rect.collidepoint(mouse_info.xy)
+                )
         ):
             if not self._hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
@@ -179,14 +198,14 @@ class ColorPicker:
 
     __slots__ = (
         '_init_pos', '_img', '_rect', '_init_size', '_color', '_preview_init_pos',
-        '_preview_surf', '_preview_rect', '_preview_init_size', '_r', '_g', '_b',
-        '_title', '_hex_text', '_close'
+        '_preview_img', '_preview_rect', '_preview_init_size', '_r', '_g', '_b',
+        '_title', '_hex_text', '_confirm', '_close'
     )
 
-    def __init__(self, pos: RectPos) -> None:
+    def __init__(self, pos: RectPos, color: ColorType) -> None:
         """
         initializes the interface
-        takes position
+        takes position and starting color
         """
 
         self._init_pos: RectPos = pos
@@ -196,25 +215,26 @@ class ColorPicker:
 
         self._init_size: Size = Size(int(self._rect.w), int(self._rect.h))
 
-        self._color: ColorType = (0, 0, 0)
+        self._color: ColorType = color
 
         self._preview_init_pos: RectPos = RectPos(*self._rect.center, 'center')
 
-        self._preview_surf: pg.SurfaceType = pg.Surface((100, 100))
-        self._preview_rect: pg.FRect = self._preview_surf.get_frect(
+        self._preview_img: pg.SurfaceType = pg.Surface((100, 100))
+        self._preview_img.fill(self._color)
+        self._preview_rect: pg.FRect = self._preview_img.get_frect(
             **{self._preview_init_pos.pos: self._preview_init_pos.xy}
         )
 
         self._preview_init_size: Size = Size(int(self._preview_rect.w), int(self._preview_rect.h))
 
         self._r: ScrollBar = ScrollBar(
-            Point(int(self._rect.centerx), int(self._preview_rect.top - 150)), 0
+            Point(int(self._rect.centerx), int(self._preview_rect.top - 150)), 0, self._color
         )
         self._g: ScrollBar = ScrollBar(
-            Point(int(self._rect.centerx), int(self._preview_rect.top - 100)), 1
+            Point(int(self._rect.centerx), int(self._preview_rect.top - 100)), 1, self._color
         )
         self._b: ScrollBar = ScrollBar(
-            Point(int(self._rect.centerx), int(self._preview_rect.top - 50)), 2
+            Point(int(self._rect.centerx), int(self._preview_rect.top - 50)), 2, self._color
         )
 
         self._title: Text = Text(
@@ -225,6 +245,9 @@ class ColorPicker:
             RectPos(*self._preview_rect.midtop, 'midbottom'), 32, hex_string
         )
 
+        self._confirm: Button = Button(
+            RectPos(*self._rect.bottomright, 'bottomright'), (CONFIRM_1, CONFIRM_2), 'confirm'
+        )
         self._close: Button = Button(
             RectPos(*self._rect.topright, 'topright'), (CLOSE_1, CLOSE_2), 'close'
         )
@@ -238,9 +261,10 @@ class ColorPicker:
         sequence += self._r.blit()
         sequence += self._g.blit()
         sequence += self._b.blit()
-        sequence += [(self._preview_surf, self._preview_rect.topleft)]
+        sequence += [(self._preview_img, self._preview_rect.topleft)]
         sequence += self._title.blit()
         sequence += self._hex_text.blit()
+        sequence += self._confirm.blit()
         sequence += self._close.blit()
 
         return sequence
@@ -267,8 +291,8 @@ class ColorPicker:
             self._preview_init_pos.x * win_ratio_w, self._preview_init_pos.y * win_ratio_h
         )
 
-        self._preview_surf = pg.Surface(preview_size)
-        self._preview_rect = self._preview_surf.get_frect(
+        self._preview_img = pg.transform.scale(self._preview_img, preview_size)
+        self._preview_rect = self._preview_img.get_frect(
             **{self._preview_init_pos.pos: preview_pos}
         )
 
@@ -278,13 +302,30 @@ class ColorPicker:
 
         self._title.handle_resize(win_ratio_w, win_ratio_h)
         self._hex_text.handle_resize(win_ratio_w, win_ratio_h)
+        self._confirm.handle_resize(win_ratio_w, win_ratio_h)
         self._close.handle_resize(win_ratio_w, win_ratio_h)
 
-    def upt(self, mouse_info: MouseInfo) -> bool:
+    def set(self, color: ColorType) -> None:
+        """
+        set the ui on a specific color
+        takes color
+        """
+
+        self._color = color
+        self._preview_img.fill(self._color)
+
+        self._r.set(self._color)
+        self._g.set(self._color)
+        self._b.set(self._color)
+
+        hex_string: str = '#' + ''.join((f'{channel:02x}' for channel in self._color))
+        self._hex_text.modify_text(hex_string)
+
+    def upt(self, mouse_info: MouseInfo) -> Tuple[bool, Optional[ColorType]]:
         """
         makes the object interactable
         takes mouse info
-        return whatever the interface was closed or not
+        return whatever the interface was closed or not and the new color
         """
 
         prev_color: ColorType = self._color
@@ -298,12 +339,15 @@ class ColorPicker:
             self._r.get_bar(self._color)
             self._g.get_bar(self._color)
             self._b.get_bar(self._color)
-            self._preview_surf.fill(self._color)
+            self._preview_img.fill(self._color)
 
             hex_string: str = '#' + ''.join((f'{channel:02x}' for channel in self._color))
             self._hex_text.modify_text(hex_string)
 
-        if self._close.upt(mouse_info, True):
-            return True
+        if self._confirm.upt(mouse_info, True):
+            return True, self._color
 
-        return False
+        if self._close.upt(mouse_info, True):
+            return True, None
+
+        return False, None

@@ -10,15 +10,16 @@ from tkinter.filedialog import askopenfilename, asksaveasfilename
 from PIL.Image import fromarray
 from os.path import exists
 from traceback import print_exc
-from typing import Tuple, Final, Optional
+from typing import Tuple, Final, Optional, Any
 
 pg.init()
 
 from src.classes.color_manager import ColorPicker
 from src.classes.grid_manager import GridManager
-from src.classes.text import Text
+from src.classes.check_box import CheckBoxGrid
 from src.classes.button import Button
-from src.utils import RectPos, Size, MouseInfo, get_monitor_size
+from src.classes.text import Text
+from src.utils import Point, RectPos, Size, MouseInfo, get_monitor_size
 from src.const import INIT_WIN_SIZE, BLACK, ColorType, BlitSequence
 
 ADD_FLAGS: Final[int] = pg.DOUBLEBUF | pg.HWSURFACE
@@ -28,40 +29,40 @@ INIT_WIN: Final[pg.SurfaceType] = pg.display.set_mode(
 pg.display.set_caption('Dixel')
 pg.display.set_icon(pg.image.load('icon.png').convert_alpha())
 
-ADD_COLOR_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
+ADD_COLOR_1: Final[pg.SurfaceType] = pg.Surface((64, 64))
 ADD_COLOR_1.fill('goldenrod')
-ADD_COLOR_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
+ADD_COLOR_2: Final[pg.SurfaceType] = pg.Surface((64, 64))
 ADD_COLOR_2.fill('darkgoldenrod4')
 
-SAVE_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
+SAVE_1: Final[pg.SurfaceType] = pg.Surface((64, 64))
 SAVE_1.fill('goldenrod')
-SAVE_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
+SAVE_2: Final[pg.SurfaceType] = pg.Surface((64, 64))
 SAVE_2.fill('darkgoldenrod4')
-LOAD_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
+LOAD_1: Final[pg.SurfaceType] = pg.Surface((64, 64))
 LOAD_1.fill('goldenrod')
-LOAD_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
+LOAD_2: Final[pg.SurfaceType] = pg.Surface((64, 64))
 LOAD_2.fill('darkgoldenrod4')
-CLOSE_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
+CLOSE_1: Final[pg.SurfaceType] = pg.Surface((64, 64))
 CLOSE_1.fill('goldenrod')
-CLOSE_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
+CLOSE_2: Final[pg.SurfaceType] = pg.Surface((64, 64))
 CLOSE_2.fill('darkgoldenrod4')
 
 GRID_MANAGER: Final[GridManager] = GridManager(
     RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center')
 )
 ADD_COLOR: Final[Button] = Button(
-    RectPos(INIT_WIN_SIZE.w - 50, INIT_WIN_SIZE.h - 50, 'bottomright'),
+    RectPos(INIT_WIN_SIZE.w - 25, INIT_WIN_SIZE.h - 25, 'bottomright'),
     (ADD_COLOR_1, ADD_COLOR_2), 'add color'
 )
 
 SAVE_AS: Final[Button] = Button(
-    RectPos(50, INIT_WIN_SIZE.h - 50, 'bottomleft'), (SAVE_1, SAVE_2), 'save as'
+    RectPos(25, INIT_WIN_SIZE.h - 25, 'bottomleft'), (SAVE_1, SAVE_2), 'save as'
 )
 LOAD: Final[Button] = Button(
-    RectPos(50, SAVE_AS.rect.y - 50, 'bottomleft'), (LOAD_1, LOAD_2), 'load'
+    RectPos(25, SAVE_AS.rect.y - 25, 'bottomleft'), (LOAD_1, LOAD_2), 'load'
 )
 CLOSE: Final[Button] = Button(
-    RectPos(50, LOAD.rect.y - 50, 'bottomleft'), (CLOSE_1, CLOSE_2), 'close'
+    RectPos(25, LOAD.rect.y - 25, 'bottomleft'), (CLOSE_1, CLOSE_2), 'close'
 )
 
 FPS_TEXT: Final[Text] = Text(RectPos(0, 0, 'topleft'), 32, 'FPS: 0')
@@ -69,6 +70,13 @@ FPS_TEXT: Final[Text] = Text(RectPos(0, 0, 'topleft'), 32, 'FPS: 0')
 INIT_COLOR: Final[ColorType] = (0, 0, 0)
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
     RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), INIT_COLOR
+)
+
+imgs = tuple((SAVE_1, SAVE_2) for _ in range(5))
+BRUSH_SIZE_GRID: Final[CheckBoxGrid] = CheckBoxGrid(Point(10, FPS_TEXT.surf.get_height()), imgs, 1)
+
+GLOBAL_OBJS: Final[Tuple[Any, ...]] = (
+    GRID_MANAGER, ADD_COLOR, BRUSH_SIZE_GRID, SAVE_AS, LOAD, CLOSE, FPS_TEXT
 )
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
@@ -82,8 +90,8 @@ class Dixel:
     """
 
     __slots__ = (
-        '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win', '_color',
-        '_file_path', '_state'
+        '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win',
+        '_color', '_brush_size', '_state', '_file_path'
     )
 
     def __init__(self) -> None:
@@ -100,6 +108,7 @@ class Dixel:
         self._win: pg.SurfaceType = INIT_WIN
 
         self._color: ColorType = INIT_COLOR
+        self._brush_size: int = 1
 
         self._state: int = 0
 
@@ -120,13 +129,9 @@ class Dixel:
         self._win.fill(BLACK)
 
         blit_sequence: BlitSequence = []
-        blit_sequence += GRID_MANAGER.blit()
-        blit_sequence += ADD_COLOR.blit()
-        blit_sequence += SAVE_AS.blit()
-        blit_sequence += LOAD.blit()
-        blit_sequence += CLOSE.blit()
-        blit_sequence += FPS_TEXT.blit()
 
+        for obj in GLOBAL_OBJS:
+            blit_sequence += obj.blit()
         if self._state == 1:
             blit_sequence += COLOR_PICKER.blit()
 
@@ -141,12 +146,8 @@ class Dixel:
         win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
         win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
 
-        GRID_MANAGER.handle_resize(win_ratio_w, win_ratio_h)
-        ADD_COLOR.handle_resize(win_ratio_w, win_ratio_h)
-        SAVE_AS.handle_resize(win_ratio_w, win_ratio_h)
-        LOAD.handle_resize(win_ratio_w, win_ratio_h)
-        CLOSE.handle_resize(win_ratio_w, win_ratio_h)
-        FPS_TEXT.handle_resize(win_ratio_w, win_ratio_h)
+        for obj in GLOBAL_OBJS:
+            obj.handle_resize(win_ratio_w, win_ratio_h)
 
         COLOR_PICKER.handle_resize(win_ratio_w, win_ratio_h)
 
@@ -270,11 +271,15 @@ class Dixel:
 
                 match self._state:
                     case 0:
-                        GRID_MANAGER.upt(mouse_info, self._color)
+                        GRID_MANAGER.upt(mouse_info, self._color, self._brush_size)
 
                         if ADD_COLOR.upt(mouse_info, True):
                             self._state = 1
                             COLOR_PICKER.set(BLACK)
+
+                        brush_size: int = BRUSH_SIZE_GRID.upt(mouse_info)
+                        if brush_size != -1:
+                            self._brush_size = brush_size + 1
 
                         self._handle_file_operations(mouse_info)
                     case 1:

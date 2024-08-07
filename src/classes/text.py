@@ -20,7 +20,7 @@ class Text:
     """
 
     __slots__ = (
-        '_renderer', '_text', '_surf', '_init_h', '_init_pos', '_pos', '_topleft'
+        '_renderer', '_text', 'surf', '_init_h', '_init_pos', '_pos', '_topleft'
     )
 
     def __init__(self, pos: RectPos, h: int, text: str) -> None:
@@ -38,8 +38,8 @@ class Text:
         self._renderer: pg.Font = RENDERERS_CACHE[self._init_h]
         self._text: str = text
 
-        self._surf: pg.SurfaceType = self._renderer.render(self._text, True, WHITE)
-        rect: pg.FRect = self._surf.get_frect(**{self._init_pos.pos: self._init_pos.xy})
+        self.surf: pg.SurfaceType = self._renderer.render(self._text, True, WHITE)
+        rect: pg.FRect = self.surf.get_frect(**{self._init_pos.pos: self._init_pos.xy})
         self._topleft: Tuple[float, float] = rect.topleft
 
     def blit(self) -> BlitSequence:
@@ -47,7 +47,7 @@ class Text:
         return a sequence to add in the main blit sequence
         """
 
-        return [(self._surf, self._topleft)]
+        return [(self.surf, self._topleft)]
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -62,8 +62,8 @@ class Text:
             RENDERERS_CACHE[h] = pg.font.Font(size=h)
         self._renderer = RENDERERS_CACHE[h]
 
-        self._surf = self._renderer.render(self._text, True, WHITE)
-        rect: pg.FRect = self._surf.get_frect(**{self._init_pos.pos: self._pos})
+        self.surf = self._renderer.render(self._text, True, WHITE)
+        rect: pg.FRect = self.surf.get_frect(**{self._init_pos.pos: self._pos})
         self._topleft = rect.topleft
 
     def modify_text(self, text: str) -> None:
@@ -74,6 +74,6 @@ class Text:
 
         self._text = text
 
-        self._surf = self._renderer.render(self._text, True, WHITE)
-        rect: pg.FRect = self._surf.get_frect(**{self._init_pos.pos: self._pos})
+        self.surf = self._renderer.render(self._text, True, WHITE)
+        rect: pg.FRect = self.surf.get_frect(**{self._init_pos.pos: self._pos})
         self._topleft = rect.topleft

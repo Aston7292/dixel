@@ -1,5 +1,5 @@
 """
-class to create a checkbox or a grid of connected checkboxes
+classes to create a checkbox or a grid of connected checkboxes
 """
 
 import pygame as pg

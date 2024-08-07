@@ -8,12 +8,13 @@ from copy import copy
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from PIL.Image import fromarray
-from os.path import exists
+from os.path import join, exists
 from traceback import print_exc
-from typing import Tuple, Final, Optional, Any
+from typing import Tuple, List, Final, Optional, Any
 
 pg.init()
 
+from src.classes.grid_ui import GridUI
 from src.classes.color_manager import ColorPicker
 from src.classes.grid_manager import GridManager
 from src.classes.check_box import CheckBoxGrid
@@ -27,7 +28,7 @@ INIT_WIN: Final[pg.SurfaceType] = pg.display.set_mode(
     (INIT_WIN_SIZE.w, INIT_WIN_SIZE.h), pg.RESIZABLE | ADD_FLAGS
 )
 pg.display.set_caption('Dixel')
-pg.display.set_icon(pg.image.load('icon.png').convert_alpha())
+pg.display.set_icon(pg.image.load(join('sprites', 'icon.png')).convert_alpha())
 
 ADD_COLOR_1: Final[pg.SurfaceType] = pg.Surface((64, 64))
 ADD_COLOR_1.fill('goldenrod')
@@ -54,6 +55,10 @@ ADD_COLOR: Final[Button] = Button(
     RectPos(INIT_WIN_SIZE.w - 25, INIT_WIN_SIZE.h - 25, 'bottomright'),
     (ADD_COLOR_1, ADD_COLOR_2), 'add color'
 )
+MODIFY_GRID: Final[Button] = Button(
+    RectPos(ADD_COLOR.rect.x, ADD_COLOR.rect.y - 25, 'bottomleft'),
+    (ADD_COLOR_1, ADD_COLOR_2), 'modify grid'
+)
 
 SAVE_AS: Final[Button] = Button(
     RectPos(25, INIT_WIN_SIZE.h - 25, 'bottomleft'), (SAVE_1, SAVE_2), 'save as'
@@ -67,16 +72,27 @@ CLOSE: Final[Button] = Button(
 
 FPS_TEXT: Final[Text] = Text(RectPos(0, 0, 'topleft'), 32, 'FPS: 0')
 
+brush_size_imgs: List[Tuple[pg.SurfaceType, ...]] = []
+for n in range(1, 6):
+    off: pg.SurfaceType = pg.image.load(join('sprites', f'size_{n}_off.png')).convert_alpha()
+    on: pg.SurfaceType = pg.image.load(join('sprites', f'size_{n}_on.png')).convert_alpha()
+    brush_size_imgs.append((off, on))
+
+BRUSH_SIZE_GRID: Final[CheckBoxGrid] = CheckBoxGrid(
+    Point(10, FPS_TEXT.surf.get_height()), tuple(brush_size_imgs), 1
+)
+
 INIT_COLOR: Final[ColorType] = (0, 0, 0)
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
     RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), INIT_COLOR
 )
 
-imgs = tuple((SAVE_1, SAVE_2) for _ in range(5))
-BRUSH_SIZE_GRID: Final[CheckBoxGrid] = CheckBoxGrid(Point(10, FPS_TEXT.surf.get_height()), imgs, 1)
+GRID_UI: Final[GridUI] = GridUI(
+    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), GRID_MANAGER.grid.size
+)
 
 GLOBAL_OBJS: Final[Tuple[Any, ...]] = (
-    GRID_MANAGER, ADD_COLOR, BRUSH_SIZE_GRID, SAVE_AS, LOAD, CLOSE, FPS_TEXT
+    GRID_MANAGER, ADD_COLOR, MODIFY_GRID, BRUSH_SIZE_GRID, SAVE_AS, LOAD, CLOSE, FPS_TEXT
 )
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
@@ -132,8 +148,12 @@ class Dixel:
 
         for obj in GLOBAL_OBJS:
             blit_sequence += obj.blit()
-        if self._state == 1:
-            blit_sequence += COLOR_PICKER.blit()
+
+        match self._state:
+            case 1:
+                blit_sequence += COLOR_PICKER.blit()
+            case 2:
+                blit_sequence += GRID_UI.blit()
 
         self._win.fblits(blit_sequence)
         pg.display.flip()
@@ -150,6 +170,7 @@ class Dixel:
             obj.handle_resize(win_ratio_w, win_ratio_h)
 
         COLOR_PICKER.handle_resize(win_ratio_w, win_ratio_h)
+        GRID_UI.handle_resize(win_ratio_w, win_ratio_h)
 
     def _handle_keys(self, k: int) -> None:
         """
@@ -219,7 +240,7 @@ class Dixel:
 
             path = asksaveasfilename(
                 defaultextension='.png',
-                filetypes=(('png Files', '*.png'),),
+                filetypes=(('png Files', '*.png'), ('jpeg Files', '')),
                 title='Save as'
             )
             root.destroy()
@@ -273,13 +294,16 @@ class Dixel:
                     case 0:
                         GRID_MANAGER.upt(mouse_info, self._color, self._brush_size)
 
+                        brush_size: int = BRUSH_SIZE_GRID.upt(mouse_info)
+                        if brush_size != -1:
+                            self._brush_size = brush_size + 1
+
                         if ADD_COLOR.upt(mouse_info, True):
                             self._state = 1
                             COLOR_PICKER.set(BLACK)
 
-                        brush_size: int = BRUSH_SIZE_GRID.upt(mouse_info)
-                        if brush_size != -1:
-                            self._brush_size = brush_size + 1
+                        if MODIFY_GRID.upt(mouse_info, True):
+                            self._state = 2
 
                         self._handle_file_operations(mouse_info)
                     case 1:
@@ -290,6 +314,9 @@ class Dixel:
                             if new_color:
                                 self._color = new_color
 
+                            self._state = 0
+                    case 2:
+                        if GRID_UI.upt(mouse_info):
                             self._state = 0
 
                 self._redraw()

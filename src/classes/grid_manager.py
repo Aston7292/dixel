@@ -12,8 +12,8 @@ from src.const import ColorType, BlitSequence
 
 INIT_PIXEL_SIZE: Final[int] = 18
 
-EMPTY_1: Final[ColorType] = (75, 75, 75)
-EMPTY_2: Final[ColorType] = (85, 85, 85)
+EMPTY_1: Final[ColorType] = (85, 85, 85)
+EMPTY_2: Final[ColorType] = (75, 75, 75)
 TRANSPARENT: Final[Tuple[int, ...]] = (120, 120, 120, 125)
 
 
@@ -314,7 +314,7 @@ class GridManager:
                 self._hovering = False
         else:
             if not self._hovering:
-                pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
+                pg.mouse.set_cursor(pg.SYSTEM_CURSOR_CROSSHAIR)
                 self._hovering = True
 
             if self.grid.transparent_pixel.get_width() != brush_size:

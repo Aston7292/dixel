@@ -1,5 +1,5 @@
 Dixel is a simple pixel art drawing program that allows to load, save and edit png files, for now it supports only the mouse but i plan to add full keyboard support in the future.
-requires pygame and numpy.
+requires pygame-ce and numpy.
 
 ## Features
 

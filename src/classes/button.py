@@ -3,7 +3,7 @@ class to create a button, when hovered changes image and text appears on top of 
 """
 
 import pygame as pg
-from typing import Tuple
+from typing import Tuple, Optional
 
 from src.classes.text import Text
 from src.utils import RectPos, Size, MouseInfo
@@ -35,7 +35,11 @@ class Button:
         self._img_i: int = 0
         self._hovering: bool = False
 
-        self._text: Text = Text(RectPos(*self.rect.midtop, 'midbottom'), 28, text)
+        self._text: Optional[Text]
+        if not text:
+            self._text = None
+        else:
+            self._text = Text(RectPos(*self.rect.center, 'center'), 28, text)
 
     def blit(self) -> BlitSequence:
         """
@@ -43,7 +47,7 @@ class Button:
         """
 
         sequence: BlitSequence = [(self._imgs[self._img_i], self.rect.topleft)]
-        if self._img_i == 1:
+        if self._text:
             sequence += self._text.blit()
 
         return sequence
@@ -62,7 +66,8 @@ class Button:
         self._imgs = tuple(pg.transform.scale(img, size) for img in self._imgs)
         self.rect = self._imgs[0].get_frect(**{self._init_pos.pos: pos})
 
-        self._text.handle_resize(win_ratio_w, win_ratio_h)
+        if self._text:
+            self._text.handle_resize(win_ratio_w, win_ratio_h)
 
     def upt(self, mouse_info: MouseInfo, toggle_on_press: bool = False) -> bool:
         """

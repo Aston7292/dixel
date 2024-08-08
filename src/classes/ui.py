@@ -3,6 +3,7 @@ class to create a simple and easily customizable ui
 """
 
 import pygame as pg
+from os.path import join
 from typing import Tuple, Final
 
 from src.classes.button import Button
@@ -13,10 +14,8 @@ from src.const import BlitSequence
 INTERFACE: Final[pg.SurfaceType] = pg.Surface((500, 700))
 INTERFACE.fill((44, 44, 44))
 
-CONFIRM_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
-CONFIRM_1.fill('yellow')
-CONFIRM_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
-CONFIRM_2.fill('darkgoldenrod4')
+BUTTON_OFF: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_off.png')).convert_alpha()
+BUTTON_ON: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_on.png')).convert_alpha()
 
 CLOSE_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
 CLOSE_1.fill('red')
@@ -51,10 +50,11 @@ class UI:
         )
 
         self._confirm: Button = Button(
-            RectPos(*self.rect.bottomright, 'bottomright'), (CONFIRM_1, CONFIRM_2), 'confirm'
+            RectPos(self.rect.right - 10, self.rect.bottom - 10, 'bottomright'),
+            (BUTTON_OFF, BUTTON_ON), 'confirm'
         )
         self._close: Button = Button(
-            RectPos(*self.rect.topright, 'topright'), (CLOSE_1, CLOSE_2), 'close'
+            RectPos(*self.rect.topright, 'topright'), (CLOSE_1, CLOSE_2), ''
         )
 
     def blit(self) -> BlitSequence:
@@ -72,7 +72,7 @@ class UI:
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
         resizes objects
-        takes window size
+        takes window size ratio
         """
 
         size: Tuple[int, int] = (

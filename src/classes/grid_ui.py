@@ -8,9 +8,9 @@ from typing import Tuple, Final
 from src.classes.ui import UI
 from src.classes.text import Text
 from src.utils import RectPos, Size, MouseInfo
-from src.const import ColorType, BlitSequence
+from src.const import EMPTY_1, EMPTY_2, ColorType, BlitSequence
 
-CHOOSING_BOX: Final[pg.SurfaceType] = pg.Surface((100, 50))
+CHOOSING_BOX: Final[pg.SurfaceType] = pg.Surface((75, 50))
 
 
 class NumChooser:
@@ -20,13 +20,13 @@ class NumChooser:
 
     __slots__ = (
         '_init_pos', '_img', 'rect', '_init_size',  'value', '_hovering', '_scrolling',
-        '_starting_x', '_starting_value', '_text'
+        '_traveled_x', '_prev_mouse_x', '_value_text', '_description'
     )
 
-    def __init__(self, pos: RectPos, value: int):
+    def __init__(self, pos: RectPos, value: int, text: str):
         """
         creates the choosing box
-        takes position and starting value
+        takes position, starting value and text
         """
 
         self._init_pos: RectPos = pos
@@ -41,10 +41,13 @@ class NumChooser:
         self._hovering: bool = False
         self._scrolling: bool = False
 
-        self._starting_x: int = 0
-        self._starting_value: int = self.value
+        self._traveled_x: int = 0
+        self._prev_mouse_x: int = pg.mouse.get_pos()[0]
 
-        self._text: Text = Text(RectPos(*self.rect.center, 'center'), 32, str(self.value))
+        self._value_text: Text = Text(RectPos(*self.rect.center, 'center'), 32, str(self.value))
+        self._description: Text = Text(
+            RectPos(self.rect.x - 40, self.rect.centery, 'midright'), 32, text
+        )
 
     def blit(self) -> BlitSequence:
         """
@@ -52,7 +55,8 @@ class NumChooser:
         """
 
         sequence: BlitSequence = [(self._img, self.rect.topleft)]
-        sequence += self._text.blit()
+        sequence += self._value_text.blit()
+        sequence += self._description.blit()
 
         return sequence
 
@@ -70,7 +74,8 @@ class NumChooser:
         self._img = pg.transform.scale(self._img, size)
         self.rect = self._img.get_frect(**{self._init_pos.pos: pos})
 
-        self._text.handle_resize(win_ratio_w, win_ratio_h)
+        self._value_text.handle_resize(win_ratio_w, win_ratio_h)
+        self._description.handle_resize(win_ratio_w, win_ratio_h)
 
     def upt(self, mouse_info: MouseInfo) -> None:
         """
@@ -86,7 +91,7 @@ class NumChooser:
 
             if not mouse_info.buttons[0]:
                 self._scrolling = False
-                self._starting_x = 0
+                self._traveled_x = 0
         else:
             if not self._hovering:
                 self._hovering = True
@@ -94,16 +99,20 @@ class NumChooser:
 
             if not mouse_info.buttons[0]:
                 self._scrolling = False
+                self._traveled_x = 0
             elif not self._scrolling:
                 self._scrolling = True
-                self._starting_x = mouse_info.x
-                self._starting_value = self.value
 
         if self._scrolling:
-            self.value = self._starting_value + (mouse_info.x - self._starting_x) // 10
+            self._traveled_x += mouse_info.x - self._prev_mouse_x
+            if abs(self._traveled_x) >= 10:
+                pixels_traveled: int = round(self._traveled_x / 10)
+                self._traveled_x -= pixels_traveled * 10
 
-            self.value = max(min(self.value, 128), 0)
-            self._text.modify_text(str(self.value))
+                self.value = max(min(self.value + pixels_traveled, 256), 16)
+                self._value_text.modify_text(str(self.value))
+
+        self._prev_mouse_x = mouse_info.x
 
 class GridUI:
     """
@@ -111,8 +120,8 @@ class GridUI:
     """
 
     __slots__ = (
-        '_ui', '_preview_init_pos', '_pixel_dim', '_preview_img', '_preview_rect',
-        '_preview_init_size', '_h_chooser', '_w_chooser'
+        '_ui', '_preview_init_pos', '_preview_pos', '_preview_img', '_preview_rect',
+        '_preview_init_size', '_preview_ratio', '_h_chooser', '_w_chooser'
     )
 
     def __init__(self, pos: RectPos, grid_size: Size) -> None:
@@ -126,22 +135,23 @@ class GridUI:
         self._preview_init_pos: RectPos = RectPos(
             self._ui.rect.centerx, self._ui.rect.centery + 40, 'center'
         )
+        self._preview_pos: Tuple[float, float] = self._preview_init_pos.xy
 
-        self._pixel_dim: int = 8
-        self._preview_img: pg.SurfaceType = pg.Surface(
-            (grid_size.w * self._pixel_dim, grid_size.h * self._pixel_dim)
-        )
+        self._preview_img: pg.SurfaceType = pg.Surface((300, 300))
         self._preview_rect: pg.FRect = self._preview_img.get_frect(
-            **{self._preview_init_pos.pos: self._preview_init_pos.xy}
+            **{self._preview_init_pos.pos: self._preview_pos}
         )
 
         self._preview_init_size: Size = Size(int(self._preview_rect.w), int(self._preview_rect.h))
+        self._preview_ratio: float = 1
 
         self._h_chooser: NumChooser = NumChooser(
-            RectPos(self._ui.rect.centerx, self._preview_rect.y - 25, 'midbottom'), grid_size.h
+            RectPos(self._ui.rect.centerx, self._preview_rect.y - 25, 'midbottom'),
+            grid_size.h, 'height'
         )
         self._w_chooser: NumChooser = NumChooser(
-            RectPos(self._ui.rect.centerx, self._h_chooser.rect.y - 25, 'midbottom'), grid_size.w
+            RectPos(self._ui.rect.centerx, self._h_chooser.rect.y - 25, 'midbottom'),
+            grid_size.w, 'width'
         )
 
         self._get_preview()
@@ -164,19 +174,17 @@ class GridUI:
         takes window size
         """
 
+        self._preview_ratio = min(win_ratio_w, win_ratio_h)
+
         self._ui.handle_resize(win_ratio_w, win_ratio_h)
 
-        preview_size: Tuple[int, int] = (
-            int(self._preview_init_size.w * win_ratio_w),
-            int(self._preview_init_size.h * win_ratio_h)
-        )
-        preview_pos: Tuple[float, float] = (
+        self._preview_pos = (
             self._preview_init_pos.x * win_ratio_w, self._preview_init_pos.y * win_ratio_h
         )
 
-        self._preview_img = pg.transform.scale(self._preview_img, preview_size)
+        self._get_preview()  # preview has custom scaling
         self._preview_rect = self._preview_img.get_frect(
-            **{self._preview_init_pos.pos: preview_pos}
+            **{self._preview_init_pos.pos: self._preview_pos}
         )
 
         self._w_chooser.handle_resize(win_ratio_w, win_ratio_h)
@@ -187,21 +195,32 @@ class GridUI:
         Draws a preview of the grid
         """
 
-        empty_pixel: pg.SurfaceType = pg.Surface((self._pixel_dim, self._pixel_dim))
-        half_size: int = (self._pixel_dim + 1) // 2
+        grid_size: Size = Size(self._w_chooser.value, self._h_chooser.value)
+        pixel_dim: float = min(
+            self._preview_init_size.w / grid_size.w, self._preview_init_size.h / grid_size.h
+        )
+
+        self._preview_img = pg.Surface((grid_size.w * 2, grid_size.h * 2))
+
+        empty_pixel: pg.SurfaceType = pg.Surface((2, 2))
         for row in range(2):
             for col in range(2):
-                rect: Tuple[int, int, int, int] = (
-                    col * half_size, row * half_size, half_size, half_size
-                )
-                color: ColorType = (85, 85, 85) if (row + col) % 2 == 0 else (75, 75, 75)
-                pg.draw.rect(empty_pixel, color, rect)
+                color: ColorType = EMPTY_1 if (row + col) % 2 == 0 else EMPTY_2
+                empty_pixel.set_at((col, row), color)
 
-        sequence: BlitSequence = [
-            (empty_pixel, (x * self._pixel_dim, y * self._pixel_dim))
-            for x in range(self._w_chooser.value) for y in range(self._h_chooser.value)
-        ]
-        self._preview_img.fblits(sequence)
+        self._preview_img.fblits(
+            (empty_pixel, (x * 2, y * 2)) for x in range(grid_size.w) for y in range(grid_size.h)
+        )
+
+        size: Tuple[int, int] = (
+            int(grid_size.w * pixel_dim * self._preview_ratio),
+            int(grid_size.h * pixel_dim * self._preview_ratio)
+        )
+
+        self._preview_img = pg.transform.scale(self._preview_img, size)
+        self._preview_rect = self._preview_img.get_frect(
+            **{self._preview_init_pos.pos: self._preview_pos}
+        )
 
     def upt(self, mouse_info: MouseInfo) -> bool:
         """
@@ -210,8 +229,13 @@ class GridUI:
         return whatever the interface was closed or not
         """
 
+        prev_value: Tuple[int, int] = (self._w_chooser.value, self._h_chooser.value)
+
         self._w_chooser.upt(mouse_info)
         self._h_chooser.upt(mouse_info)
+
+        if (self._w_chooser.value, self._h_chooser.value) != prev_value:
+            self._get_preview()
 
         confirmed: bool
         exited: bool

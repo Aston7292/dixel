@@ -8,12 +8,10 @@ from numpy.typing import NDArray
 from typing import Tuple, Final, Optional
 
 from src.utils import Point, Size, RectPos, MouseInfo
-from src.const import ColorType, BlitSequence
+from src.const import EMPTY_1, EMPTY_2, ColorType, BlitSequence
 
 INIT_PIXEL_SIZE: Final[int] = 18
 
-EMPTY_1: Final[ColorType] = (85, 85, 85)
-EMPTY_2: Final[ColorType] = (75, 75, 75)
 TRANSPARENT: Final[Tuple[int, ...]] = (120, 120, 120, 125)
 
 
@@ -265,33 +263,26 @@ class GridManager:
         if not mouse_info.buttons[1]:
             self._traveled_dist.x = self._traveled_dist.y = 0
         else:
-            direction: int
             pixels_traveled: int
             cap: int
 
             self._traveled_dist.x += self._prev_mouse_pos.x - mouse_info.x
             if abs(self._traveled_dist.x) > self.grid.pixel_size.w:
-                direction = 1 if self._traveled_dist.x > 0 else -1
-
-                pixels_traveled = abs(self._traveled_dist.x) // self.grid.pixel_size.w
-                self._traveled_dist.x -= pixels_traveled * self.grid.pixel_size.w * direction
+                pixels_traveled = round(self._traveled_dist.x / self.grid.pixel_size.w)
+                self._traveled_dist.x -= pixels_traveled * self.grid.pixel_size.w
 
                 cap = self.grid.pixels.shape[1] - self.grid.size.w
-                self._grid_offset.x += pixels_traveled * direction
-                self._grid_offset.x = np.clip(self._grid_offset.x, 0, cap)
+                self._grid_offset.x = np.clip(self._grid_offset.x + pixels_traveled, 0, cap)
 
                 redraw_grid = True
 
             self._traveled_dist.y += self._prev_mouse_pos.y - mouse_info.y
             if abs(self._traveled_dist.y) > self.grid.pixel_size.h:
-                direction = 1 if self._traveled_dist.y > 0 else -1
-
-                pixels_traveled = abs(self._traveled_dist.y) // self.grid.pixel_size.h
-                self._traveled_dist.y -= pixels_traveled * self.grid.pixel_size.h * direction
+                pixels_traveled = round(self._traveled_dist.y / self.grid.pixel_size.h)
+                self._traveled_dist.y -= pixels_traveled * self.grid.pixel_size.h
 
                 cap = self.grid.pixels.shape[0] - self.grid.size.h
-                self._grid_offset.y += pixels_traveled * direction
-                self._grid_offset.y = np.clip(self._grid_offset.y, 0, cap)
+                self._grid_offset.y = np.clip(self._grid_offset.y + pixels_traveled, 0, cap)
 
                 redraw_grid = True
 

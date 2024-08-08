@@ -12,16 +12,10 @@ from os.path import join, exists
 from traceback import print_exc
 from typing import Tuple, List, Final, Optional, Any
 
-pg.init()
-
-from src.classes.grid_ui import GridUI
-from src.classes.color_manager import ColorPicker
-from src.classes.grid_manager import GridManager
-from src.classes.check_box import CheckBoxGrid
-from src.classes.button import Button
-from src.classes.text import Text
 from src.utils import Point, RectPos, Size, MouseInfo, get_monitor_size
 from src.const import INIT_WIN_SIZE, BLACK, ColorType, BlitSequence
+
+pg.init()
 
 ADD_FLAGS: Final[int] = pg.DOUBLEBUF | pg.HWSURFACE
 INIT_WIN: Final[pg.SurfaceType] = pg.display.set_mode(
@@ -30,44 +24,36 @@ INIT_WIN: Final[pg.SurfaceType] = pg.display.set_mode(
 pg.display.set_caption('Dixel')
 pg.display.set_icon(pg.image.load(join('sprites', 'icon.png')).convert_alpha())
 
-ADD_COLOR_1: Final[pg.SurfaceType] = pg.Surface((64, 64))
-ADD_COLOR_1.fill('goldenrod')
-ADD_COLOR_2: Final[pg.SurfaceType] = pg.Surface((64, 64))
-ADD_COLOR_2.fill('darkgoldenrod4')
+from src.classes.grid_ui import GridUI
+from src.classes.color_manager import ColorPicker
+from src.classes.grid_manager import GridManager
+from src.classes.check_box import CheckBoxGrid
+from src.classes.button import Button
+from src.classes.text import Text
 
-SAVE_1: Final[pg.SurfaceType] = pg.Surface((64, 64))
-SAVE_1.fill('goldenrod')
-SAVE_2: Final[pg.SurfaceType] = pg.Surface((64, 64))
-SAVE_2.fill('darkgoldenrod4')
-LOAD_1: Final[pg.SurfaceType] = pg.Surface((64, 64))
-LOAD_1.fill('goldenrod')
-LOAD_2: Final[pg.SurfaceType] = pg.Surface((64, 64))
-LOAD_2.fill('darkgoldenrod4')
-CLOSE_1: Final[pg.SurfaceType] = pg.Surface((64, 64))
-CLOSE_1.fill('goldenrod')
-CLOSE_2: Final[pg.SurfaceType] = pg.Surface((64, 64))
-CLOSE_2.fill('darkgoldenrod4')
+BUTTON_OFF: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_off.png')).convert_alpha()
+BUTTON_ON: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_on.png')).convert_alpha()
 
 GRID_MANAGER: Final[GridManager] = GridManager(
     RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center')
 )
 ADD_COLOR: Final[Button] = Button(
     RectPos(INIT_WIN_SIZE.w - 25, INIT_WIN_SIZE.h - 25, 'bottomright'),
-    (ADD_COLOR_1, ADD_COLOR_2), 'add color'
+    (BUTTON_OFF, BUTTON_ON), 'add color'
 )
 MODIFY_GRID: Final[Button] = Button(
     RectPos(ADD_COLOR.rect.x, ADD_COLOR.rect.y - 25, 'bottomleft'),
-    (ADD_COLOR_1, ADD_COLOR_2), 'modify grid'
+    (BUTTON_OFF, BUTTON_ON), 'modify grid'
 )
 
 SAVE_AS: Final[Button] = Button(
-    RectPos(25, INIT_WIN_SIZE.h - 25, 'bottomleft'), (SAVE_1, SAVE_2), 'save as'
+    RectPos(25, INIT_WIN_SIZE.h - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'save as'
 )
 LOAD: Final[Button] = Button(
-    RectPos(25, SAVE_AS.rect.y - 25, 'bottomleft'), (LOAD_1, LOAD_2), 'load'
+    RectPos(25, SAVE_AS.rect.y - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'load file'
 )
 CLOSE: Final[Button] = Button(
-    RectPos(25, LOAD.rect.y - 25, 'bottomleft'), (CLOSE_1, CLOSE_2), 'close'
+    RectPos(25, LOAD.rect.y - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'close file'
 )
 
 FPS_TEXT: Final[Text] = Text(RectPos(0, 0, 'topleft'), 32, 'FPS: 0')
@@ -280,7 +266,7 @@ class Dixel:
 
         try:
             while True:
-                CLOCK.tick(60)
+                CLOCK.tick(6000)
 
                 self._handle_events()
                 if not self._focused:

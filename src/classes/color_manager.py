@@ -242,7 +242,7 @@ class ColorPicker:
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
         resizes objects
-        takes window size
+        takes window size ratio
         """
 
         self._ui.handle_resize(win_ratio_w, win_ratio_h)

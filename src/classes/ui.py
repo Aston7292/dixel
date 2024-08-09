@@ -6,7 +6,7 @@ import pygame as pg
 from os.path import join
 from typing import Tuple, Final
 
-from src.classes.button import Button
+from src.classes.clickable import Button
 from src.classes.text import Text
 from src.utils import RectPos, Size, MouseInfo
 from src.const import BlitSequence
@@ -25,7 +25,7 @@ CLOSE_2.fill('darkred')
 
 class UI:
     """
-    class for rendering a ui with a title close and confirm button
+    class for rendering a ui with a title, close and confirm button
     """
 
     __slots__ = (

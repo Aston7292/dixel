@@ -5,35 +5,29 @@ classes to create a checkbox or a grid of connected checkboxes
 import pygame as pg
 from typing import Tuple, List
 
-from src.utils import Point, RectPos, Size, MouseInfo
+from src.classes.clickable import Clickable
+from src.utils import Point, RectPos, MouseInfo
 from src.const import BlitSequence
 
 
-class CheckBox:
+class LockedCheckBox(Clickable):
     """
     class to create a checkbox, when hovered changes image and
-    when clicked it will always display the hovering image
+    when clicked it will always display the hovering image, cannot be ticked off
     """
 
     __slots__ = (
-        '_init_pos', '_imgs', '_init_size', 'rect', '_img_i', '_hovering', 'clicked'
+        'clicked',
     )
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...]) -> None:
         """
-        creates button surface, rect and text object
+        creates surfaces and rect
         takes position and two images
         """
 
-        self._init_pos: RectPos = pos
+        super().__init__(pos, imgs)
 
-        self._imgs: Tuple[pg.SurfaceType, ...] = imgs
-        self.rect: pg.FRect = self._imgs[0].get_frect(**{self._init_pos.pos: self._init_pos.xy})
-
-        self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
-
-        self._img_i: int = 0
-        self._hovering: bool = False
         self.clicked: bool = False
 
     def blit(self) -> BlitSequence:
@@ -45,25 +39,11 @@ class CheckBox:
 
         return [(self._imgs[img_i], self.rect.topleft)]
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
-        """
-        resizes objects
-        takes window size ratio
-        """
-
-        size: Tuple[int, int] = (
-            int(self._init_size.w * win_ratio_w), int(self._init_size.h * win_ratio_h)
-        )
-        pos: Tuple[float, float] = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
-
-        self._imgs = tuple(pg.transform.scale(img, size) for img in self._imgs)
-        self.rect = self._imgs[0].get_frect(**{self._init_pos.pos: pos})
-
     def upt(self, mouse_info: MouseInfo) -> bool:
         """
-        updates the checkbox image if the mouse is hovering it and toggles it on if clicked
+        updates the checkbox image if the mouse is hovering it and ticks it on if clicked
         takes mouse info
-        returns true if the checkbox was toggled on
+        returns True if the checkbox was ticked on
         """
 
         if not self.rect.collidepoint(mouse_info.xy):
@@ -111,7 +91,7 @@ class CheckBoxGrid:
         x, y = pos.xy
         w, h = all_imgs[0][0].get_size()
 
-        self._check_boxes: List[CheckBox] = []
+        self._check_boxes: List[LockedCheckBox] = []
 
         extras: int = len(all_imgs) % rows
         row_len: int = len(all_imgs) // rows + (1 if extras else 0)
@@ -130,7 +110,7 @@ class CheckBoxGrid:
                     row_len -= 1
             index += 1
 
-            self._check_boxes.append(CheckBox(RectPos(x, y, 'topleft'), img))
+            self._check_boxes.append(LockedCheckBox(RectPos(x, y, 'topleft'), img))
         self._check_boxes[0].clicked = True
 
     def blit(self) -> BlitSequence:
@@ -157,7 +137,7 @@ class CheckBoxGrid:
         """
         makes the grid interactable and allows only one check_box to be pressed at a time
         takes mouse info
-        if a checkbox was toggled on it returns its index else -1
+        if a checkbox was ticked on it returns its index else -1
         """
 
         index: int = -1

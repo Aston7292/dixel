@@ -4,7 +4,6 @@ drawing program for pixel art
 
 import pygame as pg
 
-from copy import copy
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from PIL.Image import fromarray
@@ -28,7 +27,7 @@ from src.classes.grid_ui import GridUI
 from src.classes.color_manager import ColorPicker
 from src.classes.grid_manager import GridManager
 from src.classes.check_box import CheckBoxGrid
-from src.classes.button import Button
+from src.classes.clickable import Button
 from src.classes.text import Text
 
 BUTTON_OFF: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_off.png')).convert_alpha()
@@ -101,7 +100,7 @@ class Dixel:
         initializes the window
         """
 
-        self._win_size: Size = copy(INIT_WIN_SIZE)
+        self._win_size: Size = Size(INIT_WIN_SIZE.w, INIT_WIN_SIZE.h)
         self._prev_win_size: Tuple[int, int] = self._win_size.wh
         self._flag: int = pg.RESIZABLE
         self._full_screen: bool = False
@@ -266,7 +265,7 @@ class Dixel:
 
         try:
             while True:
-                CLOCK.tick(6000)
+                CLOCK.tick(60)
 
                 self._handle_events()
                 if not self._focused:
@@ -276,6 +275,7 @@ class Dixel:
                     *pg.mouse.get_pos(), pg.mouse.get_pressed(), pg.mouse.get_just_released()
                 )
 
+                closed: bool
                 match self._state:
                     case 0:
                         GRID_MANAGER.upt(mouse_info, self._color, self._brush_size)
@@ -293,7 +293,6 @@ class Dixel:
 
                         self._handle_file_operations(mouse_info)
                     case 1:
-                        closed: bool
                         new_color: Optional[ColorType]
                         closed, new_color = COLOR_PICKER.upt(mouse_info)
                         if closed:
@@ -302,7 +301,12 @@ class Dixel:
 
                             self._state = 0
                     case 2:
-                        if GRID_UI.upt(mouse_info):
+                        new_size: Optional[Size]
+                        closed, new_size = GRID_UI.upt(mouse_info)
+                        if closed:
+                            if new_size:
+                                GRID_MANAGER.resize(new_size)
+
                             self._state = 0
 
                 self._redraw()

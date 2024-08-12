@@ -21,6 +21,8 @@ CHECK_BOX_2: Final[pg.SurfaceType] = pg.image.load(
     join('sprites', 'check_box_on.png')
 ).convert_alpha()
 
+MAX_SIZE: Final[int] = 256
+
 
 class NumChooser:
     """
@@ -28,7 +30,7 @@ class NumChooser:
     """
 
     __slots__ = (
-        '_init_pos', '_img', 'rect', '_init_size',  'value', '_hovering', '_scrolling',
+        '_init_pos', '_img', 'rect', '_init_size', 'value', '_hovering', '_scrolling',
         '_traveled_x', '_prev_mouse_x', '_value_text', '_description'
     )
 
@@ -93,7 +95,7 @@ class NumChooser:
         """
 
         self._traveled_x = 0
-        self.value = max(min(value, 256), 16)
+        self.value = max(min(value, MAX_SIZE), 1)
         self._value_text.modify_text(str(self.value))
 
     def upt(self, mouse_info: MouseInfo) -> None:
@@ -128,10 +130,11 @@ class NumChooser:
                 pixels_traveled: int = round(self._traveled_x / 10)
                 self._traveled_x -= pixels_traveled * 10
 
-                self.value = max(min(self.value + pixels_traveled, 256), 1)
+                self.value = max(min(self.value + pixels_traveled, MAX_SIZE), 1)
                 self._value_text.modify_text(str(self.value))
 
         self._prev_mouse_x = mouse_info.x
+
 
 class GridUI:
     """
@@ -140,7 +143,8 @@ class GridUI:
 
     __slots__ = (
         '_ui', '_preview_init_pos', '_preview_pos', '_preview_img', '_preview_rect',
-        '_preview_init_size', '_preview_ratio', '_h_chooser', '_w_chooser', '_check_box', '_ratio'
+        '_preview_init_size', '_h_chooser', '_w_chooser', '_check_box', '_ratio', '_win_ratio',
+        '_small_preview_img'
     )
 
     def __init__(self, pos: RectPos, grid_size: Size) -> None:
@@ -162,7 +166,6 @@ class GridUI:
         )
 
         self._preview_init_size: Size = Size(int(self._preview_rect.w), int(self._preview_rect.h))
-        self._preview_ratio: float = 1
 
         self._h_chooser: NumChooser = NumChooser(
             RectPos(self._preview_rect.x + 20, self._preview_rect.y - 25, 'bottomleft'),
@@ -177,8 +180,13 @@ class GridUI:
             RectPos(self._preview_rect.right - 20, self._h_chooser.rect.centery, 'midright'),
             (CHECK_BOX_1, CHECK_BOX_2), 'keep ratio'
         )
-        self._ratio: Tuple[float, float] = (0, 0)
 
+        self._ratio: Tuple[float, float] = (0, 0)
+        self._win_ratio: float = 1
+
+        self._small_preview_img: pg.SurfaceType = pg.Surface(
+            (self._w_chooser.value * 2, self._h_chooser.value * 2)
+        )
         self._get_preview(Size(self._w_chooser.value, self._h_chooser.value))
 
     def blit(self) -> BlitSequence:
@@ -200,16 +208,24 @@ class GridUI:
         takes window size
         """
 
-        self._preview_ratio = min(win_ratio_w, win_ratio_h)
+        self._win_ratio = min(win_ratio_w, win_ratio_h)
 
         self._ui.handle_resize(win_ratio_w, win_ratio_h)
+
+        pixel_dim: float = min(
+            self._preview_init_size.w / self._w_chooser.value * self._win_ratio,
+            self._preview_init_size.h / self._h_chooser.value * self._win_ratio
+        )
+        size: Tuple[int, int] = (
+            int(self._w_chooser.value * pixel_dim),
+            int(self._h_chooser.value * pixel_dim)
+        )
 
         self._preview_pos = (
             self._preview_init_pos.x * win_ratio_w, self._preview_init_pos.y * win_ratio_h
         )
 
-        # preview has custom scaling
-        self._get_preview(Size(self._w_chooser.value, self._h_chooser.value))
+        self._preview_img = pg.transform.scale(self._small_preview_img, size)
         self._preview_rect = self._preview_img.get_frect(
             **{self._preview_init_pos.pos: self._preview_pos}
         )
@@ -225,10 +241,11 @@ class GridUI:
         """
 
         pixel_dim: float = min(
-            self._preview_init_size.w / grid_size.w, self._preview_init_size.h / grid_size.h
+            self._preview_init_size.w / grid_size.w * self._win_ratio,
+            self._preview_init_size.h / grid_size.h * self._win_ratio
         )
 
-        self._preview_img = pg.Surface((grid_size.w * 2, grid_size.h * 2))
+        self._small_preview_img = pg.Surface((grid_size.w * 2, grid_size.h * 2))
 
         empty_pixel: pg.SurfaceType = pg.Surface((2, 2))
         for row in range(2):
@@ -236,16 +253,16 @@ class GridUI:
                 color: ColorType = EMPTY_1 if (row + col) % 2 == 0 else EMPTY_2
                 empty_pixel.set_at((col, row), color)
 
-        self._preview_img.fblits(
+        self._small_preview_img.fblits(
             (empty_pixel, (x * 2, y * 2)) for x in range(grid_size.w) for y in range(grid_size.h)
         )
 
         size: Tuple[int, int] = (
-            int(grid_size.w * pixel_dim * self._preview_ratio),
-            int(grid_size.h * pixel_dim * self._preview_ratio)
+            int(grid_size.w * pixel_dim),
+            int(grid_size.h * pixel_dim)
         )
 
-        self._preview_img = pg.transform.scale(self._preview_img, size)
+        self._preview_img = pg.transform.scale(self._small_preview_img, size)
         self._preview_rect = self._preview_img.get_frect(
             **{self._preview_init_pos.pos: self._preview_pos}
         )
@@ -267,8 +284,10 @@ class GridUI:
             if self._check_box.ticked:
                 if grid_size.w != prev_grid_size.w:
                     self._h_chooser.set(round(grid_size.w * self._ratio[0]))
+                    grid_size.h = self._h_chooser.value
                 else:
                     self._w_chooser.set(round(grid_size.h * self._ratio[1]))
+                    grid_size.w = self._w_chooser.value
 
             self._get_preview(grid_size)
 

@@ -21,7 +21,7 @@ class ScrollBar:
     """
 
     __slots__ = (
-        '_bar_init_pos', '_unit_w', '_channel', '_bar_img', 'bar_rect', '_bar_init_size',
+        '_bar_init_pos', '_channel', '_unit_w', '_bar_img', 'bar_rect', '_bar_init_size',
         'value', '_slider_init_pos', '_slider_img', '_slider_rect', '_slider_init_size',
         '_hovering', '_scrolling', '_channel_text', '_value_text'
     )
@@ -173,8 +173,8 @@ class ScrollBar:
             self._scrolling = bool(mouse_info.buttons[0])
 
         if self._scrolling:
-            self._slider_rect.x = max(
-                min(mouse_info.x, self.bar_rect.right), self.bar_rect.left
+            self._slider_rect.x = min(
+                max(mouse_info.x, self.bar_rect.left), self.bar_rect.right
             )
             self.value = ceil((self._slider_rect.x - self.bar_rect.x) / self._unit_w)
             self._value_text.modify_text(str(self.value))

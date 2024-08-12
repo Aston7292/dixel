@@ -34,7 +34,8 @@ BUTTON_OFF: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_off.pn
 BUTTON_ON: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_on.png')).convert_alpha()
 
 GRID_MANAGER: Final[GridManager] = GridManager(
-    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center')
+    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'),
+    RectPos(INIT_WIN_SIZE.w - 10, 10, 'topright')
 )
 ADD_COLOR: Final[Button] = Button(
     RectPos(INIT_WIN_SIZE.w - 25, INIT_WIN_SIZE.h - 25, 'bottomright'),
@@ -73,7 +74,7 @@ COLOR_PICKER: Final[ColorPicker] = ColorPicker(
 )
 
 GRID_UI: Final[GridUI] = GridUI(
-    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), GRID_MANAGER.grid.size
+    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), GRID_MANAGER.grid.grid_size
 )
 
 GLOBAL_OBJS: Final[Tuple[Any, ...]] = (
@@ -120,7 +121,9 @@ class Dixel:
             with open('data.txt', encoding='utf-8') as f:
                 prev_path: str = f.read()
             self._file_path = prev_path if exists(prev_path) else ''
-        GRID_MANAGER.load_path(self._file_path)
+
+            if self._file_path:
+                GRID_MANAGER.load_path(self._file_path)
 
     def _redraw(self) -> None:
         """

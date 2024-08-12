@@ -17,15 +17,17 @@ INTERFACE.fill((44, 44, 44))
 BUTTON_OFF: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_off.png')).convert_alpha()
 BUTTON_ON: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_on.png')).convert_alpha()
 
-CLOSE_1: Final[pg.SurfaceType] = pg.Surface((100, 100))
-CLOSE_1.fill('red')
-CLOSE_2: Final[pg.SurfaceType] = pg.Surface((100, 100))
-CLOSE_2.fill('darkred')
+CLOSE_1: Final[pg.SurfaceType] = pg.image.load(
+    join('sprites', 'close_button_off.png')
+).convert_alpha()
+CLOSE_2: Final[pg.SurfaceType] = pg.image.load(
+    join('sprites', 'close_button_on.png')
+).convert_alpha()
 
 
 class UI:
     """
-    class for rendering a ui with a title, close and confirm button
+    class for rendering an ui with a title, close and confirm button
     """
 
     __slots__ = (
@@ -54,7 +56,7 @@ class UI:
             (BUTTON_OFF, BUTTON_ON), 'confirm'
         )
         self._close: Button = Button(
-            RectPos(*self.rect.topright, 'topright'), (CLOSE_1, CLOSE_2), ''
+            RectPos(self.rect.right - 10, self.rect.y + 10, 'topright'), (CLOSE_1, CLOSE_2), ''
         )
 
     def blit(self) -> BlitSequence:

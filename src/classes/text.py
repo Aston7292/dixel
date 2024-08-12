@@ -7,11 +7,9 @@ import pygame as pg
 from typing import Tuple, Dict, Final
 
 from src.utils import RectPos
-from src.const import ColorType, BlitSequence
+from src.const import WHITE, BlitSequence
 
-WHITE: Final[ColorType] = (255, 255, 255)
-
-RENDERERS_CACHE: Dict[int, pg.Font] = {}
+RENDERERS_CACHE: Final[Dict[int, pg.Font]] = {}
 
 
 class Text:
@@ -20,7 +18,7 @@ class Text:
     """
 
     __slots__ = (
-        '_renderer', '_text', 'surf', '_init_h', '_init_pos', '_pos', '_topleft'
+        '_init_pos', '_pos', '_init_h', '_renderer', '_text', 'surf', '_topleft'
     )
 
     def __init__(self, pos: RectPos, h: int, text: str) -> None:

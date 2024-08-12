@@ -10,6 +10,7 @@ from src.classes.text import Text
 from src.utils import RectPos, Size, MouseInfo
 from src.const import BlitSequence
 
+
 class Clickable(ABC):
     """
     abstract class to create and object that changes between two images
@@ -18,7 +19,7 @@ class Clickable(ABC):
     """
 
     __slots__ = (
-        '_init_pos', '_imgs', '_init_size', 'rect', '_img_i', '_hovering'
+        '_init_pos', '_imgs', 'rect', '_init_size', '_img_i', '_hovering'
     )
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...]) -> None:
@@ -66,6 +67,7 @@ class Clickable(ABC):
         takes mouse info
         returns a boolean
         """
+
 
 class CheckBox(Clickable):
     """
@@ -136,6 +138,7 @@ class CheckBox(Clickable):
             return self.ticked
 
         return False
+
 
 class Button(Clickable):
     """

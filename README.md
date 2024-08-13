@@ -1,4 +1,3 @@
-Dixel is a simple pixel art drawing program that allows to load, save and edit png files, for now it supports only the mouse but i plan to add full keyboard support in the future.
 requires pygame-ce and numpy.
 
 ## Features
@@ -9,7 +8,18 @@ requires pygame-ce and numpy.
 - **Color Picker**: Select colors with a colorful and intuitive UI.
 - **Brush Size**: Select the brush size using checkboxes.
 - **Resizable Grid**: Change the grid size and have a preview of how it will look.
+- **Minimap**: At any point there's a minimap in the top right corner with a white square to indicate the current position
 - **Auto Save**: If you're editing an existing image it will be saved when the program or the file are closed, if the program crashes the image will always be saved.
+
+## Keyboard Shortcuts
+
+- **CTRL + A**: Go to add color ui
+- **CTRL + M**: Go to modify grid ui
+- **CTRL + S**: Save file with name
+- **CTRL + O**: Open file
+- **CTRL + Q**: Close file
+- **CTRL + Backspace**: Exit in ui
+- **CTRL + Enter**: Confirm in ui
 
 ## Screenshots
 

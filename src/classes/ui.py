@@ -12,7 +12,7 @@ from src.utils import RectPos, Size, MouseInfo
 from src.const import BlitSequence
 
 INTERFACE: Final[pg.SurfaceType] = pg.Surface((500, 700))
-INTERFACE.fill((44, 44, 44))
+INTERFACE.fill((60, 60, 60))
 
 BUTTON_OFF: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_off.png')).convert_alpha()
 BUTTON_ON: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_on.png')).convert_alpha()
@@ -27,11 +27,12 @@ CLOSE_2: Final[pg.SurfaceType] = pg.image.load(
 
 class UI:
     """
-    class for rendering an ui with a title, close and confirm button
+    class for rendering an ui with a title, confirm and exit button
     """
 
     __slots__ = (
-        '_init_pos', '_img', 'rect', '_init_size', '_title', '_confirm', '_close'
+        '_init_pos', '_img', 'rect', '_init_size', '_title', '_confirm', '_exit',
+        'prev_mouse_cursor'
     )
 
     def __init__(self, pos: RectPos, title: str) -> None:
@@ -55,9 +56,11 @@ class UI:
             RectPos(self.rect.right - 10, self.rect.bottom - 10, 'bottomright'),
             (BUTTON_OFF, BUTTON_ON), 'confirm'
         )
-        self._close: Button = Button(
+        self._exit: Button = Button(
             RectPos(self.rect.right - 10, self.rect.y + 10, 'topright'), (CLOSE_1, CLOSE_2), ''
         )
+
+        self.prev_mouse_cursor: pg.Cursor = pg.mouse.get_cursor()
 
     def blit(self) -> BlitSequence:
         """
@@ -67,7 +70,7 @@ class UI:
         sequence: BlitSequence = [(self._img, self.rect.topleft)]
         sequence += self._title.blit()
         sequence += self._confirm.blit()
-        sequence += self._close.blit()
+        sequence += self._exit.blit()
 
         return sequence
 
@@ -87,16 +90,21 @@ class UI:
 
         self._title.handle_resize(win_ratio_w, win_ratio_h)
         self._confirm.handle_resize(win_ratio_w, win_ratio_h)
-        self._close.handle_resize(win_ratio_w, win_ratio_h)
+        self._exit.handle_resize(win_ratio_w, win_ratio_h)
 
-    def upt(self, mouse_info: MouseInfo) -> Tuple[bool, bool]:
+    def upt(self, mouse_info: MouseInfo, ctrl: bool, k: int) -> Tuple[bool, bool]:
         """
         makes the object interactable
-        takes mouse info
+        takes mouse info, ctrl boolean and current key
         return the buttons that were clicked
         """
 
-        confirmed: bool = self._confirm.upt(mouse_info, True)
-        exited: bool = self._close.upt(mouse_info, True)
+        confirmed: bool = self._confirm.upt(mouse_info) or (ctrl and k == pg.K_RETURN)
+        exited: bool = self._exit.upt(mouse_info) or (ctrl and k == pg.K_BACKSPACE)
+
+        if confirmed or exited:
+            self._confirm.img_i = self._exit.img_i = 0
+            self._confirm.hovering = self._exit.hovering = False
+            pg.mouse.set_cursor(self.prev_mouse_cursor)
 
         return confirmed, exited

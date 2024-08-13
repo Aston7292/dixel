@@ -35,7 +35,7 @@ class LockedCheckBox(Clickable):
         return a sequence to add in the main blit sequence
         """
 
-        img_i: int = 1 if self.clicked else self._img_i
+        img_i: int = 1 if self.clicked else self.img_i
 
         return [(self._imgs[img_i], self.rect.topleft)]
 
@@ -47,16 +47,16 @@ class LockedCheckBox(Clickable):
         """
 
         if not self.rect.collidepoint(mouse_info.xy):
-            if self._hovering:
-                self._img_i = 0
-                self._hovering = False
+            if self.hovering:
+                self.img_i = 0
+                self.hovering = False
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
             return False
 
-        if not self._hovering:
-            self._img_i = 1
-            self._hovering = True
+        if not self.hovering:
+            self.img_i = 1
+            self.hovering = True
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
 
         if mouse_info.released[0]:

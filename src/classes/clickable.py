@@ -19,7 +19,7 @@ class Clickable(ABC):
     """
 
     __slots__ = (
-        '_init_pos', '_imgs', 'rect', '_init_size', '_img_i', '_hovering'
+        '_init_pos', '_imgs', 'rect', '_init_size', 'img_i', 'hovering'
     )
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...]) -> None:
@@ -35,15 +35,15 @@ class Clickable(ABC):
 
         self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
 
-        self._img_i: int = 0
-        self._hovering: bool = False
+        self.img_i: int = 0
+        self.hovering: bool = False
 
     def blit(self) -> BlitSequence:
         """
         return a sequence to add in the main blit sequence
         """
 
-        return [(self._imgs[self._img_i], self.rect.topleft)]
+        return [(self._imgs[self.img_i], self.rect.topleft)]
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -75,7 +75,7 @@ class CheckBox(Clickable):
     """
 
     __slots__ = (
-        'ticked', '_text'
+        '_text',
     )
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...], text: str) -> None:
@@ -85,8 +85,6 @@ class CheckBox(Clickable):
         """
 
         super().__init__(pos, imgs)
-
-        self.ticked: bool = False
 
         self._text: Text = Text(
             RectPos(self.rect.left - 10, self.rect.centery, 'midright'), 28, text
@@ -121,21 +119,20 @@ class CheckBox(Clickable):
         """
 
         if not self.rect.collidepoint(mouse_info.xy):
-            if self._hovering:
-                self._hovering = False
+            if self.hovering:
+                self.hovering = False
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
             return False
 
-        if not self._hovering:
-            self._hovering = True
+        if not self.hovering:
+            self.hovering = True
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
 
         if mouse_info.released[0]:
-            self.ticked = not self.ticked
-            self._img_i = int(self.ticked)
+            self.img_i = not self.img_i
 
-            return self.ticked
+            return bool(self.img_i)
 
         return False
 
@@ -184,29 +181,24 @@ class Button(Clickable):
         if self._text:
             self._text.handle_resize(win_ratio_w, win_ratio_h)
 
-    def upt(self, mouse_info: MouseInfo, toggle_on_press: bool = False) -> bool:
+    def upt(self, mouse_info: MouseInfo) -> bool:
         """
         updates the button image if the mouse is hovering it
-        takes mouse info and the toggle_on_press flag
+        takes mouse info
         returns whatever the button was clicked or not
         """
 
         if not self.rect.collidepoint(mouse_info.xy):
-            if self._hovering:
-                self._img_i = 0
-                self._hovering = False
+            if self.hovering:
+                self.img_i = 0
+                self.hovering = False
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
             return False
 
-        if not self._hovering:
-            self._img_i = 1
-            self._hovering = True
+        if not self.hovering:
+            self.img_i = 1
+            self.hovering = True
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
-
-        if toggle_on_press and mouse_info.released[0]:
-            self._img_i = 0
-            self._hovering = False
-            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
         return mouse_info.released[0]

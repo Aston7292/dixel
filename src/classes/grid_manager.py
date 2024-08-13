@@ -10,7 +10,7 @@ from typing import Tuple, List, Final, Optional
 from src.utils import Point, Size, RectPos, MouseInfo
 from src.const import WHITE, EMPTY_1, EMPTY_2, ColorType, BlitSequence
 
-TRANSPARENT: Final[Tuple[int, ...]] = (120, 120, 120, 125)
+TRANSPARENT: Final[ColorType] = (120, 120, 120, 125)
 
 
 class Grid:
@@ -411,6 +411,7 @@ class GridManager:
         """
 
         self._selected_pixel_pos = None  # recalculate the selected pixel
+        # TODO: test other scaling method
         self.grid.handle_resize(win_ratio_w, win_ratio_h)
 
     def load_path(self, path: str) -> None:
@@ -430,7 +431,7 @@ class GridManager:
     ) -> bool:
         """
         gets the selected pixel and handles changing it
-        takes mouse_info, hoovering bool, color and  brush size
+        takes mouse_info, hoovering boolean, color and  brush size
         return the redraw grid flag
         """
 
@@ -459,57 +460,61 @@ class GridManager:
             redraw_grid = True
 
         if mouse_info.buttons[0] or mouse_info.buttons[2]:
-            '''
-            get the coordinates of the grid pixels the mouse touched between frames using
-            Bresenham's Line Algorithm
-            '''
+            points: List[Tuple[int, int]]
+            if start == end:
+                points = [(start.x + self._grid_offset.x, start.y + self._grid_offset.y)]
+            else:
+                '''
+                get the coordinates of the grid pixels the mouse touched between frames using
+                Bresenham's Line Algorithm
+                '''
 
-            x0: int = min(
-                max(start.x, -brush_size + 1), self.grid.grid_visible_area.w - 1
-            ) + self._grid_offset.x
-            y0: int = min(
-                max(start.y, -brush_size + 1), self.grid.grid_visible_area.h - 1
-            ) + self._grid_offset.y
+                x0: int = min(
+                    max(start.x, -brush_size + 1), self.grid.grid_visible_area.w - 1
+                ) + self._grid_offset.x
+                y0: int = min(
+                    max(start.y, -brush_size + 1), self.grid.grid_visible_area.h - 1
+                ) + self._grid_offset.y
 
-            x1: int = min(
-                max(end.x, -brush_size + 1), self.grid.grid_visible_area.w - 1
-            ) + self._grid_offset.x
-            y1: int = min(
-                max(end.y, -brush_size + 1), self.grid.grid_visible_area.h - 1
-            ) + self._grid_offset.y
+                x1: int = min(
+                    max(end.x, -brush_size + 1), self.grid.grid_visible_area.w - 1
+                ) + self._grid_offset.x
+                y1: int = min(
+                    max(end.y, -brush_size + 1), self.grid.grid_visible_area.h - 1
+                ) + self._grid_offset.y
 
-            points: List[Tuple[int, int]] = []
+                points = []
 
-            dx: int = abs(x1 - x0)
-            dy: int = abs(y1 - y0)
-            sx: int = 1 if x0 < x1 else -1
-            sy: int = 1 if y0 < y1 else -1
-            err: int = dx - dy
-            while True:
-                points.append((x0, y0))
-                if x0 == x1 and y0 == y1:
-                    break
+                dx: int = abs(x1 - x0)
+                dy: int = abs(y1 - y0)
+                sx: int = 1 if x0 < x1 else -1
+                sy: int = 1 if y0 < y1 else -1
+                err: int = dx - dy
+                while True:
+                    points.append((x0, y0))
+                    if x0 == x1 and y0 == y1:
+                        break
 
-                e2: int = err * 2
-                if e2 > -dy:
-                    err -= dy
-                    x0 += sx
-                if e2 < dx:
-                    err += dx
-                    y0 += sy
+                    e2: int = err * 2
+                    if e2 > -dy:
+                        err -= dy
+                        x0 += sx
+                    if e2 < dx:
+                        err += dx
+                        y0 += sy
 
             for px, py in points:
-                x: slice = slice(
+                x_slice: slice = slice(
                     max(px, 0), min(px + brush_size, self.grid.grid_size.w)
                 )
-                y: slice = slice(
+                y_slice: slice = slice(
                     max(py, 0), min(py + brush_size, self.grid.grid_size.h)
                 )
 
                 if mouse_info.buttons[0]:
-                    self.grid.pixels[y, x] = color + (255,)
+                    self.grid.pixels[y_slice, x_slice] = color + (255,)
                 else:
-                    self.grid.pixels[y, x,] = (0, 0, 0, 0)
+                    self.grid.pixels[y_slice, x_slice] = (0, 0, 0, 0)
             redraw_grid = True
 
         return redraw_grid

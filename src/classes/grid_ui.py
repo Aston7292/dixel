@@ -30,8 +30,8 @@ class NumChooser:
     """
 
     __slots__ = (
-        '_init_pos', '_img', 'rect', '_init_size', 'value', '_hovering', '_scrolling',
-        '_traveled_x', '_prev_mouse_x', '_value_text', '_description'
+        '_init_pos', '_img', 'rect', '_init_size', 'value', 'hovering', 'scrolling',
+        'traveled_x', '_prev_mouse_x', '_value_text', '_description'
     )
 
     def __init__(self, pos: RectPos, value: int, text: str):
@@ -49,10 +49,10 @@ class NumChooser:
 
         self.value: int = value
 
-        self._hovering: bool = False
-        self._scrolling: bool = False
+        self.hovering: bool = False
+        self.scrolling: bool = False
 
-        self._traveled_x: int = 0
+        self.traveled_x: int = 0
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
 
         self._value_text: Text = Text(RectPos(*self.rect.center, 'center'), 32, str(self.value))
@@ -94,7 +94,7 @@ class NumChooser:
         takes value
         """
 
-        self._traveled_x = 0
+        self.traveled_x = 0
         self.value = max(min(value, MAX_SIZE), 1)
         self._value_text.modify_text(str(self.value))
 
@@ -106,29 +106,29 @@ class NumChooser:
         """
 
         if not self.rect.collidepoint(mouse_info.xy):
-            if self._hovering:
-                self._hovering = False
+            if self.hovering:
+                self.hovering = False
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
             if not mouse_info.buttons[0]:
-                self._scrolling = False
-                self._traveled_x = 0
+                self.scrolling = False
+                self.traveled_x = 0
         else:
-            if not self._hovering:
-                self._hovering = True
+            if not self.hovering:
+                self.hovering = True
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_SIZEWE)
 
             if not mouse_info.buttons[0]:
-                self._scrolling = False
-                self._traveled_x = 0
-            elif not self._scrolling:
-                self._scrolling = True
+                self.scrolling = False
+                self.traveled_x = 0
+            elif not self.scrolling:
+                self.scrolling = True
 
-        if self._scrolling:
-            self._traveled_x += mouse_info.x - self._prev_mouse_x
-            if abs(self._traveled_x) >= 10:
-                pixels_traveled: int = round(self._traveled_x / 10)
-                self._traveled_x -= pixels_traveled * 10
+        if self.scrolling:
+            self.traveled_x += mouse_info.x - self._prev_mouse_x
+            if abs(self.traveled_x) >= 10:
+                pixels_traveled: int = round(self.traveled_x / 10)
+                self.traveled_x -= pixels_traveled * 10
 
                 self.value = max(min(self.value + pixels_traveled, MAX_SIZE), 1)
                 self._value_text.modify_text(str(self.value))
@@ -142,7 +142,7 @@ class GridUI:
     """
 
     __slots__ = (
-        '_ui', '_preview_init_pos', '_preview_pos', '_preview_img', '_preview_rect',
+        'ui', '_preview_init_pos', '_preview_pos', '_preview_img', '_preview_rect',
         '_preview_init_size', '_h_chooser', '_w_chooser', '_check_box', '_ratio', '_win_ratio',
         '_small_preview_img'
     )
@@ -153,10 +153,10 @@ class GridUI:
         takes position and starting grid size
         """
 
-        self._ui: UI = UI(pos, 'MODIFY GRID')
+        self.ui: UI = UI(pos, 'MODIFY GRID')
 
         self._preview_init_pos: RectPos = RectPos(
-            self._ui.rect.centerx, self._ui.rect.centery + 40, 'center'
+            self.ui.rect.centerx, self.ui.rect.centery + 40, 'center'
         )
         self._preview_pos: Tuple[float, float] = self._preview_init_pos.xy
 
@@ -194,7 +194,7 @@ class GridUI:
         return a sequence to add in the main blit sequence
         """
 
-        sequence: BlitSequence = self._ui.blit()
+        sequence: BlitSequence = self.ui.blit()
         sequence += self._w_chooser.blit()
         sequence += self._h_chooser.blit()
         sequence += self._check_box.blit()
@@ -210,7 +210,7 @@ class GridUI:
 
         self._win_ratio = min(win_ratio_w, win_ratio_h)
 
-        self._ui.handle_resize(win_ratio_w, win_ratio_h)
+        self.ui.handle_resize(win_ratio_w, win_ratio_h)
 
         pixel_dim: float = min(
             self._preview_init_size.w / self._w_chooser.value * self._win_ratio,
@@ -233,6 +233,21 @@ class GridUI:
         self._w_chooser.handle_resize(win_ratio_w, win_ratio_h)
         self._h_chooser.handle_resize(win_ratio_w, win_ratio_h)
         self._check_box.handle_resize(win_ratio_w, win_ratio_h)
+
+    def set(self, new_size: Size) -> None:
+        """
+        sets the ui on a specific value
+        takes value
+        """
+
+        self._w_chooser.set(new_size.w)
+        self._h_chooser.set(new_size.h)
+        self._get_preview(new_size)
+
+        self._ratio = (
+            new_size.h / new_size.w,
+            new_size.w / new_size.h
+        )
 
     def _get_preview(self, grid_size: Size) -> None:
         """
@@ -267,10 +282,10 @@ class GridUI:
             **{self._preview_init_pos.pos: self._preview_pos}
         )
 
-    def upt(self, mouse_info: MouseInfo) -> Tuple[bool, Optional[Size]]:
+    def upt(self, mouse_info: MouseInfo, ctrl: bool, k: int) -> Tuple[bool, Optional[Size]]:
         """
         makes the object interactable
-        takes mouse info
+        takes mouse info, ctrl boolean and current key
         return whatever the interface was closed or not
         """
 
@@ -281,7 +296,7 @@ class GridUI:
 
         grid_size: Size = Size(self._w_chooser.value, self._h_chooser.value)
         if grid_size != prev_grid_size:
-            if self._check_box.ticked:
+            if self._check_box.img_i == 1:
                 if grid_size.w != prev_grid_size.w:
                     self._h_chooser.set(round(grid_size.w * self._ratio[0]))
                     grid_size.h = self._h_chooser.value
@@ -291,7 +306,7 @@ class GridUI:
 
             self._get_preview(grid_size)
 
-        if self._check_box.upt(mouse_info) and self._check_box.ticked:
+        if self._check_box.upt(mouse_info):
             self._ratio = (
                 grid_size.h / grid_size.w,
                 grid_size.w / grid_size.h
@@ -299,6 +314,13 @@ class GridUI:
 
         confirmed: bool
         exited: bool
-        confirmed, exited = self._ui.upt(mouse_info)
+        confirmed, exited = self.ui.upt(mouse_info, ctrl, k)
+
+        if confirmed or exited:
+            self._w_chooser.hovering = self._h_chooser.hovering = False
+            self._w_chooser.scrolling = self._h_chooser.scrolling = False
+            self._w_chooser.traveled_x = self._h_chooser.traveled_x = 0
+
+            self._check_box.hovering = False
 
         return confirmed or exited, grid_size if confirmed else None

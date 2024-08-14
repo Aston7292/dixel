@@ -73,7 +73,7 @@ class CheckBoxGrid:
     """
 
     __slots__ = (
-        '_check_boxes',
+        'check_boxes',
     )
 
     def __init__(
@@ -91,7 +91,7 @@ class CheckBoxGrid:
         x, y = pos.xy
         w, h = all_imgs[0][0].get_size()
 
-        self._check_boxes: List[LockedCheckBox] = []
+        self.check_boxes: List[LockedCheckBox] = []
 
         extras: int = len(all_imgs) % rows
         row_len: int = len(all_imgs) // rows + (1 if extras else 0)
@@ -110,8 +110,8 @@ class CheckBoxGrid:
                     row_len -= 1
             index += 1
 
-            self._check_boxes.append(LockedCheckBox(RectPos(x, y, 'topleft'), img))
-        self._check_boxes[0].clicked = True
+            self.check_boxes.append(LockedCheckBox(RectPos(x, y, 'topleft'), img))
+        self.check_boxes[0].clicked = True
 
     def blit(self) -> BlitSequence:
         """
@@ -119,7 +119,7 @@ class CheckBoxGrid:
         """
 
         sequence: BlitSequence = []
-        for check_box in self._check_boxes:
+        for check_box in self.check_boxes:
             sequence += check_box.blit()
 
         return sequence
@@ -130,8 +130,16 @@ class CheckBoxGrid:
         takes window size ratio
         """
 
-        for check_box in self._check_boxes:
+        for check_box in self.check_boxes:
             check_box.handle_resize(win_ratio_w, win_ratio_h)
+
+    def set(self, index: int) -> None:
+        """
+        ticks on a specific checkbox
+        """
+
+        for i, check_box in enumerate(self.check_boxes):
+            check_box.clicked = i == index
 
     def upt(self, mouse_info: MouseInfo) -> int:
         """
@@ -141,13 +149,11 @@ class CheckBoxGrid:
         """
 
         index: int = -1
-        for i, check_box in enumerate(self._check_boxes):
+        for i, check_box in enumerate(self.check_boxes):
             if check_box.upt(mouse_info):
                 index = i
 
         if index != -1:
-            for i, check_box in enumerate(self._check_boxes):
-                if i != index:
-                    check_box.clicked = False
+            self.set(index)
 
         return index

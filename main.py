@@ -173,20 +173,19 @@ class Dixel:
         raises KeyboardInterrupt when esc is pressed
         """
 
-        self._k = k
-        self._keys.append(self._k)
+        self._keys.append(k)
         self._ctrl = bool(pg.key.get_mods() & pg.KMOD_CTRL)
 
-        if self._k == pg.K_ESCAPE:
+        if k == pg.K_ESCAPE:
             raise KeyboardInterrupt
 
-        if self._k == pg.K_F1:
+        if k == pg.K_F1:
             self._win_size, self._flag = Size(INIT_WIN_SIZE.w, INIT_WIN_SIZE.h), pg.RESIZABLE
             self._full_screen = False
             self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
 
             self._handle_resize()
-        elif self._k == pg.K_F11:
+        elif k == pg.K_F11:
             self._full_screen = not self._full_screen
 
             if not self._full_screen:
@@ -301,11 +300,16 @@ class Dixel:
                 closed: bool
                 match self._state:
                     case 0:
-                        GRID_MANAGER.upt(mouse_info, self._color, self._brush_size)
+                        GRID_MANAGER.upt(mouse_info, self._k, self._color, self._brush_size)
 
                         brush_size: int = BRUSH_SIZE_GRID.upt(mouse_info)
                         if brush_size != -1:
                             self._brush_size = brush_size + 1
+                        elif self._ctrl and self._k <= 0x110000:  # chr limit
+                            u: str = chr(self._k)
+                            if u.isdigit() and 1 <= int(u) <= len(BRUSH_SIZE_GRID.check_boxes):
+                                BRUSH_SIZE_GRID.set(int(u) - 1)
+                                self._brush_size = int(u)
 
                         if ADD_COLOR.upt(mouse_info) or (self._ctrl and self._k == pg.K_a):
                             self._state = 1

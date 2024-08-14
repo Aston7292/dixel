@@ -95,7 +95,7 @@ class UI:
     def upt(self, mouse_info: MouseInfo, ctrl: bool, k: int) -> Tuple[bool, bool]:
         """
         makes the object interactable
-        takes mouse info, ctrl boolean and current key
+        takes mouse info, ctrl boolean and key
         return the buttons that were clicked
         """
 

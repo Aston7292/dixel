@@ -1,4 +1,4 @@
-requires pygame-ce and numpy.
+Requires pygame-ce and numpy.
 
 ## Features
 
@@ -20,6 +20,7 @@ requires pygame-ce and numpy.
 - **CTRL + Q**: Close file
 - **CTRL + Backspace**: Exit in ui
 - **CTRL + Enter**: Confirm in ui
+- **CTRL + 1-5**: Change brush size
 
 ## Screenshots
 

@@ -285,7 +285,7 @@ class GridUI:
     def upt(self, mouse_info: MouseInfo, ctrl: bool, k: int) -> Tuple[bool, Optional[Size]]:
         """
         makes the object interactable
-        takes mouse info, ctrl boolean and current key
+        takes mouse info, ctrl boolean and key
         return whatever the interface was closed or not
         """
 

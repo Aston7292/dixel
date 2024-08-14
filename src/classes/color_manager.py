@@ -191,7 +191,7 @@ class ScrollBar:
             self.value = ceil((self._slider_rect.x - self.bar_rect.x) / self._unit_w)
             self._value_text.modify_text(str(self.value))
 
-        if selected:
+        if selected and k:
             self._slider_img_i = 1
             prev_value: int = self.value
 
@@ -321,18 +321,19 @@ class ColorPicker:
     def upt(self, mouse_info: MouseInfo, ctrl: bool, k: int) -> Tuple[bool, Optional[ColorType]]:
         """
         makes the object interactable
-        takes mouse info, ctrl boolean and current key
+        takes mouse info, ctrl boolean and key
         return whatever the interface was closed or not and the new color
         """
 
         prev_color: ColorType = self._color
 
-        if k == pg.K_UP and self._selection_i:
-            self._selection_i -= 1
-            self._selection = self._channels[self._selection_i]
-        elif k == pg.K_DOWN and self._selection_i != len(self._channels) - 1:
-            self._selection_i += 1
-            self._selection = self._channels[self._selection_i]
+        if k:
+            if k == pg.K_UP and self._selection_i:
+                self._selection_i -= 1
+                self._selection = self._channels[self._selection_i]
+            elif k == pg.K_DOWN and self._selection_i != len(self._channels) - 1:
+                self._selection_i += 1
+                self._selection = self._channels[self._selection_i]
 
         for i, channel in enumerate(self._channels):
             if channel.upt(mouse_info, k, self._selection == channel):

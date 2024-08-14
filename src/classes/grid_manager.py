@@ -21,7 +21,7 @@ class Grid:
     __slots__ = (
         'grid_size', 'grid_visible_area', '_win_ratio', '_grid_init_pos', '_grid_pos',
         '_grid_init_pixel_dim', 'grid_pixel_dim', '_grid_img', 'grid_rect', 'pixels',
-        '_empty_pixel', '_transparent_pixel', '_minimap_init_pos', '_minimap_pos',
+        '_empty_pixel', 'transparent_pixel', '_minimap_init_pos', '_minimap_pos',
         '_minimap_img', '_minimap_rect', '_minimap_init_size',
         '_small_minimap_img_1', '_small_minimap_img_2', '_small_grid_img',
     )
@@ -61,10 +61,10 @@ class Grid:
                 pixel_color: ColorType = EMPTY_1 if (row + col) % 2 == 0 else EMPTY_2
                 self._empty_pixel.set_at((col, row), pixel_color)
 
-        self._transparent_pixel: pg.SurfaceType = pg.Surface(
+        self.transparent_pixel: pg.SurfaceType = pg.Surface(
             (2, 2), pg.SRCALPHA
         )
-        self._transparent_pixel.fill(TRANSPARENT)
+        self.transparent_pixel.fill(TRANSPARENT)
 
         self._minimap_init_pos: RectPos = minimap_pos
         self._minimap_pos: Tuple[float, float] = self._minimap_init_pos.xy
@@ -229,7 +229,7 @@ class Grid:
             self._grid_img = pg.transform.scale(self._small_grid_img, grid_img_size)
         else:
             small_grid_img_copy: pg.SurfaceType = self._small_grid_img.copy()
-            small_grid_img_copy.blit(self._transparent_pixel, selected_pixel_pos)
+            small_grid_img_copy.blit(self.transparent_pixel, selected_pixel_pos)
             self._grid_img = pg.transform.scale(small_grid_img_copy, grid_img_size)
 
         self.grid_rect = self._grid_img.get_frect(**{self._grid_init_pos.pos: self._grid_pos})
@@ -304,11 +304,6 @@ class Grid:
         if x or y are negative decrease the size and make them 0
         if right or bottom coordinates exceed grid size also decrease the size
         '''
-
-        if self._transparent_pixel.get_width() != brush_size * 2:
-            self._transparent_pixel = pg.transform.scale(
-                self._transparent_pixel, (brush_size * 2, brush_size * 2)
-            )
 
         pos: Point = Point(
             offset.x - brush_size + 1, offset.y - brush_size + 1
@@ -426,17 +421,16 @@ class GridManager:
         img: Optional[pg.SurfaceType] = pg.image.load(path).convert_alpha() if path else None
         self.grid.load_img(img, self._grid_offset, self._selected_pixel_pos)
 
-    def _draw(
-            self, mouse_info: MouseInfo, hoovering: bool, color: ColorType, brush_size: int
-    ) -> bool:
+    def get_draw_info(
+        self, mouse_info: MouseInfo, k: int, brush_size: int
+    ) -> Tuple[Point, Point, bool]:
         """
-        gets the selected pixel and handles changing it
-        takes mouse_info, hoovering boolean, color and  brush size
-        return the redraw grid flag
+        calculates start and end, updates transparent and selected pixel and handles keys
+        takes mouse info, key and brush size
+        returns start, end and the redraw grid bool
         """
 
-        if not (hoovering or self.grid.grid_rect.collidepoint(self._prev_mouse_pos.xy)):
-            return False
+        redraw_grid: bool = False
 
         prev_mouse_pixel: Point = Point(
             int(self._prev_mouse_pos.x - self.grid.grid_rect.x) // self.grid.grid_pixel_dim,
@@ -453,13 +447,77 @@ class GridManager:
             mouse_pixel.x - brush_size // 2, mouse_pixel.y - brush_size // 2
         )
 
-        redraw_grid: bool = False
+        if self.grid.grid_rect.collidepoint(mouse_info.xy):
+            brush_size_changed: bool = self.grid.transparent_pixel.get_width() != brush_size * 2
+            if brush_size_changed:
+                self.grid.transparent_pixel = pg.transform.scale(
+                    self.grid.transparent_pixel, (brush_size * 2, brush_size * 2)
+                )
+                redraw_grid = True
 
-        if hoovering and (start != end or not self._selected_pixel_pos):
-            self._selected_pixel_pos = (end.x * 2, end.y * 2)
-            redraw_grid = True
+            if (start != end or not self._selected_pixel_pos) or brush_size_changed:
+                self._selected_pixel_pos = (end.x * 2, end.y * 2)
+                redraw_grid = True
 
-        if mouse_info.buttons[0] or mouse_info.buttons[2]:
+            if k in (pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN, pg.K_UP):
+                visible_area: Size = self.grid.grid_visible_area
+                pixel_dim: int = self.grid.grid_pixel_dim
+
+                if k == pg.K_LEFT:
+                    mouse_pixel.x -= 1
+                    if mouse_pixel.x == -1:
+                        mouse_pixel.x = 0
+                        if self._grid_offset.x:
+                            self._grid_offset.x -= 1
+                elif k == pg.K_RIGHT:
+                    mouse_pixel.x += 1
+                    if mouse_pixel.x == visible_area.w:
+                        mouse_pixel.x = visible_area.w - 1
+                        if self._grid_offset.x + visible_area.w != self.grid.grid_size.w:
+                            self._grid_offset.x += 1
+                elif k == pg.K_UP:
+                    mouse_pixel.y -= 1
+                    if mouse_pixel.y == -1:
+                        mouse_pixel.y = 0
+                        if self._grid_offset.y:
+                            self._grid_offset.y -= 1
+                elif k == pg.K_DOWN:
+                    mouse_pixel.y += 1
+                    if mouse_pixel.y == visible_area.h:
+                        mouse_pixel.y = visible_area.h - 1
+                        if self._grid_offset.y + visible_area.h != self.grid.grid_size.h:
+                            self._grid_offset.y += 1
+
+                pg.mouse.set_pos((
+                    self.grid.grid_rect.x + mouse_pixel.x * pixel_dim + pixel_dim // 2,
+                    self.grid.grid_rect.y + mouse_pixel.y * pixel_dim + pixel_dim // 2
+                ))
+                redraw_grid = True
+
+        return start, end, redraw_grid
+
+    def _draw(
+            self, mouse_info: MouseInfo, k: int, color: ColorType, brush_size: int
+    ) -> bool:
+        """
+        gets the selected pixel and handles changing it
+        takes mouse_info, color and  brush size
+        return the redraw grid flag
+        """
+
+        if not (
+            self.grid.grid_rect.collidepoint(self._prev_mouse_pos.xy) or
+            self.grid.grid_rect.collidepoint(mouse_info.xy)
+        ):
+            return False
+
+        start: Point
+        end: Point
+        redraw_grid: bool
+        start, end, redraw_grid = self.get_draw_info(mouse_info, k, brush_size)
+
+        # TODO: drawing with mouse lags but not with keyboard?
+        if (mouse_info.buttons[0] or mouse_info.buttons[2]) or k in (pg.K_RETURN, pg.K_BACKSPACE):
             points: List[Tuple[int, int]]
             if start == end:
                 points = [(start.x + self._grid_offset.x, start.y + self._grid_offset.y)]
@@ -511,7 +569,7 @@ class GridManager:
                     max(py, 0), min(py + brush_size, self.grid.grid_size.h)
                 )
 
-                if mouse_info.buttons[0]:
+                if mouse_info.buttons[0] or k == pg.K_RETURN:
                     self.grid.pixels[y_slice, x_slice] = color + (255,)
                 else:
                     self.grid.pixels[y_slice, x_slice] = (0, 0, 0, 0)
@@ -569,16 +627,15 @@ class GridManager:
         self._traveled_dist = Point(0, 0)
         self.grid.resize(new_size, self._grid_offset, self._selected_pixel_pos)
 
-    def upt(self, mouse_info: MouseInfo, color: ColorType, brush_size: int) -> None:
+    def upt(self, mouse_info: MouseInfo, k: int, color: ColorType, brush_size: int) -> None:
         """
         makes the object interactable
-        takes mouse info, color and brush size
+        takes mouse info, key, color and brush size
         """
 
         redraw_grid: bool = False
 
-        hoovering: bool = self.grid.grid_rect.collidepoint(mouse_info.xy)
-        if not hoovering:
+        if not self.grid.grid_rect.collidepoint(mouse_info.xy):
             if self._hovering:
                 self._selected_pixel_pos = None
                 redraw_grid = True
@@ -589,7 +646,7 @@ class GridManager:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_CROSSHAIR)
                 self._hovering = True
 
-        if self._draw(mouse_info, hoovering, color, brush_size):
+        if self._draw(mouse_info, k, color, brush_size):
             redraw_grid = True
 
         if self._move(mouse_info):

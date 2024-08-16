@@ -4,7 +4,7 @@ class to create a simple and easily customizable ui
 
 import pygame as pg
 from os.path import join
-from typing import Tuple, Final
+from typing import Tuple, List, Final
 
 from src.classes.clickable import Button
 from src.classes.text import Text
@@ -92,15 +92,15 @@ class UI:
         self._confirm.handle_resize(win_ratio_w, win_ratio_h)
         self._exit.handle_resize(win_ratio_w, win_ratio_h)
 
-    def upt(self, mouse_info: MouseInfo, ctrl: bool, k: int) -> Tuple[bool, bool]:
+    def upt(self, mouse_info: MouseInfo, keys: List[int], ctrl: int) -> Tuple[bool, bool]:
         """
         makes the object interactable
-        takes mouse info, ctrl boolean and key
+        takes mouse info, keys and ctrl
         return the buttons that were clicked
         """
 
-        confirmed: bool = self._confirm.upt(mouse_info) or (ctrl and k == pg.K_RETURN)
-        exited: bool = self._exit.upt(mouse_info) or (ctrl and k == pg.K_BACKSPACE)
+        confirmed: bool = self._confirm.upt(mouse_info) or bool(ctrl and pg.K_RETURN in keys)
+        exited: bool = self._exit.upt(mouse_info) or bool(ctrl and pg.K_BACKSPACE in keys)
 
         if confirmed or exited:
             self._confirm.img_i = self._exit.img_i = 0

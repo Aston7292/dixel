@@ -1,10 +1,10 @@
 """
-interface to modify the grid
+interface to modify the grid, size between 1 and 256
 """
 
 import pygame as pg
 from os.path import join
-from typing import Tuple, Final, Optional
+from typing import Tuple, List, Final, Optional
 
 from src.classes.ui import UI
 from src.classes.clickable import CheckBox
@@ -26,7 +26,7 @@ MAX_SIZE: Final[int] = 256
 
 class NumChooser:
     """
-    class that allows the user to pick a number in a predefined range
+    class that allows the user to pick a number in range 1, 256
     """
 
     __slots__ = (
@@ -138,13 +138,13 @@ class NumChooser:
 
 class GridUI:
     """
-    class to create an interface that allows the user to modify the grid
+    class to create an interface that allows the user to modify the grid, size between 1 and 256
     """
 
     __slots__ = (
-        'ui', '_preview_init_pos', '_preview_pos', '_preview_img', '_preview_rect',
-        '_preview_init_size', '_h_chooser', '_w_chooser', '_check_box', '_ratio', '_win_ratio',
-        '_small_preview_img'
+        'ui', '_preview_init_pos', '_preview_pos', '_preview_init_dim',
+        '_preview_img', '_preview_rect', '_h_chooser', '_w_chooser', '_check_box',
+        '_ratio', '_win_ratio', '_small_preview_img'
     )
 
     def __init__(self, pos: RectPos, grid_size: Size) -> None:
@@ -159,13 +159,14 @@ class GridUI:
             self.ui.rect.centerx, self.ui.rect.centery + 40, 'center'
         )
         self._preview_pos: Tuple[float, float] = self._preview_init_pos.xy
+        self._preview_init_dim: int = 300
 
-        self._preview_img: pg.SurfaceType = pg.Surface((300, 300))
+        self._preview_img: pg.SurfaceType = pg.Surface(
+            (self._preview_init_dim, self._preview_init_dim)
+        )
         self._preview_rect: pg.FRect = self._preview_img.get_frect(
             **{self._preview_init_pos.pos: self._preview_pos}
         )
-
-        self._preview_init_size: Size = Size(int(self._preview_rect.w), int(self._preview_rect.h))
 
         self._h_chooser: NumChooser = NumChooser(
             RectPos(self._preview_rect.x + 20, self._preview_rect.y - 25, 'bottomleft'),
@@ -213,8 +214,8 @@ class GridUI:
         self.ui.handle_resize(win_ratio_w, win_ratio_h)
 
         pixel_dim: float = min(
-            self._preview_init_size.w / self._w_chooser.value * self._win_ratio,
-            self._preview_init_size.h / self._h_chooser.value * self._win_ratio
+            self._preview_init_dim / self._w_chooser.value * self._win_ratio,
+            self._preview_init_dim / self._h_chooser.value * self._win_ratio
         )
         size: Tuple[int, int] = (
             int(self._w_chooser.value * pixel_dim),
@@ -256,8 +257,8 @@ class GridUI:
         """
 
         pixel_dim: float = min(
-            self._preview_init_size.w / grid_size.w * self._win_ratio,
-            self._preview_init_size.h / grid_size.h * self._win_ratio
+            self._preview_init_dim / grid_size.w * self._win_ratio,
+            self._preview_init_dim / grid_size.h * self._win_ratio
         )
 
         self._small_preview_img = pg.Surface((grid_size.w * 2, grid_size.h * 2))
@@ -282,10 +283,12 @@ class GridUI:
             **{self._preview_init_pos.pos: self._preview_pos}
         )
 
-    def upt(self, mouse_info: MouseInfo, ctrl: bool, k: int) -> Tuple[bool, Optional[Size]]:
+    def upt(
+            self, mouse_info: MouseInfo, keys: List[int], ctrl: int
+    ) -> Tuple[bool, Optional[Size]]:
         """
         makes the object interactable
-        takes mouse info, ctrl boolean and key
+        takes mouse info, keys and ctrl
         return whatever the interface was closed or not
         """
 
@@ -314,7 +317,7 @@ class GridUI:
 
         confirmed: bool
         exited: bool
-        confirmed, exited = self.ui.upt(mouse_info, ctrl, k)
+        confirmed, exited = self.ui.upt(mouse_info, keys, ctrl)
 
         if confirmed or exited:
             self._w_chooser.hovering = self._h_chooser.hovering = False

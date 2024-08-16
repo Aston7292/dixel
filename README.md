@@ -20,7 +20,11 @@ Requires pygame-ce and numpy.
 - **CTRL + Q**: Close file
 - **CTRL + Backspace**: Exit in ui
 - **CTRL + Enter**: Confirm in ui
+
 - **CTRL + 1-5**: Change brush size
+- **ALT + arrows**: move selected pixel by brush size
+- **SHIFT + arrows**: move selected pixel by visible area
+- **CTRL + arrows**: move selected pixel to limit of the grid
 
 ## Screenshots
 

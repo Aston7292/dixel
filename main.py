@@ -50,7 +50,7 @@ SAVE_AS: Final[Button] = Button(
     RectPos(25, INIT_WIN_SIZE.h - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'save as'
 )
 LOAD: Final[Button] = Button(
-    RectPos(25, SAVE_AS.rect.y - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'load file'
+    RectPos(25, SAVE_AS.rect.y - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'open file'
 )
 CLOSE: Final[Button] = Button(
     RectPos(25, LOAD.rect.y - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'close file'
@@ -92,8 +92,8 @@ class Dixel:
     """
 
     __slots__ = (
-        '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win',
-        '_keys', '_k', '_last_k_input',  '_ctrl', '_color', '_brush_size', '_state',
+        '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win', '_mouse_info',
+        '_saved_keys', '_keys', '_last_k_input', '_ctrl', '_color', '_brush_size', '_state',
         '_file_path'
     )
 
@@ -110,10 +110,14 @@ class Dixel:
 
         self._win: pg.SurfaceType = INIT_WIN
 
-        self._keys: List[int] = []
-        self._k: int = 0
+        self._mouse_info: MouseInfo = MouseInfo(
+            *pg.mouse.get_pos(), pg.mouse.get_pressed(), pg.mouse.get_just_released()
+        )
+
+        self._saved_keys: List[int] = []
+        self._keys: List[int] = self._saved_keys
         self._last_k_input: int = pg.time.get_ticks()
-        self._ctrl: bool = False
+        self._ctrl: int = 0
 
         self._color: ColorType = INIT_COLOR
         self._brush_size: int = 1
@@ -169,12 +173,12 @@ class Dixel:
     def _handle_keys(self, k: int) -> None:
         """
         handles keyboard inputs
-        takes the pressed key
+        takes k
         raises KeyboardInterrupt when esc is pressed
         """
 
-        self._keys.append(k)
-        self._ctrl = bool(pg.key.get_mods() & pg.KMOD_CTRL)
+        self._saved_keys.append(k)
+        self._ctrl = pg.key.get_mods() & pg.KMOD_CTRL
 
         if k == pg.K_ESCAPE:
             raise KeyboardInterrupt
@@ -219,29 +223,29 @@ class Dixel:
                 self._handle_resize()
             elif event.type == pg.KEYDOWN:
                 self._handle_keys(event.key)
-            elif event.type == pg.KEYUP:
-                self._keys.remove(event.key)
                 self._last_k_input = 0
-                self._ctrl = bool(pg.key.get_mods() & pg.KMOD_CTRL)
+            elif event.type == pg.KEYUP:
+                self._saved_keys.remove(event.key)
+                #self._last_k_input = 0
+                self._ctrl = pg.key.get_mods() & pg.KMOD_CTRL
 
             if event.type == FPS_UPT:
                 FPS_TEXT.modify_text('FPS: ' + str(int(CLOCK.get_fps())))
 
-        if not self._keys or pg.time.get_ticks() - self._last_k_input < 150:
-            self._k = 0
+        if pg.time.get_ticks() - self._last_k_input < 100:
+            self._keys = []
         else:
-            self._k = self._keys[-1]
+            self._keys = self._saved_keys
             self._last_k_input = pg.time.get_ticks()
 
-    def _handle_file_operations(self, mouse_info: MouseInfo) -> None:
+    def _handle_file_operations(self) -> None:
         """
         handles the save as, open and close button actions
-        takes mouse info
         """
 
         root: Tk
         path: str
-        if SAVE_AS.upt(mouse_info) or (self._ctrl and self._k == pg.K_s):
+        if SAVE_AS.upt(self._mouse_info) or (self._ctrl and pg.K_s in self._keys):
             root = Tk()
             root.withdraw()
 
@@ -256,7 +260,7 @@ class Dixel:
                 self._file_path = path
                 fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
-        if LOAD.upt(mouse_info) or (self._ctrl and self._k == pg.K_o):
+        if LOAD.upt(self._mouse_info) or (self._ctrl and pg.K_o in self._keys):
             if self._file_path:
                 fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
@@ -274,7 +278,10 @@ class Dixel:
                 self._file_path = path
                 GRID_MANAGER.load_path(self._file_path)
 
-        if (CLOSE.upt(mouse_info) or (self._ctrl and self._k == pg.K_q)) and self._file_path:
+        if (
+            (CLOSE.upt(self._mouse_info) or (self._ctrl and pg.K_q in self._keys))
+            and self._file_path
+        ):
             fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
             self._file_path = ''
@@ -293,42 +300,50 @@ class Dixel:
                 if not self._focused:
                     continue
 
-                mouse_info: MouseInfo = MouseInfo(
+                self._mouse_info = MouseInfo(
                     *pg.mouse.get_pos(), pg.mouse.get_pressed(), pg.mouse.get_just_released()
                 )
 
                 closed: bool
                 match self._state:
                     case 0:
-                        GRID_MANAGER.upt(mouse_info, self._k, self._color, self._brush_size)
+                        GRID_MANAGER.upt(
+                            self._mouse_info, self._keys, self._color, self._brush_size
+                        )
 
-                        brush_size: int = BRUSH_SIZE_GRID.upt(mouse_info)
+                        brush_size: int = BRUSH_SIZE_GRID.upt(self._mouse_info)
                         if brush_size != -1:
                             self._brush_size = brush_size + 1
-                        elif self._ctrl and self._k <= 0x110000:  # chr limit
-                            u: str = chr(self._k)
-                            if u.isdigit() and 1 <= int(u) <= len(BRUSH_SIZE_GRID.check_boxes):
-                                BRUSH_SIZE_GRID.set(int(u) - 1)
-                                self._brush_size = int(u)
 
-                        if ADD_COLOR.upt(mouse_info) or (self._ctrl and self._k == pg.K_a):
+                        if ADD_COLOR.upt(self._mouse_info) or (self._ctrl and pg.K_a in self._keys):
                             self._state = 1
 
                             COLOR_PICKER.ui.prev_mouse_cursor = pg.mouse.get_cursor()
                             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                             COLOR_PICKER.set(BLACK)
 
-                        if MODIFY_GRID.upt(mouse_info) or (self._ctrl and self._k == pg.K_m):
+                        if (
+                            MODIFY_GRID.upt(self._mouse_info) or
+                            (self._ctrl and pg.K_m in self._keys)
+                        ):
                             self._state = 2
 
                             GRID_UI.ui.prev_mouse_cursor = pg.mouse.get_cursor()
                             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                             GRID_UI.set(GRID_MANAGER.grid.grid_size)
 
-                        self._handle_file_operations(mouse_info)
+                        self._handle_file_operations()
+
+                        if self._ctrl:  # independent shortcuts
+                            for i in range(pg.K_1, pg.K_1 + len(BRUSH_SIZE_GRID.check_boxes)):
+                                if i in self._keys:
+                                    BRUSH_SIZE_GRID.set(i - pg.K_1)
+                                    self._brush_size = i - pg.K_1 + 1
                     case 1:
                         new_color: Optional[ColorType]
-                        closed, new_color = COLOR_PICKER.upt(mouse_info, self._ctrl, self._k)
+                        closed, new_color = COLOR_PICKER.upt(
+                            self._mouse_info, self._keys, self._ctrl
+                        )
                         if closed:
                             if new_color:
                                 self._color = new_color
@@ -336,7 +351,7 @@ class Dixel:
                             self._state = 0
                     case 2:
                         new_size: Optional[Size]
-                        closed, new_size = GRID_UI.upt(mouse_info, self._ctrl, self._k)
+                        closed, new_size = GRID_UI.upt(self._mouse_info, self._keys, self._ctrl)
                         if closed:
                             if new_size:
                                 GRID_MANAGER.resize(new_size)
@@ -352,7 +367,7 @@ class Dixel:
         except Exception:  # pylint: disable=broad-exception-caught
             if not self._file_path:
                 name: str = 'new_file.png'
-                i: int = 0
+                i = 0
                 while exists(name):
                     i += 1
                     name = f'new_file_{i}.png'

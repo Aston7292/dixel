@@ -92,7 +92,7 @@ class CheckBox(Clickable):
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
         sequence: BlitSequence = super().blit()
@@ -162,7 +162,7 @@ class Button(Clickable):
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
         sequence: BlitSequence = super().blit()

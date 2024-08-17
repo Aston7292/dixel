@@ -68,7 +68,7 @@ class Grid:
 
         self._minimap_init_pos: RectPos = minimap_pos
         self._minimap_pos: Tuple[float, float] = self._minimap_init_pos.xy
-        self._minimap_init_dim: int = 200
+        self._minimap_init_dim: int = 256
 
         self._minimap_img: pg.SurfaceType = pg.Surface(
             (self._minimap_init_dim, self._minimap_init_dim)
@@ -91,7 +91,7 @@ class Grid:
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
         return [
@@ -159,9 +159,8 @@ class Grid:
         elif add_cols > 0:
             self.pixels = np.pad(self.pixels, ((0, 0), (0, add_cols), (0, 0)), constant_values=0)
 
-        self.grid_visible_area = Size(
-            min(self.grid_size.w, 32), min(self.grid_size.h, 32)
-        )
+        self.grid_visible_area.w = min(self.grid_size.w, 32)
+        self.grid_visible_area.h = min(self.grid_size.h, 32)
 
         self._small_minimap_img_1 = pg.Surface((self.grid_size.w * 2, self.grid_size.h * 2))
         self.update_full(offset, selected_pixel_pos)
@@ -393,7 +392,7 @@ class GridManager:
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
         return self.grid.blit()
@@ -413,14 +412,14 @@ class GridManager:
         takes path if it's empty it creates an empty grid
         """
 
-        self._grid_offset = Point(0, 0)
-        self._traveled_dist = Point(0, 0)
+        self._grid_offset.x, self._grid_offset.y = 0, 0
+        self._traveled_dist.x, self._traveled_dist.y = 0, 0
 
         img: Optional[pg.SurfaceType] = pg.image.load(path).convert_alpha() if path else None
         self.grid.load_img(img, self._grid_offset, self._selected_pixel_pos)
 
     def get_draw_info(
-        self, mouse_info: MouseInfo, keys: List[int], brush_size: int
+            self, mouse_info: MouseInfo, keys: List[int], brush_size: int
     ) -> Tuple[Point, Point, bool]:
         """
         calculates start and end, updates transparent and selected pixel and handles keys
@@ -519,6 +518,8 @@ class GridManager:
                             )
                             mouse_pixel.y = visible_area.h - 1
 
+                end.x, end.y = mouse_pixel.x - brush_size // 2, mouse_pixel.y - brush_size // 2
+
                 pg.mouse.set_pos((
                     self.grid.grid_rect.x + mouse_pixel.x * pixel_dim + pixel_dim // 2,
                     self.grid.grid_rect.y + mouse_pixel.y * pixel_dim + pixel_dim // 2
@@ -529,7 +530,7 @@ class GridManager:
 
     def _draw(
             self, mouse_info: MouseInfo, keys: List[int], color: ColorType, brush_size: int
-        ) -> bool:
+    ) -> bool:
         """
         gets the selected pixel and handles changing it
         takes mouse_info, keys, color and  brush size
@@ -537,8 +538,8 @@ class GridManager:
         """
 
         if not (
-            self.grid.grid_rect.collidepoint(self._prev_mouse_pos.xy) or
-            self.grid.grid_rect.collidepoint(mouse_info.xy)
+                self.grid.grid_rect.collidepoint(self._prev_mouse_pos.xy) or
+                self.grid.grid_rect.collidepoint(mouse_info.xy)
         ):
             return False
 
@@ -548,8 +549,8 @@ class GridManager:
         start, end, redraw_grid = self.get_draw_info(mouse_info, keys, brush_size)
 
         if (
-            (mouse_info.buttons[0] or mouse_info.buttons[2]) or
-            (pg.K_RETURN in keys or pg.K_BACKSPACE in keys)
+                (mouse_info.buttons[0] or mouse_info.buttons[2]) or
+                (pg.K_RETURN in keys or pg.K_BACKSPACE in keys)
         ):
             points: List[Tuple[int, int]]
             if start == end:
@@ -617,7 +618,7 @@ class GridManager:
         returns the get grid flag
         """
 
-        draw_grid: bool = False
+        redraw_grid: bool = False
 
         if not mouse_info.buttons[1]:
             self._traveled_dist.x = self._traveled_dist.y = 0
@@ -634,7 +635,7 @@ class GridManager:
                     self.grid.grid_size.w - self.grid.grid_visible_area.w
                 )
 
-                draw_grid = True
+                redraw_grid = True
 
             self._traveled_dist.y += self._prev_mouse_pos.y - mouse_info.y
             if abs(self._traveled_dist.y) > self.grid.grid_pixel_dim:
@@ -646,9 +647,9 @@ class GridManager:
                     self.grid.grid_size.h - self.grid.grid_visible_area.h
                 )
 
-                draw_grid = True
+                redraw_grid = True
 
-        return draw_grid
+        return redraw_grid
 
     def resize(self, new_size: Size) -> None:
         """
@@ -656,13 +657,13 @@ class GridManager:
         takes new size
         """
 
-        self._grid_offset = Point(0, 0)
-        self._traveled_dist = Point(0, 0)
+        self._grid_offset.x, self._grid_offset.y = 0, 0
+        self._traveled_dist.x, self._traveled_dist.y = 0, 0
         self.grid.resize(new_size, self._grid_offset, self._selected_pixel_pos)
 
     def upt(
             self, mouse_info: MouseInfo, keys: List[int], color: ColorType, brush_size: int
-        ) -> None:
+    ) -> None:
         """
         makes the object interactable
         takes mouse info, keys, color and brush size
@@ -690,4 +691,4 @@ class GridManager:
         if redraw_grid:
             self.grid.update_section(self._grid_offset, self._selected_pixel_pos, brush_size)
 
-        self._prev_mouse_pos = Point(*mouse_info.xy)
+        self._prev_mouse_pos.x, self._prev_mouse_pos.y = mouse_info.x, mouse_info.y

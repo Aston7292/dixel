@@ -65,7 +65,7 @@ for n in range(1, 6):
     brush_size_imgs.append((off, on))
 
 BRUSH_SIZE_GRID: Final[CheckBoxGrid] = CheckBoxGrid(
-    Point(10, FPS_TEXT.surf.get_height()), tuple(brush_size_imgs), 1
+    Point(10, int(FPS_TEXT.rect.bottom)), tuple(brush_size_imgs), 1
 )
 
 INIT_COLOR: Final[ColorType] = (0, 0, 0)
@@ -178,13 +178,15 @@ class Dixel:
         """
 
         self._saved_keys.append(k)
+        self._last_k_input = 0
         self._ctrl = pg.key.get_mods() & pg.KMOD_CTRL
 
         if k == pg.K_ESCAPE:
             raise KeyboardInterrupt
 
         if k == pg.K_F1:
-            self._win_size, self._flag = Size(INIT_WIN_SIZE.w, INIT_WIN_SIZE.h), pg.RESIZABLE
+            self._win_size.w, self._win_size.h = INIT_WIN_SIZE.w, INIT_WIN_SIZE.h
+            self._flag = pg.RESIZABLE
             self._full_screen = False
             self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
 
@@ -194,10 +196,12 @@ class Dixel:
 
             if not self._full_screen:
                 # exiting full screen triggers VIDEORESIZE so handle resize is not necessary
-                self._win_size, self._flag = Size(*self._prev_win_size), pg.RESIZABLE
+                self._win_size.w, self._win_size.h = self._prev_win_size
+                self._flag = pg.RESIZABLE
             else:
                 self._prev_win_size = self._win_size.wh
-                self._win_size, self._flag = Size(*get_monitor_size()), pg.FULLSCREEN
+                self._win_size.w, self._win_size.h = get_monitor_size()
+                self._flag = pg.FULLSCREEN
                 self._handle_resize()
 
             self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
@@ -218,15 +222,13 @@ class Dixel:
                 if event.w < INIT_WIN_SIZE.w or event.h < INIT_WIN_SIZE.h:
                     event.w, event.h = max(event.w, INIT_WIN_SIZE.w), max(event.h, INIT_WIN_SIZE.h)
                     self._win = pg.display.set_mode((event.w, event.h), self._flag | ADD_FLAGS)
-                self._win_size = Size(event.w, event.h)
+                self._win_size.w, self._win_size.h = event.w, event.h
 
                 self._handle_resize()
             elif event.type == pg.KEYDOWN:
                 self._handle_keys(event.key)
-                self._last_k_input = 0
             elif event.type == pg.KEYUP:
                 self._saved_keys.remove(event.key)
-                #self._last_k_input = 0
                 self._ctrl = pg.key.get_mods() & pg.KMOD_CTRL
 
             if event.type == FPS_UPT:
@@ -279,8 +281,8 @@ class Dixel:
                 GRID_MANAGER.load_path(self._file_path)
 
         if (
-            (CLOSE.upt(self._mouse_info) or (self._ctrl and pg.K_q in self._keys))
-            and self._file_path
+                (CLOSE.upt(self._mouse_info) or (self._ctrl and pg.K_q in self._keys))
+                and self._file_path
         ):
             fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
@@ -323,8 +325,8 @@ class Dixel:
                             COLOR_PICKER.set(BLACK)
 
                         if (
-                            MODIFY_GRID.upt(self._mouse_info) or
-                            (self._ctrl and pg.K_m in self._keys)
+                                MODIFY_GRID.upt(self._mouse_info) or
+                                (self._ctrl and pg.K_m in self._keys)
                         ):
                             self._state = 2
 

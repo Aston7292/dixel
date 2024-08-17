@@ -62,7 +62,7 @@ class NumChooser:
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
         sequence: BlitSequence = [(self._img, self.rect.topleft)]
@@ -95,7 +95,7 @@ class NumChooser:
         """
 
         self.traveled_x = 0
-        self.value = max(min(value, MAX_SIZE), 1)
+        self.value = value
         self._value_text.modify_text(str(self.value))
 
     def upt(self, mouse_info: MouseInfo) -> None:
@@ -192,7 +192,7 @@ class GridUI:
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
         sequence: BlitSequence = self.ui.blit()

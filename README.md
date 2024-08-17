@@ -24,15 +24,20 @@ Requires pygame-ce and numpy.
 - **CTRL + 1-5**: Change brush size
 - **ALT + arrows**: move selected pixel by brush size
 - **SHIFT + arrows**: move selected pixel by visible area
-- **CTRL + arrows**: move selected pixel to limit of the grid
+- **CTRL + arrows**: move selected pixel to the limit of the grid
+
+- **CTRL + left/right**: switch between scrollbar and input box in color picking ui
 
 ## Screenshots
 
 ### Main Interface
+
 ![Main Interface](screenshots/main_interface.png)
 
 ### Color Picker
+
 ![Choosing Color](screenshots/color_picker.png)
 
 ### Grid UI
+
 ![Resizing Grid](screenshots/grid_ui.png)

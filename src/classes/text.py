@@ -18,7 +18,7 @@ class Text:
     """
 
     __slots__ = (
-        '_init_pos', '_pos', '_init_h', '_renderer', '_text', 'surf', '_topleft'
+        '_init_pos', '_pos', '_init_h', '_renderer', '_text', '_surf', 'rect'
     )
 
     def __init__(self, pos: RectPos, h: int, text: str) -> None:
@@ -36,16 +36,15 @@ class Text:
         self._renderer: pg.Font = RENDERERS_CACHE[self._init_h]
         self._text: str = text
 
-        self.surf: pg.SurfaceType = self._renderer.render(self._text, True, WHITE)
-        rect: pg.FRect = self.surf.get_frect(**{self._init_pos.pos: self._init_pos.xy})
-        self._topleft: Tuple[float, float] = rect.topleft
+        self._surf: pg.SurfaceType = self._renderer.render(self._text, True, WHITE)
+        self.rect: pg.FRect = self._surf.get_frect(**{self._init_pos.pos: self._init_pos.xy})
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
-        return [(self.surf, self._topleft)]
+        return [(self._surf, self.rect.topleft)]
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -60,18 +59,45 @@ class Text:
             RENDERERS_CACHE[h] = pg.font.Font(size=h)
         self._renderer = RENDERERS_CACHE[h]
 
-        self.surf = self._renderer.render(self._text, True, WHITE)
-        rect: pg.FRect = self.surf.get_frect(**{self._init_pos.pos: self._pos})
-        self._topleft = rect.topleft
+        self._surf = self._renderer.render(self._text, True, WHITE)
+        self.rect = self._surf.get_frect(**{self._init_pos.pos: self._pos})
 
     def modify_text(self, text: str) -> None:
         """
-        modifies rendered text and adjusts position
+        modifies text image and adjusts position
         takes new text
         """
 
         self._text = text
 
-        self.surf = self._renderer.render(self._text, True, WHITE)
-        rect: pg.FRect = self.surf.get_frect(**{self._init_pos.pos: self._pos})
-        self._topleft = rect.topleft
+        self._surf = self._renderer.render(self._text, True, WHITE)
+        self.rect = self._surf.get_frect(**{self._init_pos.pos: self._pos})
+
+    def get_pos_at(self, i: int) -> float:
+        """
+        get x pos of the character at a given index
+        returns the x pos of the char at i
+        """
+
+        text: str = self._text[:i]
+
+        return self.rect.x + self._renderer.render(text, False, WHITE).get_width()
+
+    def get_closest(self, x: int) -> int:
+        """
+        get the index of the closest character to a given x
+        takes x position
+        returns index of closest character (0 - len(text))
+        """
+
+        current_x: int = int(self.rect.x)
+        for i, char in enumerate(self._text):
+            next_x: int = current_x + self._renderer.render(char, False, WHITE).get_width()
+            if x < next_x:
+                if x - current_x < next_x - x:
+                    return i
+                return i + 1
+
+            current_x = next_x
+
+        return len(self._text)

@@ -64,7 +64,7 @@ class UI:
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
         sequence: BlitSequence = [(self._img, self.rect.topleft)]

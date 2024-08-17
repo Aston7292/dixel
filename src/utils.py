@@ -1,5 +1,5 @@
 """
-collections of shared funcs/dataclasses
+collections of shared dataclasses/funcs
 """
 
 from dataclasses import dataclass
@@ -31,7 +31,7 @@ class Point:
 class RectPos:
     """
     dataclass for representing the position of a rect
-    takes x and y as tuple and the value they represent (e.g. topleft)
+    takes x, y and the value they represent (e.g. topleft)
     """
 
     x: float

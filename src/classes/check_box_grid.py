@@ -18,10 +18,12 @@ class LockedCheckBox(Clickable):
     """
 
     __slots__ = (
-        'clicked', '_text', '_text_surf'
+        'clicked', '_text_surf'
     )
 
-    def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...], text: str) -> None:
+    def __init__(
+            self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType], text: str
+        ) -> None:
         """
         creates surfaces and rect
         takes position, two images and text
@@ -31,15 +33,13 @@ class LockedCheckBox(Clickable):
 
         self.clicked: bool = False
 
-        self._text: Text = Text(RectPos(0, 0, 'topleft'), text, 16)
-        self._text_surf: pg.SurfaceType = pg.Surface(
-            (int(self._text.rect.w), int(self._text.rect.h))
-        )
-        self._text_surf.fblits(self._text.blit())
+        text_obj: Text = Text(RectPos(0, 0, 'topleft'), text, 16)
+        self._text_surf: pg.SurfaceType = pg.Surface((int(text_obj.rect.w), int(text_obj.rect.h)))
+        self._text_surf.fblits(text_obj.blit())
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
         img_i: int = 1 if self.clicked else self.img_i
@@ -55,7 +55,7 @@ class LockedCheckBox(Clickable):
         """
         updates the checkbox image if the mouse is hovering it and ticks it on if clicked
         takes mouse info
-        returns True if the checkbox was ticked on
+        returns True if the checkbox was clicked
         """
 
         if not self.rect.collidepoint(mouse_info.xy):
@@ -94,7 +94,7 @@ class CheckBoxGrid:
     ) -> None:
         """
         creates all the checkboxes
-        takes position, all the images and the number of rows
+        takes position, all the check boxes info and the number of rows
         """
 
         x: int

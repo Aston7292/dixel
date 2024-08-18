@@ -92,15 +92,13 @@ def get_monitor_size() -> tuple[int, int]:
     raises ValueError if the monitor isn't found
     """
 
-    win_handler: BaseWindow = getWindowsWithTitle('Dixel')[0]
+    win: BaseWindow = getWindowsWithTitle('Dixel')[0]
 
     monitors: Tuple[Monitor, ...] = tuple(get_monitors())
     for monitor in monitors:
         if (
-                win_handler.right >= monitor.x and
-                win_handler.left <= monitor.x + monitor.width and
-                win_handler.bottom >= monitor.y and
-                win_handler.top <= monitor.y + monitor.height
+                win.right >= monitor.x and win.left <= monitor.x + monitor.width and
+                win.bottom >= monitor.y and win.top <= monitor.y + monitor.height
         ):
             return monitor.width, monitor.height
 

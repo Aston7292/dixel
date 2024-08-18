@@ -27,6 +27,7 @@ Requires pygame-ce, numpy, Pillow, pygetwindow and screeninfo.
 - **CTRL + arrows**: move selected pixel to the limit of the grid
 
 - **CTRL + left/right**: switch between scrollbar and input box in color picking ui
+- **CTRL + k**: toggle check box in grid ui
 
 ## Screenshots
 

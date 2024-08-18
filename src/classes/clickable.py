@@ -14,15 +14,15 @@ from src.const import BlitSequence
 class Clickable(ABC):
     """
     abstract class to create and object that changes between two images
-    includes: blit, handle_resize (window size ratio)
-    children should include: upt (mouse info)
+    includes: blit () -> BlitSequence, handle_resize (window size ratio) -> None
+    children should include: upt (mouse info) -> bool
     """
 
     __slots__ = (
         '_init_pos', '_imgs', 'rect', '_init_size', 'img_i', 'hovering'
     )
 
-    def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...]) -> None:
+    def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType]) -> None:
         """
         creates surfaces and rect
         takes position and two images
@@ -40,7 +40,7 @@ class Clickable(ABC):
 
     def blit(self) -> BlitSequence:
         """
-        return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
         return [(self._imgs[self.img_i], self.rect.topleft)]
@@ -78,7 +78,9 @@ class CheckBox(Clickable):
         '_text',
     )
 
-    def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...], text: str) -> None:
+    def __init__(
+            self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType], text: str
+        ) -> None:
         """
         creates surfaces, rect and text object
         takes position, two images and text
@@ -113,7 +115,7 @@ class CheckBox(Clickable):
         """
         changes the checkbox image when clicked
         takes mouse info
-        returns True if the checkbox was ticked on
+        returns True if the checkbox was clicked
         """
 
         if not self.rect.collidepoint(mouse_info.xy):
@@ -128,16 +130,14 @@ class CheckBox(Clickable):
             self.hovering = True
 
         if mouse_info.released[0]:
-            self.img_i = not self.img_i
-
-            return bool(self.img_i)
+            return True
 
         return False
 
 
 class Button(Clickable):
     """
-    class to create a button, when hovered changes image and text appears on top of it
+    class to create a button, when hovered changes image
     """
 
     __slots__ = (
@@ -145,7 +145,8 @@ class Button(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...], text: str, text_h: int=32
+            self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType],
+            text: str, text_h: int=32
         ) -> None:
         """
         creates surfaces, rect and text object

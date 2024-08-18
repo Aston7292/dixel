@@ -28,6 +28,8 @@ CLOSE_2: Final[pg.SurfaceType] = pg.image.load(
     join('sprites', 'close_button_on.png')
 ).convert_alpha()
 
+INPUT_BOX: Final[pg.Surface] = pg.Surface((60, 40))
+
 
 class UI:
     """

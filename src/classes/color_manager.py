@@ -7,7 +7,7 @@ from math import ceil
 from typing import Tuple, List, Final, Optional, Any
 
 from src.classes.num_input_box import NumInputBox
-from src.classes.ui import UI
+from src.classes.ui import UI, INPUT_BOX
 from src.classes.text import Text
 from src.utils import Point, RectPos, Size, MouseInfo
 from src.const import ColorType, BlitSequence
@@ -16,8 +16,6 @@ SLIDER_1: Final[pg.SurfaceType] = pg.Surface((10, 35))
 SLIDER_1.fill((40, 40, 40))
 SLIDER_2: Final[pg.SurfaceType] = pg.Surface((10, 35))
 SLIDER_2.fill((10, 10, 10))
-
-INPUT_BOX: Final[pg.Surface] = pg.Surface((60, 40))
 
 
 class ScrollBar:
@@ -176,11 +174,11 @@ class ScrollBar:
                 )
         ):
             if self.hovering:
-                if not mouse_info.buttons[0]:
-                    self.scrolling = False
-
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                 self.hovering = False
+
+            if not mouse_info.buttons[0]:
+                self.scrolling = False
         else:
             if not self.hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
@@ -194,7 +192,7 @@ class ScrollBar:
         clicked: bool
         new_text: str
         clicked, new_text = self.value_input_box.upt(
-            mouse_info, keys, selection == self.value_input_box
+            mouse_info, keys, (0, 255), selection == self.value_input_box
         )
 
         if clicked:
@@ -242,7 +240,7 @@ class ColorPicker:
 
     __slots__ = (
         'ui', '_color', '_preview_init_pos', '_preview_img', '_preview_rect', '_preview_init_size',
-        '_channels', '_objs', '_selection_i', '_selection', '_hex_text'
+        '_channels', '_objs', '_selection_i', '_hex_text'
     )
 
     def __init__(self, pos: RectPos, color: ColorType) -> None:
@@ -274,13 +272,12 @@ class ColorPicker:
         r: ScrollBar = ScrollBar(
             Point(int(self.ui.rect.centerx), int(g.bar_rect.top - 50)), 0, self._color
         )
+
         self._channels: Tuple[ScrollBar, ...] = (r, g, b)
         self._objs: Tuple[Tuple[Any, ...], ...] = (
             (r, r.value_input_box), (g, g.value_input_box), (b, b.value_input_box)
         )
-
         self._selection_i: Point = Point(0, 0)
-        self._selection: Any = self._objs[self._selection_i.y][self._selection_i.x]
 
         hex_string: str = '#' + ''.join((f'{channel:02x}' for channel in self._color))
         self._hex_text: Text = Text(RectPos(*self._preview_rect.midtop, 'midbottom'), hex_string)
@@ -348,27 +345,27 @@ class ColorPicker:
         """
 
         if keys:
-            prev_selection_x: int = self._selection_i.x
             if pg.K_UP in keys:
                 self._selection_i.y = max(self._selection_i.y - 1, 0)
             elif pg.K_DOWN in keys:
                 self._selection_i.y = min(self._selection_i.y + 1, len(self._objs) - 1)
             elif ctrl:
+                prev_selection_x: int = self._selection_i.x
                 if pg.K_LEFT in keys:
                     self._selection_i.x = max(self._selection_i.x - 1, 0)
                 elif pg.K_RIGHT in keys:
                     self._selection_i.x = min(self._selection_i.x + 1, len(self._objs[0]) - 1)
-            self._selection = self._objs[self._selection_i.y][self._selection_i.x]
 
-            if self._selection_i.x != prev_selection_x:
-                keys = []  # prevents extra movement after switching selection
+                if self._selection_i.x != prev_selection_x:
+                    keys = []  # prevents extra movement after switching selection
 
         prev_color: ColorType = self._color
+        selection: Any = self._objs[self._selection_i.y][self._selection_i.x]
+
         for i, channel in enumerate(self._channels):
-            new_selection: int = channel.upt(mouse_info, keys, self._selection)
+            new_selection: int = channel.upt(mouse_info, keys, selection)
             if new_selection != -1:
                 self._selection_i.x, self._selection_i.y = new_selection, i
-                self._selection = self._objs[self._selection_i.y][self._selection_i.x]
         self._color = tuple(channel.value for channel in self._channels)
 
         if self._color != prev_color:
@@ -385,7 +382,6 @@ class ColorPicker:
 
         if confirmed or exited:
             self._selection_i.x = self._selection_i.y = 0
-            self._selection = self._objs[self._selection_i.y][self._selection_i.x]
             for channel in self._channels:
                 channel.slider_img_i = 0
                 channel.hovering = channel.scrolling = False

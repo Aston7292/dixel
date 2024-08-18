@@ -26,7 +26,7 @@ pg.display.set_icon(pg.image.load(join('sprites', 'icon.png')).convert_alpha())
 from src.classes.grid_ui import GridUI
 from src.classes.color_manager import ColorPicker
 from src.classes.grid_manager import GridManager
-from src.classes.check_box import CheckBoxGrid
+from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
 from src.classes.text import Text
 
@@ -308,8 +308,11 @@ class Dixel:
                 if not self._focused:
                     continue
 
+                mouse_pos: Tuple[int, int] = (
+                    pg.mouse.get_pos() if pg.mouse.get_focused() else (-1, -1)
+                )  # when mouse is off the windows position is (0, 0)
                 self._mouse_info = MouseInfo(
-                    *pg.mouse.get_pos(), pg.mouse.get_pressed(), pg.mouse.get_just_released()
+                    *mouse_pos, pg.mouse.get_pressed(), pg.mouse.get_just_released()
                 )
 
                 closed: bool

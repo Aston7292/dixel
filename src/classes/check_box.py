@@ -6,29 +6,36 @@ import pygame as pg
 from typing import Tuple, List
 
 from src.classes.clickable import Clickable
+from src.classes.text import Text
 from src.utils import Point, RectPos, MouseInfo
 from src.const import BlitSequence
 
 
 class LockedCheckBox(Clickable):
     """
-    class to create a checkbox, when hovered changes image and
+    class to create a checkbox, when hovered changes image and displays text and
     when clicked it will always display the hovering image, cannot be ticked off
     """
 
     __slots__ = (
-        'clicked',
+        'clicked', '_text', '_text_surf'
     )
 
-    def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...]) -> None:
+    def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...], text: str) -> None:
         """
         creates surfaces and rect
-        takes position and two images
+        takes position, two images and text
         """
 
         super().__init__(pos, imgs)
 
         self.clicked: bool = False
+
+        self._text: Text = Text(RectPos(0, 0, 'topleft'), text, 16)
+        self._text_surf: pg.SurfaceType = pg.Surface(
+            (int(self._text.rect.w), int(self._text.rect.h))
+        )
+        self._text_surf.fblits(self._text.blit())
 
     def blit(self) -> BlitSequence:
         """
@@ -37,7 +44,12 @@ class LockedCheckBox(Clickable):
 
         img_i: int = 1 if self.clicked else self.img_i
 
-        return [(self._imgs[img_i], self.rect.topleft)]
+        sequence: BlitSequence = [(self._imgs[img_i], self.rect.topleft)]
+        if self.hovering:
+            mouse_pos: Point = Point(*pg.mouse.get_pos())
+            sequence += [(self._text_surf, (mouse_pos.x + 10, mouse_pos.y))]
+
+        return sequence
 
     def upt(self, mouse_info: MouseInfo) -> bool:
         """
@@ -49,15 +61,15 @@ class LockedCheckBox(Clickable):
         if not self.rect.collidepoint(mouse_info.xy):
             if self.hovering:
                 self.img_i = 0
-                self.hovering = False
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+                self.hovering = False
 
             return False
 
         if not self.hovering:
             self.img_i = 1
-            self.hovering = True
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
+            self.hovering = True
 
         if mouse_info.released[0]:
             self.clicked = True
@@ -77,7 +89,8 @@ class CheckBoxGrid:
     )
 
     def __init__(
-            self, pos: Point, all_imgs: Tuple[Tuple[pg.SurfaceType, ...], ...], rows: int
+            self, pos: Point, info: Tuple[Tuple[pg.SurfaceType, pg.SurfaceType, str], ...],
+            rows: int
     ) -> None:
         """
         creates all the checkboxes
@@ -89,15 +102,15 @@ class CheckBoxGrid:
         w: int
         h: int
         x, y = pos.xy
-        w, h = all_imgs[0][0].get_size()
+        w, h = info[0][0].get_size()
 
         self.check_boxes: List[LockedCheckBox] = []
 
-        extras: int = len(all_imgs) % rows
-        row_len: int = len(all_imgs) // rows + (1 if extras else 0)
+        extras: int = len(info) % rows
+        row_len: int = len(info) // rows + (1 if extras else 0)
 
         index: int = 0
-        for img in all_imgs:
+        for element in info:
             if index % row_len != 0:
                 x += w + 10
             elif index:
@@ -110,7 +123,9 @@ class CheckBoxGrid:
                     row_len -= 1
             index += 1
 
-            self.check_boxes.append(LockedCheckBox(RectPos(x, y, 'topleft'), img))
+            self.check_boxes.append(
+                LockedCheckBox(RectPos(x, y, 'topleft'), (element[0], element[1]), element[2])
+            )
         self.check_boxes[0].clicked = True
 
     def blit(self) -> BlitSequence:

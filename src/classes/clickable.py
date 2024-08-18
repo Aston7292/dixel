@@ -86,9 +86,7 @@ class CheckBox(Clickable):
 
         super().__init__(pos, imgs)
 
-        self._text: Text = Text(
-            RectPos(self.rect.left - 10, self.rect.centery, 'midright'), 28, text
-        )
+        self._text: Text = Text(RectPos(self.rect.left - 10, self.rect.centery, 'midright'), text)
 
     def blit(self) -> BlitSequence:
         """
@@ -120,14 +118,14 @@ class CheckBox(Clickable):
 
         if not self.rect.collidepoint(mouse_info.xy):
             if self.hovering:
-                self.hovering = False
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+                self.hovering = False
 
             return False
 
         if not self.hovering:
-            self.hovering = True
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
+            self.hovering = True
 
         if mouse_info.released[0]:
             self.img_i = not self.img_i
@@ -146,10 +144,12 @@ class Button(Clickable):
         '_text',
     )
 
-    def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...], text: str) -> None:
+    def __init__(
+            self, pos: RectPos, imgs: Tuple[pg.SurfaceType, ...], text: str, text_h: int=32
+        ) -> None:
         """
         creates surfaces, rect and text object
-        takes position, two images and text
+        takes position, two images, text and optional text height
         """
 
         super().__init__(pos, imgs)
@@ -158,7 +158,7 @@ class Button(Clickable):
         if not text:
             self._text = None
         else:
-            self._text = Text(RectPos(*self.rect.center, 'center'), 28, text)
+            self._text = Text(RectPos(*self.rect.center, 'center'), text, text_h)
 
     def blit(self) -> BlitSequence:
         """
@@ -191,14 +191,14 @@ class Button(Clickable):
         if not self.rect.collidepoint(mouse_info.xy):
             if self.hovering:
                 self.img_i = 0
-                self.hovering = False
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+                self.hovering = False
 
             return False
 
         if not self.hovering:
             self.img_i = 1
-            self.hovering = True
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
+            self.hovering = True
 
         return mouse_info.released[0]

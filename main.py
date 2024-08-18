@@ -30,8 +30,14 @@ from src.classes.check_box import CheckBoxGrid
 from src.classes.clickable import Button
 from src.classes.text import Text
 
-BUTTON_OFF: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_off.png')).convert_alpha()
-BUTTON_ON: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_on.png')).convert_alpha()
+BUTTON_M_OFF: Final[pg.SurfaceType] = pg.image.load(
+    join('sprites', 'button_m_off.png')
+).convert_alpha()
+BUTTON_M_ON: Final[pg.SurfaceType] = pg.image.load(
+    join('sprites', 'button_m_on.png')
+).convert_alpha()
+BUTTON_S_OFF: Final[pg.SurfaceType] = pg.transform.scale(BUTTON_M_OFF, (64, 32))
+BUTTON_S_ON: Final[pg.SurfaceType] = pg.transform.scale(BUTTON_M_ON, (64, 32))
 
 GRID_MANAGER: Final[GridManager] = GridManager(
     RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'),
@@ -39,33 +45,33 @@ GRID_MANAGER: Final[GridManager] = GridManager(
 )
 ADD_COLOR: Final[Button] = Button(
     RectPos(INIT_WIN_SIZE.w - 25, INIT_WIN_SIZE.h - 25, 'bottomright'),
-    (BUTTON_OFF, BUTTON_ON), 'add color'
+    (BUTTON_M_OFF, BUTTON_M_ON), 'add color'
 )
 MODIFY_GRID: Final[Button] = Button(
     RectPos(ADD_COLOR.rect.x, ADD_COLOR.rect.y - 25, 'bottomleft'),
-    (BUTTON_OFF, BUTTON_ON), 'modify grid'
+    (BUTTON_M_OFF, BUTTON_M_ON), 'modify grid'
 )
 
 SAVE_AS: Final[Button] = Button(
-    RectPos(25, INIT_WIN_SIZE.h - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'save as'
+    RectPos(0, 0, 'topleft'), (BUTTON_S_OFF, BUTTON_S_ON), 'save as', 20
 )
 LOAD: Final[Button] = Button(
-    RectPos(25, SAVE_AS.rect.y - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'open file'
+    RectPos(SAVE_AS.rect.right, 0, 'topleft'), (BUTTON_S_OFF, BUTTON_S_ON), 'open file', 20
 )
 CLOSE: Final[Button] = Button(
-    RectPos(25, LOAD.rect.y - 25, 'bottomleft'), (BUTTON_OFF, BUTTON_ON), 'close file'
+    RectPos(LOAD.rect.right, 0, 'topleft'), (BUTTON_S_OFF, BUTTON_S_ON), 'close file', 20
 )
 
-FPS_TEXT: Final[Text] = Text(RectPos(0, 0, 'topleft'), 32, 'FPS: 0')
+FPS_TEXT: Final[Text] = Text(RectPos(INIT_WIN_SIZE.w / 2, 0, 'midtop'), 'FPS: 0')
 
-brush_size_imgs: List[Tuple[pg.SurfaceType, ...]] = []
+brush_size_info: List[Tuple[pg.SurfaceType, pg.SurfaceType, str]] = []
 for n in range(1, 6):
     off: pg.SurfaceType = pg.image.load(join('sprites', f'size_{n}_off.png')).convert_alpha()
     on: pg.SurfaceType = pg.image.load(join('sprites', f'size_{n}_on.png')).convert_alpha()
-    brush_size_imgs.append((off, on))
+    brush_size_info.append((off, on, str(n) + 'px'))
 
-BRUSH_SIZE_GRID: Final[CheckBoxGrid] = CheckBoxGrid(
-    Point(10, int(FPS_TEXT.rect.bottom)), tuple(brush_size_imgs), 1
+BRUSH_SIZES: Final[CheckBoxGrid] = CheckBoxGrid(
+    Point(10, int(SAVE_AS.rect.bottom) + 10), tuple(brush_size_info), 1
 )
 
 INIT_COLOR: Final[ColorType] = (0, 0, 0)
@@ -78,7 +84,7 @@ GRID_UI: Final[GridUI] = GridUI(
 )
 
 GLOBAL_OBJS: Final[Tuple[Any, ...]] = (
-    GRID_MANAGER, ADD_COLOR, MODIFY_GRID, BRUSH_SIZE_GRID, SAVE_AS, LOAD, CLOSE, FPS_TEXT
+    GRID_MANAGER, ADD_COLOR, MODIFY_GRID, BRUSH_SIZES, SAVE_AS, LOAD, CLOSE, FPS_TEXT
 )
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
@@ -313,7 +319,7 @@ class Dixel:
                             self._mouse_info, self._keys, self._color, self._brush_size
                         )
 
-                        brush_size: int = BRUSH_SIZE_GRID.upt(self._mouse_info)
+                        brush_size: int = BRUSH_SIZES.upt(self._mouse_info)
                         if brush_size != -1:
                             self._brush_size = brush_size + 1
 
@@ -337,9 +343,9 @@ class Dixel:
                         self._handle_file_operations()
 
                         if self._ctrl:  # independent shortcuts
-                            for i in range(pg.K_1, pg.K_1 + len(BRUSH_SIZE_GRID.check_boxes)):
+                            for i in range(pg.K_1, pg.K_1 + len(BRUSH_SIZES.check_boxes)):
                                 if i in self._keys:
-                                    BRUSH_SIZE_GRID.set(i - pg.K_1)
+                                    BRUSH_SIZES.set(i - pg.K_1)
                                     self._brush_size = i - pg.K_1 + 1
                     case 1:
                         new_color: Optional[ColorType]

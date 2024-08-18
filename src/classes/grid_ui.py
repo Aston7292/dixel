@@ -55,9 +55,9 @@ class NumChooser:
         self.traveled_x: int = 0
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
 
-        self._value_text: Text = Text(RectPos(*self.rect.center, 'center'), 32, str(self.value))
+        self._value_text: Text = Text(RectPos(*self.rect.center, 'center'), str(self.value))
         self._description: Text = Text(
-            RectPos(self.rect.x - 10, self.rect.centery, 'midright'), 32, text
+            RectPos(self.rect.x - 10, self.rect.centery, 'midright'), text
         )
 
     def blit(self) -> BlitSequence:

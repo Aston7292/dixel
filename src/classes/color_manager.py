@@ -28,7 +28,7 @@ class ScrollBar:
     __slots__ = (
         '_bar_init_pos', '_channel', '_unit_w', '_bar_img', 'bar_rect', '_bar_init_size',
         'value', '_slider_init_pos', '_slider_imgs', '_slider_rect', '_slider_init_size',
-        '_slider_img_i', 'hovering', 'scrolling', '_channel_text', 'value_input_box'
+        'slider_img_i', 'hovering', 'scrolling', '_channel_text', 'value_input_box'
     )
 
     def __init__(self, pos: Point, channel: int, color: ColorType) -> None:
@@ -60,12 +60,12 @@ class ScrollBar:
 
         self._slider_init_size: Size = Size(int(self._slider_rect.w), int(self._slider_rect.h))
 
-        self._slider_img_i: int = 0
+        self.slider_img_i: int = 0
         self.hovering: bool = False
         self.scrolling: bool = False
 
         self._channel_text: Text = Text(
-            RectPos(*self.bar_rect.midleft, 'midright'), 32, ('r', 'g', 'b')[self._channel]
+            RectPos(*self.bar_rect.midleft, 'midright'), ('r', 'g', 'b')[self._channel]
         )
         self.value_input_box: NumInputBox = NumInputBox(
             RectPos(
@@ -82,7 +82,7 @@ class ScrollBar:
 
         sequence: BlitSequence = [
             (self._bar_img, self.bar_rect.topleft),
-            (self._slider_imgs[self._slider_img_i], self._slider_rect.topleft)
+            (self._slider_imgs[self.slider_img_i], self._slider_rect.topleft)
         ]
         sequence += self._channel_text.blit()
         sequence += self.value_input_box.blit()
@@ -154,8 +154,10 @@ class ScrollBar:
         self.value = color[self._channel]
         self._slider_rect.x = self.bar_rect.x + self._unit_w * self.value
         self.value_input_box.text.modify_text(str(self.value))
+        self.value_input_box.text_i = 0
 
         self.get_bar(color)
+        self.value_input_box.get_cursor_pos()
 
     def upt(self, mouse_info: MouseInfo, keys: List[int], selection: Any) -> int:
         """
@@ -174,11 +176,11 @@ class ScrollBar:
                 )
         ):
             if self.hovering:
+                if not mouse_info.buttons[0]:
+                    self.scrolling = False
+
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                 self.hovering = False
-
-            if not mouse_info.buttons[0]:
-                self.scrolling = False
         else:
             if not self.hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
@@ -186,40 +188,49 @@ class ScrollBar:
 
             self.scrolling = bool(mouse_info.buttons[0])
 
-        self._slider_img_i = 0
+        self.slider_img_i = 0
+        prev_text: str = self.value_input_box.text.text
 
-        if self.scrolling:
-            self._slider_rect.x = min(
-                max(mouse_info.x, self.bar_rect.left), self.bar_rect.right
-            )
-            self.value = ceil((self._slider_rect.x - self.bar_rect.x) / self._unit_w)
+        clicked: bool
+        new_text: str
+        clicked, new_text = self.value_input_box.upt(
+            mouse_info, keys, selection == self.value_input_box
+        )
 
-            self.value_input_box.text.modify_text(str(self.value))
-            self.value_input_box.get_cursor_pos()
-
-        if self.value_input_box.upt(mouse_info, selection == self.value_input_box):
+        if clicked:
             return 1
 
+        value: int
+        if self.scrolling:
+            value = ceil((mouse_info.x - self.bar_rect.x) / self._unit_w)
+            value = max(min(value, 255), 0)
+            new_text = str(value)
+
         if selection == self:
-            self._slider_img_i = 1
-            prev_value: int = self.value
+            self.slider_img_i = 1
 
-            if pg.K_LEFT in keys:
-                self.value = max(self.value - 1, 0)
-            elif pg.K_RIGHT in keys:
-                self.value = min(self.value + 1, 255)
-            elif pg.K_PAGEDOWN in keys:
-                self.value = max(self.value - 25, 0)
-            elif pg.K_PAGEUP in keys:
-                self.value = min(self.value + 25, 255)
-            elif pg.K_HOME in keys:
-                self.value = 0
-            elif pg.K_END in keys:
-                self.value = 255
+            if keys:
+                value = self.value
+                if pg.K_LEFT in keys:
+                    value = max(value - 1, 0)
+                elif pg.K_RIGHT in keys:
+                    value = min(value + 1, 255)
+                elif pg.K_PAGEDOWN in keys:
+                    value = max(value - 25, 0)
+                elif pg.K_PAGEUP in keys:
+                    value = min(value + 25, 255)
+                elif pg.K_HOME in keys:
+                    value = 0
+                elif pg.K_END in keys:
+                    value = 255
+                new_text = str(value)
 
-            if self.value != prev_value:
-                self._slider_rect.x = self.bar_rect.x + self._unit_w * self.value
-                self.value_input_box.text.modify_text(str(self.value))
+        if new_text != prev_text:
+            self.value = int(new_text) if new_text else 0
+            self._slider_rect.x = self.bar_rect.x + self._unit_w * self.value
+
+            self.value_input_box.text.modify_text(new_text)
+            self.value_input_box.get_cursor_pos()
 
         return -1
 
@@ -272,9 +283,7 @@ class ColorPicker:
         self._selection: Any = self._objs[self._selection_i.y][self._selection_i.x]
 
         hex_string: str = '#' + ''.join((f'{channel:02x}' for channel in self._color))
-        self._hex_text: Text = Text(
-            RectPos(*self._preview_rect.midtop, 'midbottom'), 32, hex_string
-        )
+        self._hex_text: Text = Text(RectPos(*self._preview_rect.midtop, 'midbottom'), hex_string)
 
     def blit(self) -> BlitSequence:
         """
@@ -338,20 +347,21 @@ class ColorPicker:
         return whatever the interface was closed or not and the new color
         """
 
-        prev_selection_x: int = self._selection_i.x
-        if pg.K_UP in keys:
-            self._selection_i.y = max(self._selection_i.y - 1, 0)
-        elif pg.K_DOWN in keys:
-            self._selection_i.y = min(self._selection_i.y + 1, len(self._objs) - 1)
-        elif ctrl:
-            if pg.K_LEFT in keys:
-                self._selection_i.x = max(self._selection_i.x - 1, 0)
-            elif pg.K_RIGHT in keys:
-                self._selection_i.x = min(self._selection_i.x + 1, len(self._objs[0]) - 1)
-        self._selection = self._objs[self._selection_i.y][self._selection_i.x]
+        if keys:
+            prev_selection_x: int = self._selection_i.x
+            if pg.K_UP in keys:
+                self._selection_i.y = max(self._selection_i.y - 1, 0)
+            elif pg.K_DOWN in keys:
+                self._selection_i.y = min(self._selection_i.y + 1, len(self._objs) - 1)
+            elif ctrl:
+                if pg.K_LEFT in keys:
+                    self._selection_i.x = max(self._selection_i.x - 1, 0)
+                elif pg.K_RIGHT in keys:
+                    self._selection_i.x = min(self._selection_i.x + 1, len(self._objs[0]) - 1)
+            self._selection = self._objs[self._selection_i.y][self._selection_i.x]
 
-        if self._selection_i.x != prev_selection_x:
-            keys = []  # prevents extra movement after switching selection
+            if self._selection_i.x != prev_selection_x:
+                keys = []  # prevents extra movement after switching selection
 
         prev_color: ColorType = self._color
         for i, channel in enumerate(self._channels):
@@ -377,6 +387,8 @@ class ColorPicker:
             self._selection_i.x = self._selection_i.y = 0
             self._selection = self._objs[self._selection_i.y][self._selection_i.x]
             for channel in self._channels:
+                channel.slider_img_i = 0
                 channel.hovering = channel.scrolling = False
+                channel.value_input_box.hovering = channel.value_input_box.selected = False
 
         return confirmed or exited, self._color if confirmed else None

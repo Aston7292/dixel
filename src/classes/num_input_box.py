@@ -3,7 +3,7 @@ class to choose a number between some bounds via an input box
 """
 
 import pygame as pg
-from typing import Tuple
+from typing import Tuple, List
 
 from src.classes.text import Text
 from src.utils import MouseInfo, RectPos, Size
@@ -16,8 +16,8 @@ class NumInputBox:
     """
 
     __slots__ = (
-        '_box_init_pos', '_box_img', '_box_rect', '_box_init_size', '_hovering', '_selected',
-        'text', '_text_i', '_cursor_img', '_cursor_rect', '_cursor_init_size'
+        '_box_init_pos', '_box_img', '_box_rect', '_box_init_size', 'hovering', 'selected',
+        'text', 'text_i', '_cursor_img', '_cursor_rect', '_cursor_init_size'
     )
 
     def __init__(self, pos: RectPos, img: pg.SurfaceType, text: str):
@@ -35,16 +35,16 @@ class NumInputBox:
 
         self._box_init_size: Size = Size(int(self._box_rect.w), int(self._box_rect.h))
 
-        self._hovering: bool = False
-        self._selected: bool = False
+        self.hovering: bool = False
+        self.selected: bool = False
 
-        self.text = Text(RectPos(*self._box_rect.center, 'center'), 32, text)
-        self._text_i: int = 0
+        self.text = Text(RectPos(*self._box_rect.center, 'center'), text)
+        self.text_i: int = 0
 
         self._cursor_img: pg.SurfaceType = pg.Surface((1, self.text.rect.h))
         self._cursor_img.fill(WHITE)
         self._cursor_rect: pg.FRect = self._cursor_img.get_frect(
-            topleft=(self.text.get_pos_at(self._text_i), self.text.rect.y)
+            topleft=(self.text.get_pos_at(self.text_i), self.text.rect.y)
         )
 
         self._cursor_init_size: Size = Size(int(self._cursor_rect.w), int(self._cursor_rect.h))
@@ -56,7 +56,7 @@ class NumInputBox:
 
         sequence: BlitSequence = [(self._box_img, self._box_rect.topleft)]
         sequence += self.text.blit()
-        if self._selected:
+        if self.selected:
             sequence += [(self._cursor_img, self._cursor_rect.topleft)]
 
         return sequence
@@ -92,31 +92,66 @@ class NumInputBox:
         calculates cursor position based on text index
         """
 
-        self._cursor_rect.x = self.text.get_pos_at(self._text_i)
+        self._cursor_rect.x = self.text.get_pos_at(self.text_i)
         self._cursor_rect.y = self.text.rect.y
 
-    def upt(self, mouse_info: MouseInfo, selected: bool) -> bool:
+    def upt(self, mouse_info: MouseInfo, keys: List[int], selected: bool) -> Tuple[bool, str]:
         """
         makes the object interactable
-        takes mouse info and selected bool
-        returns whatever the input box was clicked or not
+        takes mouse info, keys and selected bool
+        returns whatever the input box was clicked or not and the new text
         """
 
+        new_text: str = self.text.text
+
         if not self._box_rect.collidepoint(mouse_info.xy):
-            if self._hovering:
+            if self.hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self._hovering = False
+                self.hovering = False
         else:
-            if not self._hovering:
+            if not self.hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_IBEAM)
-                self._hovering = True
+                self.hovering = True
 
             if mouse_info.released[0]:
-                self._text_i = self.text.get_closest(mouse_info.x)
+                self.text_i = self.text.get_closest(mouse_info.x)
                 self.get_cursor_pos()
 
-                return True
+                return True, new_text
 
-        self._selected = selected
+        self.selected = selected
+        if self.selected and keys:
+            if pg.K_LEFT in keys:
+                self.text_i = max(self.text_i - 1, 0)
+                self.get_cursor_pos()
+            elif pg.K_RIGHT in keys:
+                self.text_i = min(self.text_i + 1, len(self.text.text))
+                self.get_cursor_pos()
+            elif pg.K_HOME in keys:
+                self.text_i = 0
+                self.get_cursor_pos()
+            elif pg.K_END in keys:
+                self.text_i = len(self.text.text)
+                self.get_cursor_pos()
+            else:
+                k: int = keys[-1]
+                if k == pg.K_BACKSPACE and self.text_i:
+                    new_text = self.text.text[:self.text_i - 1] + self.text.text[self.text_i:]
+                    self.text_i = max(self.text_i - 1, 0)
+                elif k == pg.K_DELETE:
+                    new_text = self.text.text[:self.text_i] + self.text.text[self.text_i + 1:]
+                elif k <= 0x10ffff and chr(k).isdigit():
+                    new_text = self.text.text[:self.text_i] + chr(k) + self.text.text[self.text_i:]
+                    if len(new_text) > 3:
+                        new_text = new_text[:3]
+                    if int(new_text) > 255:
+                        new_text = '255'
 
-        return False
+                    self.text_i = min(self.text_i + 1, len(new_text))
+
+                if new_text:
+                    new_text = new_text.lstrip('0')
+                    if not new_text:
+                        new_text = '0'
+
+        return False, new_text

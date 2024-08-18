@@ -14,8 +14,12 @@ from src.const import BlitSequence
 INTERFACE: Final[pg.SurfaceType] = pg.Surface((500, 700))
 INTERFACE.fill((60, 60, 60))
 
-BUTTON_OFF: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_off.png')).convert_alpha()
-BUTTON_ON: Final[pg.SurfaceType] = pg.image.load(join('sprites', 'button_on.png')).convert_alpha()
+BUTTON_M_OFF: Final[pg.SurfaceType] = pg.image.load(
+    join('sprites', 'button_m_off.png')
+).convert_alpha()
+BUTTON_M_ON: Final[pg.SurfaceType] = pg.image.load(
+    join('sprites', 'button_m_on.png')
+).convert_alpha()
 
 CLOSE_1: Final[pg.SurfaceType] = pg.image.load(
     join('sprites', 'close_button_off.png')
@@ -49,12 +53,12 @@ class UI:
         self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
 
         self._title: Text = Text(
-            RectPos(self.rect.centerx, self.rect.top + 10, 'midtop'), 40, title
+            RectPos(self.rect.centerx, self.rect.top + 10, 'midtop'), title, 40
         )
 
         self._confirm: Button = Button(
             RectPos(self.rect.right - 10, self.rect.bottom - 10, 'bottomright'),
-            (BUTTON_OFF, BUTTON_ON), 'confirm'
+            (BUTTON_M_OFF, BUTTON_M_ON), 'confirm'
         )
         self._exit: Button = Button(
             RectPos(self.rect.right - 10, self.rect.y + 10, 'topright'), (CLOSE_1, CLOSE_2), ''

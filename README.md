@@ -1,4 +1,4 @@
-Requires pygame-ce and numpy.
+Requires pygame-ce, numpy, Pillow, pygetwindow and screeninfo.
 
 ## Features
 
@@ -9,7 +9,7 @@ Requires pygame-ce and numpy.
 - **Brush Size**: Select the brush size using checkboxes.
 - **Resizable Grid**: Change the grid size and have a preview of how it will look.
 - **Minimap**: At any point there's a minimap in the top right corner with a white square to indicate the current position
-- **Auto Save**: If you're editing an existing image it will be saved when the program or the file are closed, if the program crashes the image will always be saved.
+- **Auto Save**: If you're editing an existing image it will be saved when the program or the file is closed, if the program crashes the image will always be saved.
 
 ## Keyboard Shortcuts
 

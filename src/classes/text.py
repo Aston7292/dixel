@@ -18,25 +18,25 @@ class Text:
     """
 
     __slots__ = (
-        '_init_pos', '_pos', '_init_h', '_renderer', '_text', '_surf', 'rect'
+        '_init_pos', '_pos', '_init_h', '_renderer', 'text', '_surf', 'rect'
     )
 
-    def __init__(self, pos: RectPos, h: int, text: str) -> None:
+    def __init__(self, pos: RectPos, text: str, h: int = 32) -> None:
         """
         creates text surface and rect
-        takes position, height, text
+        takes position, text and optional height
         """
 
         self._init_pos: RectPos = pos
         self._pos: Tuple[float, float] = self._init_pos.xy
-        self._init_h: int = h
 
+        self._init_h: int = h
         if self._init_h not in RENDERERS_CACHE:
             RENDERERS_CACHE[self._init_h] = pg.font.Font(size=self._init_h)
         self._renderer: pg.Font = RENDERERS_CACHE[self._init_h]
-        self._text: str = text
 
-        self._surf: pg.SurfaceType = self._renderer.render(self._text, True, WHITE)
+        self.text: str = text
+        self._surf: pg.SurfaceType = self._renderer.render(self.text, True, WHITE)
         self.rect: pg.FRect = self._surf.get_frect(**{self._init_pos.pos: self._init_pos.xy})
 
     def blit(self) -> BlitSequence:
@@ -59,7 +59,7 @@ class Text:
             RENDERERS_CACHE[h] = pg.font.Font(size=h)
         self._renderer = RENDERERS_CACHE[h]
 
-        self._surf = self._renderer.render(self._text, True, WHITE)
+        self._surf = self._renderer.render(self.text, True, WHITE)
         self.rect = self._surf.get_frect(**{self._init_pos.pos: self._pos})
 
     def modify_text(self, text: str) -> None:
@@ -68,9 +68,9 @@ class Text:
         takes new text
         """
 
-        self._text = text
+        self.text = text
 
-        self._surf = self._renderer.render(self._text, True, WHITE)
+        self._surf = self._renderer.render(self.text, True, WHITE)
         self.rect = self._surf.get_frect(**{self._init_pos.pos: self._pos})
 
     def get_pos_at(self, i: int) -> float:
@@ -79,9 +79,9 @@ class Text:
         returns the x pos of the char at i
         """
 
-        text: str = self._text[:i]
+        sub_string: str = self.text[:i]
 
-        return self.rect.x + self._renderer.render(text, False, WHITE).get_width()
+        return self.rect.x + self._renderer.render(sub_string, False, WHITE).get_width()
 
     def get_closest(self, x: int) -> int:
         """
@@ -91,7 +91,7 @@ class Text:
         """
 
         current_x: int = int(self.rect.x)
-        for i, char in enumerate(self._text):
+        for i, char in enumerate(self.text):
             next_x: int = current_x + self._renderer.render(char, False, WHITE).get_width()
             if x < next_x:
                 if x - current_x < next_x - x:
@@ -100,4 +100,4 @@ class Text:
 
             current_x = next_x
 
-        return len(self._text)
+        return len(self.text)

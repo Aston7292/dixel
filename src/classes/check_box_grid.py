@@ -39,7 +39,7 @@ class LockedCheckBox(Clickable):
 
     def blit(self) -> BlitSequence:
         """
-        returns a sequence to add in the main blit sequence
+        returns two sequences to add in the main blit sequence,
         """
 
         img_i: int = 1 if self.clicked else self.img_i
@@ -134,10 +134,15 @@ class CheckBoxGrid:
         """
 
         sequence: BlitSequence = []
+        add_sequence: BlitSequence = []
         for check_box in self.check_boxes:
-            sequence += check_box.blit()
+            info: BlitSequence = check_box.blit()
 
-        return sequence
+            sequence.append(info[0])
+            if len(info) == 2:
+                add_sequence.append(info[1])  # text doesn't overlap other checkboxes
+
+        return sequence + add_sequence
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """

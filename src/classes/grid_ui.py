@@ -29,7 +29,7 @@ class NumSlider:
     """
 
     __slots__ = (
-        'value', 'value_input_box', 'rect', 'scrolling', 'traveled_x', '_prev_mouse_x','_add_text'
+        'value', 'value_input_box', 'rect', 'scrolling', 'traveled_x', '_prev_mouse_x', '_add_text'
     )
 
     def __init__(self, pos: RectPos, value: int, text: str):

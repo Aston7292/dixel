@@ -18,7 +18,7 @@ class LockedCheckBox(Clickable):
     """
 
     __slots__ = (
-        'clicked', '_text_surf'
+        'clicked', '_text', '_text_surf'
     )
 
     def __init__(
@@ -33,9 +33,11 @@ class LockedCheckBox(Clickable):
 
         self.clicked: bool = False
 
-        text_obj: Text = Text(RectPos(0, 0, 'topleft'), text, 16)
-        self._text_surf: pg.SurfaceType = pg.Surface((int(text_obj.rect.w), int(text_obj.rect.h)))
-        self._text_surf.fblits(text_obj.blit())
+        self._text: Text = Text(RectPos(0, 0, 'topleft'), text, 16)
+        self._text_surf: pg.SurfaceType = pg.Surface(
+            (int(self._text.rect.w), int(self._text.rect.h))
+        )
+        self._text_surf.fblits(self._text.blit())
 
     def blit(self) -> BlitSequence:
         """
@@ -50,6 +52,13 @@ class LockedCheckBox(Clickable):
             sequence += [(self._text_surf, (mouse_pos.x + 10, mouse_pos.y))]
 
         return sequence
+
+    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+        super().handle_resize(win_ratio_w, win_ratio_h)
+
+        self._text.handle_resize(win_ratio_w, win_ratio_h)
+        self._text_surf = pg.Surface((int(self._text.rect.w), int(self._text.rect.h)))
+        self._text_surf.fblits(self._text.blit())
 
     def upt(self, mouse_info: MouseInfo) -> bool:
         """

@@ -102,7 +102,7 @@ class UI:
         """
         makes the object interactable
         takes mouse info, keys and ctrl
-        return the buttons that were clicked
+        returns the buttons that were clicked
         """
 
         confirmed: bool = self._confirm.upt(mouse_info) or bool(ctrl and pg.K_RETURN in keys)

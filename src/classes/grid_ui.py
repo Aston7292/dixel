@@ -88,7 +88,7 @@ class NumSlider:
         """
         makes the object interactable
         takes mouse info, keys and selection
-        return whatever the slider was clicked or not
+        returns whatever the slider was clicked or not
         """
 
         prev_text: str = self.value_input_box.text.text
@@ -156,6 +156,7 @@ class GridUI:
             self.ui.rect.centerx, self.ui.rect.centery + 40, 'center'
         )
         self._preview_pos: Tuple[float, float] = self._preview_init_pos.xy
+
         self._preview_init_dim: int = 300
 
         self._preview_img: pg.SurfaceType = pg.Surface(
@@ -288,7 +289,7 @@ class GridUI:
         """
         makes the object interactable
         takes mouse info, keys and ctrl
-        return whatever the interface was closed or not
+        returns whatever the interface was closed or not
         """
 
         if keys:

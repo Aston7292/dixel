@@ -25,6 +25,7 @@ Requires pygame-ce, numpy, Pillow, pygetwindow and screeninfo.
 - **ALT + arrows**: move selected pixel by brush size
 - **SHIFT + arrows**: move selected pixel by visible area
 - **CTRL + arrows**: move selected pixel to the limit of the grid
+- **CTRL +/-**: zoom in/out
 
 - **CTRL + left/right**: switch between scrollbar and input box in color picking ui
 - **CTRL + k**: toggle check box in grid ui

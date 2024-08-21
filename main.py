@@ -218,6 +218,7 @@ class Dixel:
         raises KeyboardInterrupt when window is closed
         """
 
+        zoom_amount: int = 0
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 raise KeyboardInterrupt
@@ -231,6 +232,8 @@ class Dixel:
                 self._win_size.w, self._win_size.h = event.w, event.h
 
                 self._handle_resize()
+            elif event.type == pg.MOUSEWHEEL:
+                zoom_amount = event.y
             elif event.type == pg.KEYDOWN:
                 self._handle_keys(event.key)
             elif event.type == pg.KEYUP:
@@ -245,6 +248,14 @@ class Dixel:
         else:
             self._keys = self._saved_keys
             self._last_k_input = pg.time.get_ticks()
+
+        if self._ctrl:
+            if pg.K_PLUS in self._keys:
+                zoom_amount = 1
+            if pg.K_MINUS in self._keys:
+                zoom_amount = -1
+        if zoom_amount:
+            GRID_MANAGER.zoom(zoom_amount, self._brush_size)
 
     def _handle_file_operations(self) -> None:
         """

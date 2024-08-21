@@ -341,7 +341,7 @@ class ColorPicker:
         """
         makes the object interactable
         takes mouse info, keys and ctrl
-        return whatever the interface was closed or not and the new color
+        returns whatever the interface was closed or not and the new color
         """
 
         if keys:

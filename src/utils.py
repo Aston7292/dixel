@@ -21,7 +21,7 @@ class Point:
     @property
     def xy(self) -> Tuple[int, int]:
         """
-        returns x and y as a tuple
+        returns x and y
         """
 
         return self.x, self.y
@@ -41,7 +41,7 @@ class RectPos:
     @property
     def xy(self) -> Tuple[float, float]:
         """
-        returns x and y as a tuple
+        returns x and y
         """
 
         return self.x, self.y
@@ -60,7 +60,7 @@ class Size:
     @property
     def wh(self) -> Tuple[int, int]:
         """
-        returns w and h as a tuple
+        returns w and h
         """
 
         return self.w, self.h
@@ -80,7 +80,7 @@ class MouseInfo:
     @property
     def xy(self) -> Tuple[int, int]:
         """
-        returns x and y as a tuple
+        returns x and y
         """
 
         return self.x, self.y

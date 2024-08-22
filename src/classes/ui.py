@@ -3,29 +3,28 @@ class to create a simple and easily customizable ui
 """
 
 import pygame as pg
-from os.path import join
+from os import path
 from typing import Tuple, List, Final
 
 from src.classes.clickable import Button
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo
-from src.const import BlitSequence
+from src.utils import RectPos, Size, MouseInfo, BlitSequence
 
 INTERFACE: Final[pg.SurfaceType] = pg.Surface((500, 700))
 INTERFACE.fill((60, 60, 60))
 
 BUTTON_M_OFF: Final[pg.SurfaceType] = pg.image.load(
-    join('sprites', 'button_m_off.png')
+    path.join('sprites', 'button_m_off.png')
 ).convert_alpha()
 BUTTON_M_ON: Final[pg.SurfaceType] = pg.image.load(
-    join('sprites', 'button_m_on.png')
+    path.join('sprites', 'button_m_on.png')
 ).convert_alpha()
 
 CLOSE_1: Final[pg.SurfaceType] = pg.image.load(
-    join('sprites', 'close_button_off.png')
+    path.join('sprites', 'close_button_off.png')
 ).convert_alpha()
 CLOSE_2: Final[pg.SurfaceType] = pg.image.load(
-    join('sprites', 'close_button_on.png')
+    path.join('sprites', 'close_button_on.png')
 ).convert_alpha()
 
 INPUT_BOX: Final[pg.Surface] = pg.Surface((60, 40))
@@ -50,7 +49,7 @@ class UI:
         self._init_pos: RectPos = pos
 
         self._img: pg.SurfaceType = INTERFACE
-        self.rect: pg.FRect = self._img.get_frect(**{self._init_pos.pos: self._init_pos.xy})
+        self.rect: pg.FRect = self._img.get_frect(**{self._init_pos.coord: self._init_pos.xy})
 
         self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
 
@@ -92,7 +91,7 @@ class UI:
         pos: Tuple[float, float] = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
 
         self._img = pg.transform.scale(self._img, size)
-        self.rect = self._img.get_frect(**{self._init_pos.pos: pos})
+        self.rect = self._img.get_frect(**{self._init_pos.coord: pos})
 
         self._title.handle_resize(win_ratio_w, win_ratio_h)
         self._confirm.handle_resize(win_ratio_w, win_ratio_h)

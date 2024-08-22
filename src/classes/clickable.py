@@ -7,8 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Tuple, Optional
 
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo
-from src.const import BlitSequence
+from src.utils import RectPos, Size, MouseInfo, BlitSequence
 
 
 class Clickable(ABC):
@@ -31,7 +30,7 @@ class Clickable(ABC):
         self._init_pos: RectPos = pos
 
         self._imgs: Tuple[pg.SurfaceType, ...] = imgs
-        self.rect: pg.FRect = self._imgs[0].get_frect(**{self._init_pos.pos: self._init_pos.xy})
+        self.rect: pg.FRect = self._imgs[0].get_frect(**{self._init_pos.coord: self._init_pos.xy})
 
         self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
 
@@ -57,7 +56,7 @@ class Clickable(ABC):
         pos: Tuple[float, float] = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
 
         self._imgs = tuple(pg.transform.scale(img, size) for img in self._imgs)
-        self.rect = self._imgs[0].get_frect(**{self._init_pos.pos: pos})
+        self.rect = self._imgs[0].get_frect(**{self._init_pos.coord: pos})
 
     @abstractmethod
     def upt(self, mouse_info: MouseInfo) -> bool:

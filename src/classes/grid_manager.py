@@ -7,8 +7,8 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import Tuple, List, Final, Optional
 
-from src.utils import Point, Size, RectPos, MouseInfo
-from src.const import WHITE, EMPTY_1, EMPTY_2, ColorType, BlitSequence
+from src.utils import Point, Size, RectPos, MouseInfo, ColorType, BlitSequence
+from src.const import WHITE, EMPTY_1, EMPTY_2
 
 TRANSPARENT: Final[ColorType] = (120, 120, 120, 125)
 
@@ -50,7 +50,7 @@ class Grid:
             (self._grid_init_dim, self._grid_init_dim)
         )
         self.grid_rect: pg.FRect = self._grid_img.get_frect(
-            **{self._grid_init_pos.pos: self._grid_init_pos.xy}
+            **{self._grid_init_pos.coord: self._grid_init_pos.xy}
         )
 
         self.pixels: NDArray[np.uint8] = np.zeros(
@@ -78,7 +78,7 @@ class Grid:
             (self._minimap_init_dim, self._minimap_init_dim)
         )
         self._minimap_rect: pg.FRect = self._minimap_img.get_frect(
-            **{self._minimap_init_pos.pos: self._minimap_init_pos.xy}
+            **{self._minimap_init_pos.coord: self._minimap_init_pos.xy}
         )
 
         self._win_ratio: float = 1
@@ -125,7 +125,7 @@ class Grid:
         )
 
         self._grid_img = pg.transform.scale(self._small_grid_img, grid_img_size)
-        self.grid_rect = self._grid_img.get_frect(**{self._grid_init_pos.pos: self._grid_pos})
+        self.grid_rect = self._grid_img.get_frect(**{self._grid_init_pos.coord: self._grid_pos})
 
         minimap_pixel_dim: float = min(
             self._minimap_init_dim / self.grid_size.w * self._win_ratio,
@@ -141,7 +141,7 @@ class Grid:
 
         self._minimap_img = pg.transform.scale(self._small_minimap_img_2, minimap_img_size)
         self._minimap_rect = self._minimap_img.get_frect(
-            **{self._minimap_init_pos.pos: self._minimap_pos}
+            **{self._minimap_init_pos.coord: self._minimap_pos}
         )
 
     def get_section_indicator(self, offset: Point) -> None:
@@ -199,7 +199,7 @@ class Grid:
         )
 
         self._grid_img = pg.transform.scale(self._small_grid_img, grid_img_size)
-        self.grid_rect = self._grid_img.get_frect(**{self._grid_init_pos.pos: self._grid_pos})
+        self.grid_rect = self._grid_img.get_frect(**{self._grid_init_pos.coord: self._grid_pos})
 
     def update_full(self, offset: Point, selected_pixel_pos: Optional[Point]) -> None:
         """
@@ -252,7 +252,7 @@ class Grid:
 
         self._minimap_img = pg.transform.scale(self._small_minimap_img_2, minimap_img_size)
         self._minimap_rect = self._minimap_img.get_frect(
-            **{self._minimap_init_pos.pos: self._minimap_pos}
+            **{self._minimap_init_pos.coord: self._minimap_pos}
         )
 
         self.get_grid(offset, selected_pixel_pos)

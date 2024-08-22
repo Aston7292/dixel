@@ -3,16 +3,14 @@ drawing program for pixel art
 """
 
 import pygame as pg
-
-from tkinter import Tk
-from tkinter.filedialog import askopenfilename, asksaveasfilename
-from PIL.Image import fromarray
-from os.path import join, exists
+from tkinter import Tk, filedialog
+from PIL import Image
+from os import path
 from traceback import print_exc
 from typing import Tuple, List, Final, Optional, Any
 
-from src.utils import Point, RectPos, Size, MouseInfo
-from src.const import INIT_WIN_SIZE, BLACK, ColorType, BlitSequence
+from src.utils import RectPos, Size, MouseInfo, add_border, ColorType, BlitSequence
+from src.const import INIT_WIN_SIZE, BLACK, EMPTY_1
 
 pg.init()
 
@@ -21,7 +19,7 @@ INIT_WIN: Final[pg.SurfaceType] = pg.display.set_mode(
     (INIT_WIN_SIZE.w, INIT_WIN_SIZE.h), pg.RESIZABLE | ADD_FLAGS
 )
 pg.display.set_caption('Dixel')
-pg.display.set_icon(pg.image.load(join('sprites', 'icon.png')).convert_alpha())
+pg.display.set_icon(pg.image.load(path.join('sprites', 'icon.png')).convert_alpha())
 
 from src.classes.grid_ui import GridUI
 from src.classes.color_manager import ColorPicker
@@ -30,11 +28,26 @@ from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
 from src.classes.text import Text
 
+def get_color_info(color: ColorType) -> Tuple[pg.SurfaceType, str]:
+    """
+    creates a surface and a text for a color
+    takes color
+    returns surface and text
+    """
+
+    surf: pg.SurfaceType = pg.Surface((32, 32))
+    surf.fill(color)
+    surf = add_border(surf, EMPTY_1)
+
+    text: Final[str] = f'{color[0]}, {color[1]}, {color[2]}'
+
+    return surf, text
+
 BUTTON_M_OFF: Final[pg.SurfaceType] = pg.image.load(
-    join('sprites', 'button_m_off.png')
+    path.join('sprites', 'button_m_off.png')
 ).convert_alpha()
 BUTTON_M_ON: Final[pg.SurfaceType] = pg.image.load(
-    join('sprites', 'button_m_on.png')
+    path.join('sprites', 'button_m_on.png')
 ).convert_alpha()
 BUTTON_S_OFF: Final[pg.SurfaceType] = pg.transform.scale(BUTTON_M_OFF, (64, 32))
 BUTTON_S_ON: Final[pg.SurfaceType] = pg.transform.scale(BUTTON_M_ON, (64, 32))
@@ -48,7 +61,7 @@ ADD_COLOR: Final[Button] = Button(
     (BUTTON_M_OFF, BUTTON_M_ON), 'add color'
 )
 MODIFY_GRID: Final[Button] = Button(
-    RectPos(ADD_COLOR.rect.x, ADD_COLOR.rect.y - 25, 'bottomleft'),
+    RectPos(ADD_COLOR.rect.x - 10, ADD_COLOR.rect.y, 'topright'),
     (BUTTON_M_OFF, BUTTON_M_ON), 'modify grid'
 )
 
@@ -64,19 +77,27 @@ CLOSE: Final[Button] = Button(
 
 FPS_TEXT: Final[Text] = Text(RectPos(INIT_WIN_SIZE.w / 2, 0, 'midtop'), 'FPS: 0')
 
-brush_size_info: List[Tuple[pg.SurfaceType, pg.SurfaceType, str]] = []
+BRUSH_SIZES_INFO: List[Tuple[pg.SurfaceType, str]] = []
 for n in range(1, 6):
-    off: pg.SurfaceType = pg.image.load(join('sprites', f'size_{n}_off.png')).convert_alpha()
-    on: pg.SurfaceType = pg.image.load(join('sprites', f'size_{n}_on.png')).convert_alpha()
-    brush_size_info.append((off, on, str(n) + 'px'))
+    off: pg.SurfaceType = pg.image.load(path.join('sprites', f'size_{n}_off.png')).convert_alpha()
+    BRUSH_SIZES_INFO.append((off, str(n) + 'px'))
 
 BRUSH_SIZES: Final[CheckBoxGrid] = CheckBoxGrid(
-    Point(10, int(SAVE_AS.rect.bottom) + 10), tuple(brush_size_info), 1
+    RectPos(10, SAVE_AS.rect.bottom + 10, 'topleft'), BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO),
+    (False, False)
 )
 
-INIT_COLOR: Final[ColorType] = (0, 0, 0)
+color_values: List[ColorType] = [(0, 0, 0)]
+
+COLORS_INFO: Final[List[Tuple[pg.SurfaceType, str]]] = [get_color_info(color_values[0])]
+
+COLORS: Final[CheckBoxGrid] = CheckBoxGrid(
+    RectPos(ADD_COLOR.rect.right, ADD_COLOR.rect.y - 50, 'bottomright'), COLORS_INFO, 6,
+    (True, True)
+)
+
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
-    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), INIT_COLOR
+    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), color_values[0]
 )
 
 GRID_UI: Final[GridUI] = GridUI(
@@ -84,7 +105,7 @@ GRID_UI: Final[GridUI] = GridUI(
 )
 
 GLOBAL_OBJS: Final[Tuple[Any, ...]] = (
-    GRID_MANAGER, ADD_COLOR, MODIFY_GRID, BRUSH_SIZES, SAVE_AS, OPEN, CLOSE, FPS_TEXT
+    GRID_MANAGER, ADD_COLOR, MODIFY_GRID, BRUSH_SIZES, COLORS, SAVE_AS, OPEN, CLOSE, FPS_TEXT
 )
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
@@ -125,18 +146,18 @@ class Dixel:
         self._last_k_input: int = pg.time.get_ticks()
         self._ctrl: int = 0
 
-        self._color: ColorType = INIT_COLOR
+        self._color: ColorType = color_values[0]
         self._brush_size: int = 1
 
         self._state: int = 0
 
         self._file_path: str
-        if not exists('data.txt'):
+        if not path.exists('data.txt'):
             self._file_path = ''
         else:
             with open('data.txt', encoding='utf-8') as f:
                 prev_path: str = f.read()
-            self._file_path = prev_path if exists(prev_path) else ''
+            self._file_path = prev_path if path.exists(prev_path) else ''
 
             if self._file_path:
                 GRID_MANAGER.load_path(self._file_path)
@@ -263,45 +284,45 @@ class Dixel:
         """
 
         root: Tk
-        path: str
+        file_path: str
         if SAVE_AS.upt(self._mouse_info) or (self._ctrl and pg.K_s in self._keys):
             root = Tk()
             root.withdraw()
 
-            path = asksaveasfilename(
+            file_path = filedialog.asksaveasfilename(
                 defaultextension='.png',
                 filetypes=(('png Files', '*.png'), ('jpeg Files', '')),
                 title='Save as'
             )
             root.destroy()
 
-            if path:
-                self._file_path = path
-                fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+            if file_path:
+                self._file_path = file_path
+                Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
         if OPEN.upt(self._mouse_info) or (self._ctrl and pg.K_o in self._keys):
             if self._file_path:
-                fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+                Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
             root = Tk()
             root.withdraw()
 
-            path = askopenfilename(
+            file_path = filedialog.askopenfilename(
                 defaultextension='.png',
                 filetypes=(('png Files', '*.png'),),
                 title='Open'
             )
             root.destroy()
 
-            if path:
-                self._file_path = path
+            if file_path:
+                self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
 
         if (
                 (CLOSE.upt(self._mouse_info) or (self._ctrl and pg.K_q in self._keys))
                 and self._file_path
         ):
-            fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+            Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
             self._file_path = ''
             GRID_MANAGER.load_path(self._file_path)
@@ -337,6 +358,10 @@ class Dixel:
                         if brush_size != -1:
                             self._brush_size = brush_size + 1
 
+                        color_i: int = COLORS.upt(self._mouse_info)
+                        if color_i != -1:
+                            self._color = color_values[color_i]
+
                         if ADD_COLOR.upt(self._mouse_info) or (self._ctrl and pg.K_a in self._keys):
                             self._state = 1
 
@@ -368,7 +393,11 @@ class Dixel:
                         )
                         if closed:
                             if new_color:
+                                if new_color not in color_values:
+                                    color_values.append(new_color)
+                                    COLORS.add(get_color_info(new_color))
                                 self._color = new_color
+                                COLORS.set(color_values.index(self._color))
 
                             self._state = 0
                     case 2:
@@ -383,19 +412,19 @@ class Dixel:
                 self._redraw()
         except KeyboardInterrupt:
             if self._file_path:
-                fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+                Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
             with open('data.txt', 'w', encoding='utf-8') as f:
                 f.write(self._file_path)
         except Exception:  # pylint: disable=broad-exception-caught
             if not self._file_path:
                 name: str = 'new_file.png'
                 i = 0
-                while exists(name):
+                while path.exists(name):
                     i += 1
                     name = f'new_file_{i}.png'
                 self._file_path = name
 
-            fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+            Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
             with open('data.txt', 'w', encoding='utf-8') as f:
                 f.write(self._file_path)
 

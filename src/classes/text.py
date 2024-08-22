@@ -6,8 +6,8 @@ renderers are cached
 import pygame as pg
 from typing import Tuple, Dict, Final
 
-from src.utils import RectPos
-from src.const import WHITE, BlitSequence
+from src.utils import RectPos, BlitSequence
+from src.const import WHITE
 
 RENDERERS_CACHE: Final[Dict[int, pg.Font]] = {}
 
@@ -37,7 +37,7 @@ class Text:
 
         self.text: str = text
         self._surf: pg.SurfaceType = self._renderer.render(self.text, True, WHITE)
-        self.rect: pg.FRect = self._surf.get_frect(**{self._init_pos.pos: self._init_pos.xy})
+        self.rect: pg.FRect = self._surf.get_frect(**{self._init_pos.coord: self._init_pos.xy})
 
     def blit(self) -> BlitSequence:
         """
@@ -60,7 +60,7 @@ class Text:
         self._renderer = RENDERERS_CACHE[h]
 
         self._surf = self._renderer.render(self.text, True, WHITE)
-        self.rect = self._surf.get_frect(**{self._init_pos.pos: self._pos})
+        self.rect = self._surf.get_frect(**{self._init_pos.coord: self._pos})
 
     def modify_text(self, text: str) -> None:
         """
@@ -71,7 +71,7 @@ class Text:
         self.text = text
 
         self._surf = self._renderer.render(self.text, True, WHITE)
-        self.rect = self._surf.get_frect(**{self._init_pos.pos: self._pos})
+        self.rect = self._surf.get_frect(**{self._init_pos.coord: self._pos})
 
     def get_pos_at(self, i: int) -> float:
         """

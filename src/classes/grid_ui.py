@@ -3,23 +3,23 @@ interface to modify the grid
 """
 
 import pygame as pg
-from numpy import empty, pad, uint8
+import numpy as np
 from numpy.typing import NDArray
-from os.path import join
+from os import path
 from typing import Tuple, List, Final, Optional, Any
 
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, INPUT_BOX
 from src.classes.clickable import CheckBox
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo
-from src.const import EMPTY_1, EMPTY_2, ColorType, BlitSequence
+from src.utils import RectPos, Size, MouseInfo, ColorType, BlitSequence
+from src.const import EMPTY_1, EMPTY_2
 
 CHECK_BOX_1: Final[pg.SurfaceType] = pg.image.load(
-    join('sprites', 'check_box_off.png')
+    path.join('sprites', 'check_box_off.png')
 ).convert_alpha()
 CHECK_BOX_2: Final[pg.SurfaceType] = pg.image.load(
-    join('sprites', 'check_box_on.png')
+    path.join('sprites', 'check_box_on.png')
 ).convert_alpha()
 
 MAX_SIZE: Final[int] = 256
@@ -165,7 +165,7 @@ class GridUI:
             (self._preview_init_dim, self._preview_init_dim)
         )
         self._preview_rect: pg.FRect = self._preview_img.get_frect(
-            **{self._preview_init_pos.pos: self._preview_pos}
+            **{self._preview_init_pos.coord: self._preview_pos}
         )
 
         self._h_chooser: NumSlider = NumSlider(
@@ -176,8 +176,8 @@ class GridUI:
             RectPos(self._preview_rect.x + 20, self._h_chooser.rect.y - 25, 'bottomleft'),
             grid_size.w, 'width'
         )
-        self._pixels: NDArray[uint8] = empty(
-            (self._h_chooser.value, self._w_chooser.value, 4), uint8
+        self._pixels: NDArray[np.uint8] = np.empty(
+            (self._h_chooser.value, self._w_chooser.value, 4), np.uint8
         )
 
         self._selection_i: int = 0
@@ -233,14 +233,14 @@ class GridUI:
 
         self._preview_img = pg.transform.scale(self._small_preview_img, size)
         self._preview_rect = self._preview_img.get_frect(
-            **{self._preview_init_pos.pos: self._preview_pos}
+            **{self._preview_init_pos.coord: self._preview_pos}
         )
 
         self._w_chooser.handle_resize(win_ratio_w, win_ratio_h)
         self._h_chooser.handle_resize(win_ratio_w, win_ratio_h)
         self._check_box.handle_resize(win_ratio_w, win_ratio_h)
 
-    def set(self, new_size: Size, pixels: NDArray[uint8]) -> None:
+    def set(self, new_size: Size, pixels: NDArray[np.uint8]) -> None:
         """
         sets the ui on a specific size
         takes size and grid pixels
@@ -264,18 +264,18 @@ class GridUI:
 
         self._small_preview_img = pg.Surface((grid_size.w * 2, grid_size.h * 2))
 
-        pixels: NDArray[uint8] = self._pixels
+        pixels: NDArray[np.uint8] = self._pixels
         add_rows: int = grid_size.h - pixels.shape[0]
         add_cols: int = grid_size.w - pixels.shape[1]
 
         if add_rows < 0:
             pixels = pixels[:grid_size.h, :, :]
         elif add_rows > 0:
-            pixels = pad(pixels, ((0, add_rows), (0, 0), (0, 0)), constant_values=0)
+            pixels = np.pad(pixels, ((0, add_rows), (0, 0), (0, 0)), constant_values=0)
         if add_cols < 0:
             pixels = pixels[:, :grid_size.w, :]
         elif add_cols > 0:
-            pixels = pad(pixels, ((0, 0), (0, add_cols), (0, 0)), constant_values=0)
+            pixels = np.pad(pixels, ((0, 0), (0, add_cols), (0, 0)), constant_values=0)
 
         empty_pixel: pg.SurfaceType = pg.Surface((2, 2))
         for row in range(2):
@@ -305,7 +305,7 @@ class GridUI:
 
         self._preview_img = pg.transform.scale(self._small_preview_img, size)
         self._preview_rect = self._preview_img.get_frect(
-            **{self._preview_init_pos.pos: self._preview_pos}
+            **{self._preview_init_pos.coord: self._preview_pos}
         )
 
     def upt(

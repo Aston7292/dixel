@@ -1,9 +1,35 @@
 """
-collections of shared dataclasses/funcs
+collections of shared functions, dataclasses and types
 """
 
+from pygame import SurfaceType, draw
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, List
+
+ColorType = Tuple[int, ...]
+BlitSequence = List[Tuple[SurfaceType, Tuple[float, float]]]
+
+
+def add_border(img: SurfaceType, color: ColorType) -> SurfaceType:
+    """
+    add a colored border to an image
+    takes image
+    returns new image
+    """
+
+    img = img.copy()
+
+    w: int
+    h: int
+    w, h = img.get_size()
+    dim: int = min(w, h) // 10
+
+    draw.rect(img, color, (0, 0, w, dim))
+    draw.rect(img, color, (w - dim, 0, dim, h))
+    draw.rect(img, color, (0, h - dim, w, dim))
+    draw.rect(img, color, (0, 0, dim, h))
+
+    return img
 
 
 @dataclass
@@ -34,7 +60,7 @@ class RectPos:
 
     x: float
     y: float
-    pos: str
+    coord: str
 
     @property
     def xy(self) -> Tuple[float, float]:

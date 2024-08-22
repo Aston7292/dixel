@@ -6,8 +6,8 @@ import pygame as pg
 from typing import Tuple, List
 
 from src.classes.text import Text
-from src.utils import MouseInfo, RectPos, Size
-from src.const import WHITE, BlitSequence
+from src.utils import MouseInfo, RectPos, Size, BlitSequence
+from src.const import WHITE
 
 
 class NumInputBox:
@@ -30,7 +30,7 @@ class NumInputBox:
 
         self._box_img: pg.SurfaceType = img
         self.box_rect: pg.FRect = self._box_img.get_frect(
-            **{pos.pos: pos.xy}
+            **{pos.coord: pos.xy}
         )
 
         self._box_init_size: Size = Size(int(self.box_rect.w), int(self.box_rect.h))
@@ -75,7 +75,7 @@ class NumInputBox:
         )
 
         self._box_img = pg.transform.scale(self._box_img, box_size)
-        self.box_rect = self._box_img.get_frect(**{self._box_init_pos.pos: box_pos})
+        self.box_rect = self._box_img.get_frect(**{self._box_init_pos.coord: box_pos})
 
         self.text.handle_resize(win_ratio_w, win_ratio_h)
 

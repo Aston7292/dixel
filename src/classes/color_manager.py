@@ -9,8 +9,7 @@ from typing import Tuple, List, Final, Optional, Any
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, INPUT_BOX
 from src.classes.text import Text
-from src.utils import Point, RectPos, Size, MouseInfo
-from src.const import ColorType, BlitSequence
+from src.utils import Point, RectPos, Size, MouseInfo, ColorType, BlitSequence
 
 SLIDER_1: Final[pg.SurfaceType] = pg.Surface((10, 35))
 SLIDER_1.fill((40, 40, 40))
@@ -42,7 +41,7 @@ class ScrollBar:
 
         self._bar_img = pg.Surface((int(255 * self._unit_w), 25))
         self.bar_rect: pg.FRect = self._bar_img.get_frect(
-            **{self._bar_init_pos.pos: self._bar_init_pos.xy}
+            **{self._bar_init_pos.coord: self._bar_init_pos.xy}
         )
 
         self._bar_init_size: Size = Size(int(self.bar_rect.w), int(self.bar_rect.h))
@@ -53,7 +52,7 @@ class ScrollBar:
         slider_x: float = self._slider_init_pos.x + self._unit_w * self.value
         self._slider_imgs: Tuple[pg.SurfaceType, ...] = (SLIDER_1, SLIDER_2)
         self._slider_rect: pg.FRect = self._slider_imgs[0].get_frect(
-            **{self._slider_init_pos.pos: (slider_x, self._slider_init_pos.y)}
+            **{self._slider_init_pos.coord: (slider_x, self._slider_init_pos.y)}
         )
 
         self._slider_init_size: Size = Size(int(self._slider_rect.w), int(self._slider_rect.h))
@@ -115,7 +114,7 @@ class ScrollBar:
 
         self._slider_imgs = tuple(pg.transform.scale(img, slider_size) for img in self._slider_imgs)
         self._slider_rect = self._slider_imgs[0].get_frect(
-            **{self._slider_init_pos.pos: slider_pos}
+            **{self._slider_init_pos.coord: slider_pos}
         )
 
         self._channel_text.handle_resize(win_ratio_w, win_ratio_h)
@@ -258,7 +257,7 @@ class ColorPicker:
         self._preview_img: pg.SurfaceType = pg.Surface((100, 100))
         self._preview_img.fill(self._color)
         self._preview_rect: pg.FRect = self._preview_img.get_frect(
-            **{self._preview_init_pos.pos: self._preview_init_pos.xy}
+            **{self._preview_init_pos.coord: self._preview_init_pos.xy}
         )
 
         self._preview_init_size: Size = Size(int(self._preview_rect.w), int(self._preview_rect.h))
@@ -313,7 +312,7 @@ class ColorPicker:
 
         self._preview_img = pg.transform.scale(self._preview_img, preview_size)
         self._preview_rect = self._preview_img.get_frect(
-            **{self._preview_init_pos.pos: preview_pos}
+            **{self._preview_init_pos.coord: preview_pos}
         )
 
         for channel in self._channels:

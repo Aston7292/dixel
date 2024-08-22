@@ -3,8 +3,6 @@ collections of shared dataclasses/funcs
 """
 
 from dataclasses import dataclass
-from pygetwindow import getWindowsWithTitle, BaseWindow  # type: ignore
-from screeninfo import get_monitors, Monitor
 from typing import Tuple
 
 
@@ -84,22 +82,3 @@ class MouseInfo:
         """
 
         return self.x, self.y
-
-
-def get_monitor_size() -> tuple[int, int]:
-    """
-    returns the size of the monitor in which the window is in
-    raises ValueError if the monitor isn't found
-    """
-
-    win: BaseWindow = getWindowsWithTitle('Dixel')[0]
-
-    monitors: Tuple[Monitor, ...] = tuple(get_monitors())
-    for monitor in monitors:
-        if (
-                win.right >= monitor.x and win.left <= monitor.x + monitor.width and
-                win.bottom >= monitor.y and win.top <= monitor.y + monitor.height
-        ):
-            return monitor.width, monitor.height
-
-    raise ValueError("Couldn't find the monitor of the window.")

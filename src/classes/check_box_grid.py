@@ -25,7 +25,7 @@ class LockedCheckBox(Clickable):
             self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType], text: str
         ) -> None:
         """
-        creates surfaces and rect
+        creates surfaces and rects
         takes position, two images and text
         """
 
@@ -174,7 +174,7 @@ class CheckBoxGrid:
         """
         makes the grid interactable and allows only one check_box to be pressed at a time
         takes mouse info
-        if a checkbox was ticked on it returns its index else -1
+        returns the index of the check box that was ticked on, if none was ticked on it returns -1
         """
 
         index: int = -1

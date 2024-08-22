@@ -24,7 +24,7 @@ class Clickable(ABC):
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType]) -> None:
         """
-        creates surfaces and rect
+        creates surfaces and rects
         takes position and two images
         """
 
@@ -82,7 +82,7 @@ class CheckBox(Clickable):
             self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType], text: str
         ) -> None:
         """
-        creates surfaces, rect and text object
+        creates surfaces, rects and text object
         takes position, two images and text
         """
 
@@ -149,7 +149,7 @@ class Button(Clickable):
             text: str, text_h: int=32
         ) -> None:
         """
-        creates surfaces, rect and text object
+        creates surfaces, rects and text object
         takes position, two images, text and optional text height
         """
 

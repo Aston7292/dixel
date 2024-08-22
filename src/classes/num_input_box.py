@@ -1,5 +1,5 @@
 """
-class to choose a number between some bounds via an input box
+class to choose a number in range with an input box
 """
 
 import pygame as pg
@@ -12,7 +12,7 @@ from src.const import WHITE, BlitSequence
 
 class NumInputBox:
     """
-    class to choose a number between some bounds via an input box
+    class to choose a number in range with an input box
     """
 
     __slots__ = (
@@ -22,7 +22,7 @@ class NumInputBox:
 
     def __init__(self, pos: RectPos, img: pg.SurfaceType, text: str):
         """
-        creates surface, rect and text object
+        creates surfaces, rects and text object
         takes position, image and text
         """
 
@@ -100,7 +100,7 @@ class NumInputBox:
     ) -> Tuple[bool, str]:
         """
         makes the object interactable
-        takes mouse info, keys, limit and selected bool
+        takes mouse info, keys, limits and selected bool
         returns whatever the input box was clicked or not and the new text
         """
 

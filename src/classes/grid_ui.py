@@ -1,8 +1,10 @@
 """
-interface to modify the grid, size between 1 and 256
+interface to modify the grid
 """
 
 import pygame as pg
+from numpy import empty, pad, uint8
+from numpy.typing import NDArray
 from os.path import join
 from typing import Tuple, List, Final, Optional, Any
 
@@ -34,7 +36,7 @@ class NumSlider:
 
     def __init__(self, pos: RectPos, value: int, text: str):
         """
-        creates the choosing box
+        creates surfaces and rects
         takes position, starting value and text
         """
 
@@ -78,7 +80,7 @@ class NumSlider:
         """
 
         self.traveled_x = 0
-        self.value = value
+        self.value = min(value, MAX_SIZE)
         self.value_input_box.text.modify_text(str(self.value))
         self.value_input_box.text_i = 0
 
@@ -140,7 +142,7 @@ class GridUI:
 
     __slots__ = (
         'ui', '_preview_init_pos', '_preview_pos', '_preview_init_dim',
-        '_preview_img', '_preview_rect', '_h_chooser', '_w_chooser', '_check_box',
+        '_preview_img', '_preview_rect', '_h_chooser', '_w_chooser', '_pixels', '_check_box',
         '_ratio', '_win_ratio', '_small_preview_img', '_selection_i'
     )
 
@@ -174,11 +176,14 @@ class GridUI:
             RectPos(self._preview_rect.x + 20, self._h_chooser.rect.y - 25, 'bottomleft'),
             grid_size.w, 'width'
         )
+        self._pixels: NDArray[uint8] = empty(
+            (self._h_chooser.value, self._w_chooser.value, 4), uint8
+        )
 
         self._selection_i: int = 0
 
         self._check_box: CheckBox = CheckBox(
-            RectPos(self._preview_rect.right - 20, self._h_chooser.rect.centery,'midright'),
+            RectPos(self._preview_rect.right - 20, self._h_chooser.rect.centery, 'midright'),
             (CHECK_BOX_1, CHECK_BOX_2), 'keep ratio'
         )
 
@@ -235,14 +240,15 @@ class GridUI:
         self._h_chooser.handle_resize(win_ratio_w, win_ratio_h)
         self._check_box.handle_resize(win_ratio_w, win_ratio_h)
 
-    def set(self, new_size: Size) -> None:
+    def set(self, new_size: Size, pixels: NDArray[uint8]) -> None:
         """
-        sets the ui on a specific value
-        takes value
+        sets the ui on a specific size
+        takes size and grid pixels
         """
 
         self._w_chooser.set(new_size.w)
         self._h_chooser.set(new_size.h)
+        self._pixels = pixels
         self._get_preview(new_size)
 
         self._ratio = (
@@ -256,12 +262,20 @@ class GridUI:
         takes grid size
         """
 
-        pixel_dim: float = min(
-            self._preview_init_dim / grid_size.w * self._win_ratio,
-            self._preview_init_dim / grid_size.h * self._win_ratio
-        )
-
         self._small_preview_img = pg.Surface((grid_size.w * 2, grid_size.h * 2))
+
+        pixels: NDArray[uint8] = self._pixels
+        add_rows: int = grid_size.h - pixels.shape[0]
+        add_cols: int = grid_size.w - pixels.shape[1]
+
+        if add_rows < 0:
+            pixels = pixels[:grid_size.h, :, :]
+        elif add_rows > 0:
+            pixels = pad(pixels, ((0, add_rows), (0, 0), (0, 0)), constant_values=0)
+        if add_cols < 0:
+            pixels = pixels[:, :grid_size.w, :]
+        elif add_cols > 0:
+            pixels = pad(pixels, ((0, 0), (0, add_cols), (0, 0)), constant_values=0)
 
         empty_pixel: pg.SurfaceType = pg.Surface((2, 2))
         for row in range(2):
@@ -269,10 +283,21 @@ class GridUI:
                 color: ColorType = EMPTY_1 if (row + col) % 2 == 0 else EMPTY_2
                 empty_pixel.set_at((col, row), color)
 
-        self._small_preview_img.fblits(
-            (empty_pixel, (x * 2, y * 2)) for x in range(grid_size.w) for y in range(grid_size.h)
-        )
+        sequence: BlitSequence = []
+        pixel_surf: pg.SurfaceType = pg.Surface((2, 2))
+        for y in range(grid_size.h):
+            for x in range(grid_size.w):
+                if not pixels[y, x, -1]:
+                    sequence.append((empty_pixel, (x * 2, y * 2)))
+                else:
+                    pixel_surf.fill(pixels[y, x])
+                    sequence.append((pixel_surf.copy(), (x * 2, y * 2)))
+        self._small_preview_img.fblits(sequence)
 
+        pixel_dim: float = min(
+            self._preview_init_dim / grid_size.w * self._win_ratio,
+            self._preview_init_dim / grid_size.h * self._win_ratio
+        )
         size: Tuple[int, int] = (
             int(grid_size.w * pixel_dim),
             int(grid_size.h * pixel_dim)
@@ -289,7 +314,7 @@ class GridUI:
         """
         makes the object interactable
         takes mouse info, keys and ctrl
-        returns whatever the interface was closed or not
+        returns whatever the interface was closed or not and the new size
         """
 
         if keys:

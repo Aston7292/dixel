@@ -11,7 +11,7 @@ from os.path import join, exists
 from traceback import print_exc
 from typing import Tuple, List, Final, Optional, Any
 
-from src.utils import Point, RectPos, Size, MouseInfo, get_monitor_size
+from src.utils import Point, RectPos, Size, MouseInfo
 from src.const import INIT_WIN_SIZE, BLACK, ColorType, BlitSequence
 
 pg.init()
@@ -55,11 +55,11 @@ MODIFY_GRID: Final[Button] = Button(
 SAVE_AS: Final[Button] = Button(
     RectPos(0, 0, 'topleft'), (BUTTON_S_OFF, BUTTON_S_ON), 'save as', 20
 )
-LOAD: Final[Button] = Button(
+OPEN: Final[Button] = Button(
     RectPos(SAVE_AS.rect.right, 0, 'topleft'), (BUTTON_S_OFF, BUTTON_S_ON), 'open file', 20
 )
 CLOSE: Final[Button] = Button(
-    RectPos(LOAD.rect.right, 0, 'topleft'), (BUTTON_S_OFF, BUTTON_S_ON), 'close file', 20
+    RectPos(OPEN.rect.right, 0, 'topleft'), (BUTTON_S_OFF, BUTTON_S_ON), 'close file', 20
 )
 
 FPS_TEXT: Final[Text] = Text(RectPos(INIT_WIN_SIZE.w / 2, 0, 'midtop'), 'FPS: 0')
@@ -84,7 +84,7 @@ GRID_UI: Final[GridUI] = GridUI(
 )
 
 GLOBAL_OBJS: Final[Tuple[Any, ...]] = (
-    GRID_MANAGER, ADD_COLOR, MODIFY_GRID, BRUSH_SIZES, SAVE_AS, LOAD, CLOSE, FPS_TEXT
+    GRID_MANAGER, ADD_COLOR, MODIFY_GRID, BRUSH_SIZES, SAVE_AS, OPEN, CLOSE, FPS_TEXT
 )
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
@@ -204,13 +204,13 @@ class Dixel:
                 # exiting full screen triggers VIDEORESIZE so handle resize is not necessary
                 self._win_size.w, self._win_size.h = self._prev_win_size
                 self._flag = pg.RESIZABLE
+                self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
             else:
-                self._prev_win_size = self._win_size.wh
-                self._win_size.w, self._win_size.h = get_monitor_size()
                 self._flag = pg.FULLSCREEN
+                self._win = pg.display.set_mode((0, 0), self._flag | ADD_FLAGS)
+                self._prev_win_size = self._win_size.wh
+                self._win_size.w, self._win_size.h = self._win.get_size()
                 self._handle_resize()
-
-            self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
 
     def _handle_events(self) -> None:
         """
@@ -279,7 +279,7 @@ class Dixel:
                 self._file_path = path
                 fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
-        if LOAD.upt(self._mouse_info) or (self._ctrl and pg.K_o in self._keys):
+        if OPEN.upt(self._mouse_info) or (self._ctrl and pg.K_o in self._keys):
             if self._file_path:
                 fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
@@ -352,7 +352,7 @@ class Dixel:
 
                             GRID_UI.ui.prev_mouse_cursor = pg.mouse.get_cursor()
                             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                            GRID_UI.set(GRID_MANAGER.grid.grid_size)
+                            GRID_UI.set(GRID_MANAGER.grid.grid_size, GRID_MANAGER.grid.pixels)
 
                         self._handle_file_operations()
 

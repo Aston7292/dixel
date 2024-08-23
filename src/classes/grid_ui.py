@@ -51,7 +51,7 @@ class NumSlider:
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
 
         self._add_text: Text = Text(
-            RectPos(self.value_input_box.box_rect.x - 10, self.rect.centery,'midright'), text
+            RectPos(self.value_input_box.box_rect.x - 10, self.rect.centery, 'midright'), text
         )
 
     def blit(self) -> BlitSequence:
@@ -143,7 +143,7 @@ class GridUI:
     __slots__ = (
         'ui', '_preview_init_pos', '_preview_pos', '_preview_init_dim',
         '_preview_img', '_preview_rect', '_h_chooser', '_w_chooser', '_pixels', '_check_box',
-        '_ratio', '_win_ratio', '_small_preview_img', '_selection_i'
+        '_ratio', '_min_win_ratio', '_small_preview_img', '_selection_i'
     )
 
     def __init__(self, pos: RectPos, grid_size: Size) -> None:
@@ -188,7 +188,7 @@ class GridUI:
         )
 
         self._ratio: Tuple[float, float] = (0, 0)
-        self._win_ratio: float = 1
+        self._min_win_ratio: float = 1
 
         self._small_preview_img: pg.SurfaceType = pg.Surface(
             (self._w_chooser.value * 2, self._h_chooser.value * 2)
@@ -214,13 +214,13 @@ class GridUI:
         takes window size
         """
 
-        self._win_ratio = min(win_ratio_w, win_ratio_h)
+        self._min_win_ratio = min(win_ratio_w, win_ratio_h)
 
         self.ui.handle_resize(win_ratio_w, win_ratio_h)
 
         pixel_dim: float = min(
-            self._preview_init_dim / self._w_chooser.value * self._win_ratio,
-            self._preview_init_dim / self._h_chooser.value * self._win_ratio
+            self._preview_init_dim / self._w_chooser.value * self._min_win_ratio,
+            self._preview_init_dim / self._h_chooser.value * self._min_win_ratio
         )
         size: Tuple[int, int] = (
             int(self._w_chooser.value * pixel_dim),
@@ -295,8 +295,8 @@ class GridUI:
         self._small_preview_img.fblits(sequence)
 
         pixel_dim: float = min(
-            self._preview_init_dim / grid_size.w * self._win_ratio,
-            self._preview_init_dim / grid_size.h * self._win_ratio
+            self._preview_init_dim / grid_size.w * self._min_win_ratio,
+            self._preview_init_dim / grid_size.h * self._min_win_ratio
         )
         size: Tuple[int, int] = (
             int(grid_size.w * pixel_dim),

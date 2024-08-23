@@ -31,7 +31,7 @@ class ScrollBar:
     def __init__(self, pos: Point, channel: int, color: ColorType) -> None:
         """
         creates a bar and a slider
-        takes position, the channel this scroll bar uses and starting color
+        takes position, the channel the scroll bar uses and starting color
         """
 
         self._bar_init_pos: RectPos = RectPos(*pos.xy, 'center')
@@ -159,7 +159,7 @@ class ScrollBar:
     def upt(self, mouse_info: MouseInfo, keys: List[int], selection: Any) -> int:
         """
         Makes the object interactable
-        takes mouse info, keys and the selected bool
+        takes mouse info, keys and the selection
         returns what was clicked: -1 = nothing, 0 = scroll bar, 1 = input box
         """
 

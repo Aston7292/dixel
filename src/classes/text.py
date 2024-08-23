@@ -62,6 +62,16 @@ class Text:
         self._surf = self._renderer.render(self.text, True, WHITE)
         self.rect = self._surf.get_frect(**{self._init_pos.coord: self._pos})
 
+    def move_rect(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
+        """
+        moves the rect to a specific coordinate
+        takes x, y and window size ratio
+        """
+
+        self._init_pos.x, self._init_pos.y = x / win_ratio_w, y / win_ratio_h
+        self._pos = (x, y)
+        self.rect = self._surf.get_frect(**{self._init_pos.coord: self._pos})
+
     def modify_text(self, text: str) -> None:
         """
         modifies text image and adjusts position

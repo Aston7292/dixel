@@ -19,11 +19,10 @@ class Grid:
     """
 
     __slots__ = (
-        'grid_size', 'grid_visible_area', '_grid_init_visible_area', '_win_ratio',
-        '_grid_init_pos', '_grid_pos', 'grid_pixel_dim', '_grid_init_dim',
-        '_grid_img', 'grid_rect', 'pixels', '_pixel_surf', '_empty_pixel',
-        'transparent_pixel', '_minimap_init_pos', '_minimap_pos', '_minimap_init_dim',
-        '_minimap_img', '_minimap_rect',
+        'grid_size', '_grid_init_visible_area', 'grid_visible_area', '_grid_init_pos', '_grid_pos',
+        'grid_pixel_dim', '_grid_init_dim', '_grid_img', 'grid_rect', 'pixels', '_pixel_surf',
+        '_empty_pixel', 'transparent_pixel', '_minimap_init_pos', '_minimap_pos',
+        '_minimap_init_dim', '_minimap_img', '_minimap_rect', '_min_win_ratio',
         '_small_minimap_img_1', '_small_minimap_img_2', '_small_grid_img',
     )
 
@@ -81,7 +80,7 @@ class Grid:
             **{self._minimap_init_pos.coord: self._minimap_init_pos.xy}
         )
 
-        self._win_ratio: float = 1
+        self._min_win_ratio: float = 1
 
         self._small_minimap_img_1: pg.SurfaceType = pg.Surface(
             (self.grid_size.w * 2, self.grid_size.h * 2)
@@ -109,11 +108,11 @@ class Grid:
         takes window size ratio
         """
 
-        self._win_ratio = min(win_ratio_w, win_ratio_h)
+        self._min_win_ratio = min(win_ratio_w, win_ratio_h)
 
         self.grid_pixel_dim = min(
-            self._grid_init_dim / self.grid_visible_area.w * self._win_ratio,
-            self._grid_init_dim / self.grid_visible_area.h * self._win_ratio
+            self._grid_init_dim / self.grid_visible_area.w * self._min_win_ratio,
+            self._grid_init_dim / self.grid_visible_area.h * self._min_win_ratio
         )
 
         grid_img_size: Tuple[int, int] = (
@@ -128,8 +127,8 @@ class Grid:
         self.grid_rect = self._grid_img.get_frect(**{self._grid_init_pos.coord: self._grid_pos})
 
         minimap_pixel_dim: float = min(
-            self._minimap_init_dim / self.grid_size.w * self._win_ratio,
-            self._minimap_init_dim / self.grid_size.h * self._win_ratio
+            self._minimap_init_dim / self.grid_size.w * self._min_win_ratio,
+            self._minimap_init_dim / self.grid_size.h * self._min_win_ratio
         )
 
         minimap_img_size: Tuple[int, int] = (
@@ -243,8 +242,8 @@ class Grid:
         )
 
         minimap_pixel_dim: float = min(
-            self._minimap_init_dim / grid_w * self._win_ratio,
-            self._minimap_init_dim / grid_h * self._win_ratio
+            self._minimap_init_dim / grid_w * self._min_win_ratio,
+            self._minimap_init_dim / grid_h * self._min_win_ratio
         )
         minimap_img_size: Tuple[int, int] = (
             int(grid_w * minimap_pixel_dim), int(grid_h * minimap_pixel_dim)
@@ -319,8 +318,8 @@ class Grid:
         self.grid_visible_area.w = self._grid_init_visible_area
         self.grid_visible_area.h = self._grid_init_visible_area
         self.grid_pixel_dim = min(
-            self._grid_init_dim / self.grid_visible_area.w * self._win_ratio,
-            self._grid_init_dim / self.grid_visible_area.h * self._win_ratio
+            self._grid_init_dim / self.grid_visible_area.w * self._min_win_ratio,
+            self._grid_init_dim / self.grid_visible_area.h * self._min_win_ratio
         )
 
         self.update_full(offset, selected_pixel_pos)
@@ -347,8 +346,8 @@ class Grid:
         self.grid_visible_area.w = min(self.grid_visible_area.w, self.grid_size.w)
         self.grid_visible_area.h = min(self.grid_visible_area.h, self.grid_size.h)
         self.grid_pixel_dim = min(
-            self._grid_init_dim / self.grid_visible_area.w * self._win_ratio,
-            self._grid_init_dim / self.grid_visible_area.h * self._win_ratio
+            self._grid_init_dim / self.grid_visible_area.w * self._min_win_ratio,
+            self._grid_init_dim / self.grid_visible_area.h * self._min_win_ratio
         )
 
         self._small_minimap_img_1 = pg.Surface((self.grid_size.w * 2, self.grid_size.h * 2))
@@ -396,8 +395,8 @@ class Grid:
                 self.grid_visible_area.h = min(self.grid_visible_area.h, self.grid_size.h)
 
         self.grid_pixel_dim = min(
-            self._grid_init_dim / self.grid_visible_area.w * self._win_ratio,
-            self._grid_init_dim / self.grid_visible_area.h * self._win_ratio
+            self._grid_init_dim / self.grid_visible_area.w * self._min_win_ratio,
+            self._grid_init_dim / self.grid_visible_area.h * self._min_win_ratio
         )
 
     def reset(self) -> None:
@@ -408,8 +407,8 @@ class Grid:
         self.grid_visible_area.w = min(self.grid_visible_area.w, self._grid_init_visible_area)
         self.grid_visible_area.h = min(self.grid_visible_area.h, self._grid_init_visible_area)
         self.grid_pixel_dim = min(
-            self._grid_init_dim / self.grid_visible_area.w * self._win_ratio,
-            self._grid_init_dim / self.grid_visible_area.h * self._win_ratio
+            self._grid_init_dim / self.grid_visible_area.w * self._min_win_ratio,
+            self._grid_init_dim / self.grid_visible_area.h * self._min_win_ratio
         )
 
         self.get_grid(Point(0, 0), None)
@@ -457,7 +456,7 @@ class GridManager:
         self._selected_pixel_pos = None  # recalculate the selected pixel
         self.grid.handle_resize(win_ratio_w, win_ratio_h)
 
-    def load_path(self, path: str) -> None:
+    def load_path(self, file_path: str) -> None:
         """
         loads an image from a path and renders it into the grid
         takes path if it's empty it creates an empty grid
@@ -467,7 +466,9 @@ class GridManager:
         self._selected_pixel_pos = None
         self._traveled_dist.x = self._traveled_dist.y = 0
 
-        img: Optional[pg.SurfaceType] = pg.image.load(path).convert_alpha() if path else None
+        img: Optional[pg.SurfaceType] = (
+            pg.image.load(file_path).convert_alpha() if file_path else None
+        )
         self.grid.load_img(img, self._grid_offset, self._selected_pixel_pos)
 
     def _get_draw_info(
@@ -578,7 +579,7 @@ class GridManager:
         return start, end
 
     def _draw_rect(
-        self, left: int, top: int, right: int, bottom: int, color: ColorType
+            self, left: int, top: int, right: int, bottom: int, color: ColorType
     ) -> List[Tuple[int, int]]:
         """
         draws a rectangular area on the pixels array

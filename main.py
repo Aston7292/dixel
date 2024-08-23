@@ -9,8 +9,8 @@ from os import path
 from traceback import print_exc
 from typing import Tuple, List, Final, Optional, Any
 
-from src.utils import RectPos, Size, MouseInfo, add_border, ColorType, BlitSequence
-from src.const import INIT_WIN_SIZE, BLACK, EMPTY_1
+from src.utils import RectPos, Size, MouseInfo, ColorType, BlitSequence
+from src.const import INIT_WIN_SIZE, BLACK
 
 pg.init()
 
@@ -23,25 +23,11 @@ pg.display.set_icon(pg.image.load(path.join('sprites', 'icon.png')).convert_alph
 
 from src.classes.grid_ui import GridUI
 from src.classes.color_manager import ColorPicker
+from src.classes.palette_manager import PaletteManager
 from src.classes.grid_manager import GridManager
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
 from src.classes.text import Text
-
-def get_color_info(color: ColorType) -> Tuple[pg.SurfaceType, str]:
-    """
-    creates a surface and a text for a color
-    takes color
-    returns surface and text
-    """
-
-    surf: pg.SurfaceType = pg.Surface((32, 32))
-    surf.fill(color)
-    surf = add_border(surf, EMPTY_1)
-
-    text: Final[str] = f'{color[0]}, {color[1]}, {color[2]}'
-
-    return surf, text
 
 BUTTON_M_OFF: Final[pg.SurfaceType] = pg.image.load(
     path.join('sprites', 'button_m_off.png')
@@ -75,8 +61,6 @@ CLOSE: Final[Button] = Button(
     RectPos(OPEN.rect.right, 0, 'topleft'), (BUTTON_S_OFF, BUTTON_S_ON), 'close file', 20
 )
 
-FPS_TEXT: Final[Text] = Text(RectPos(INIT_WIN_SIZE.w / 2, 0, 'midtop'), 'FPS: 0')
-
 BRUSH_SIZES_INFO: List[Tuple[pg.SurfaceType, str]] = []
 for n in range(1, 6):
     off: pg.SurfaceType = pg.image.load(path.join('sprites', f'size_{n}_off.png')).convert_alpha()
@@ -87,17 +71,15 @@ BRUSH_SIZES: Final[CheckBoxGrid] = CheckBoxGrid(
     (False, False)
 )
 
-color_values: List[ColorType] = [(0, 0, 0)]
-
-COLORS_INFO: Final[List[Tuple[pg.SurfaceType, str]]] = [get_color_info(color_values[0])]
-
-COLORS: Final[CheckBoxGrid] = CheckBoxGrid(
-    RectPos(ADD_COLOR.rect.right, ADD_COLOR.rect.y - 50, 'bottomright'), COLORS_INFO, 6,
-    (True, True)
+PALETTE_MANAGER: Final[PaletteManager] = PaletteManager(
+    RectPos(INIT_WIN_SIZE.w - 75, ADD_COLOR.rect.y - 100, 'bottomright'),
+    (BUTTON_S_OFF, BUTTON_S_ON)
 )
 
+FPS_TEXT: Final[Text] = Text(RectPos(INIT_WIN_SIZE.w / 2, 0, 'midtop'), 'FPS: 0')
+
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
-    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), color_values[0]
+    RectPos(INIT_WIN_SIZE.w / 2, INIT_WIN_SIZE.h / 2, 'center'), PALETTE_MANAGER.values[0]
 )
 
 GRID_UI: Final[GridUI] = GridUI(
@@ -105,7 +87,8 @@ GRID_UI: Final[GridUI] = GridUI(
 )
 
 GLOBAL_OBJS: Final[Tuple[Any, ...]] = (
-    GRID_MANAGER, ADD_COLOR, MODIFY_GRID, BRUSH_SIZES, COLORS, SAVE_AS, OPEN, CLOSE, FPS_TEXT
+    GRID_MANAGER, ADD_COLOR, MODIFY_GRID, SAVE_AS, OPEN, CLOSE, BRUSH_SIZES, PALETTE_MANAGER,
+    FPS_TEXT
 )
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
@@ -146,7 +129,7 @@ class Dixel:
         self._last_k_input: int = pg.time.get_ticks()
         self._ctrl: int = 0
 
-        self._color: ColorType = color_values[0]
+        self._color: ColorType = PALETTE_MANAGER.values[0]
         self._brush_size: int = 1
 
         self._state: int = 0
@@ -161,6 +144,7 @@ class Dixel:
 
             if self._file_path:
                 GRID_MANAGER.load_path(self._file_path)
+                PALETTE_MANAGER.load_path(self._file_path)
 
     def _redraw(self) -> None:
         """
@@ -317,6 +301,7 @@ class Dixel:
             if file_path:
                 self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
+                PALETTE_MANAGER.load_path(self._file_path)
 
         if (
                 (CLOSE.upt(self._mouse_info) or (self._ctrl and pg.K_q in self._keys))
@@ -326,6 +311,7 @@ class Dixel:
 
             self._file_path = ''
             GRID_MANAGER.load_path(self._file_path)
+            PALETTE_MANAGER.load_path(self._file_path)
 
     def run(self) -> None:
         """
@@ -358,9 +344,11 @@ class Dixel:
                         if brush_size != -1:
                             self._brush_size = brush_size + 1
 
-                        color_i: int = COLORS.upt(self._mouse_info)
-                        if color_i != -1:
-                            self._color = color_values[color_i]
+                        selected_color: Optional[ColorType] = PALETTE_MANAGER.upt(
+                            self._mouse_info, self._ctrl
+                        )
+                        if selected_color:
+                            self._color = selected_color
 
                         if ADD_COLOR.upt(self._mouse_info) or (self._ctrl and pg.K_a in self._keys):
                             self._state = 1
@@ -393,11 +381,7 @@ class Dixel:
                         )
                         if closed:
                             if new_color:
-                                if new_color not in color_values:
-                                    color_values.append(new_color)
-                                    COLORS.add(get_color_info(new_color))
-                                self._color = new_color
-                                COLORS.set(color_values.index(self._color))
+                                self._color = PALETTE_MANAGER.add(new_color)
 
                             self._state = 0
                     case 2:

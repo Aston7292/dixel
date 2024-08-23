@@ -7,23 +7,23 @@ from typing import Tuple, List
 
 from src.classes.clickable import Clickable
 from src.classes.text import Text
-from src.utils import Point, RectPos, MouseInfo, add_border, BlitSequence
+from src.utils import Point, RectPos, Size, MouseInfo, add_border, BlitSequence
 from src.const import WHITE
 
 
 class LockedCheckBox(Clickable):
     """
     class to create a checkbox, when hovered changes image and displays text and
-    when clicked it will always display the hovering image, cannot be ticked off
+    when ticked on it will always display the hovering image, cannot be ticked off
     """
 
     __slots__ = (
-        'clicked', '_text', '_text_surf'
+        'ticked', '_text', '_text_surf'
     )
 
     def __init__(
             self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType], text: str
-        ) -> None:
+    ) -> None:
         """
         creates surfaces and rects
         takes position, two images and text
@@ -31,7 +31,7 @@ class LockedCheckBox(Clickable):
 
         super().__init__(pos, imgs)
 
-        self.clicked: bool = False
+        self.ticked: bool = False
 
         self._text: Text = Text(RectPos(0, 0, 'topleft'), text, 16)
         self._text_surf: pg.SurfaceType = pg.Surface(
@@ -44,7 +44,7 @@ class LockedCheckBox(Clickable):
         returns two sequences to add in the main blit sequence,
         """
 
-        img_i: int = 1 if self.clicked else self.img_i
+        img_i: int = 1 if self.ticked else self.img_i
 
         sequence: BlitSequence = [(self._imgs[img_i], self.rect.topleft)]
         if self.hovering:
@@ -64,7 +64,7 @@ class LockedCheckBox(Clickable):
         """
         updates the checkbox image if the mouse is hovering it and ticks it on if clicked
         takes mouse info
-        returns True if the checkbox was clicked
+        returns True if the checkbox was ticked on
         """
 
         if not self.rect.collidepoint(mouse_info.xy):
@@ -81,7 +81,7 @@ class LockedCheckBox(Clickable):
             self.hovering = True
 
         if mouse_info.released[0]:
-            self.clicked = True
+            self.ticked = True
 
             return True
 
@@ -94,7 +94,7 @@ class CheckBoxGrid:
     """
 
     __slots__ = (
-        '_pos', '_x', '_y', '_cols', '_x_increment', '_y_increment', 'check_boxes',
+        'pos', 'x', 'y', '_cols', '_increment', 'check_boxes',
     )
 
     def __init__(
@@ -106,33 +106,32 @@ class CheckBoxGrid:
         takes position, check boxes info, number of columns and the inverted axes
         """
 
-        self._pos: RectPos = pos
-        self._x: float
-        self._y: float
-        self._x, self._y = self._pos.xy
+        self.pos: RectPos = pos
+        self.x: float
+        self.y: float
+        self.x, self.y = self.pos.xy
 
         self._cols: int = cols
 
-        self._x_increment: int = info[0][0].get_width() + 10
+        self._increment: Size = Size(info[0][0].get_width() + 10, info[0][0].get_height() + 10)
         if inverted_axes[0]:
-            self._x_increment *= -1
-        self._y_increment: int = info[0][0].get_height() + 10
+            self._increment.w *= -1
         if inverted_axes[1]:
-            self._y_increment *= -1
+            self._increment.h *= -1
 
         self.check_boxes: List[LockedCheckBox] = []
         for i, element in enumerate(info):
             img_on: pg.SurfaceType = add_border(element[0], WHITE)
             self.check_boxes.append(LockedCheckBox(
-                    RectPos(self._x, self._y, self._pos.coord), (element[0], img_on), element[1]
+                RectPos(self.x, self.y, self.pos.coord), (element[0], img_on), element[1]
             ))
 
-            self._x += self._x_increment
+            self.x += self._increment.w
             if (i + 1) % self._cols == 0:
-                self._x = self._pos.x
-                self._y += self._y_increment
+                self.x = self.pos.x
+                self.y += self._increment.h
 
-        self.check_boxes[0].clicked = True
+        self.check_boxes[0].ticked = True
 
     def blit(self) -> BlitSequence:
         """
@@ -165,29 +164,29 @@ class CheckBoxGrid:
         """
 
         for i, check_box in enumerate(self.check_boxes):
-            check_box.clicked = i == index
+            check_box.ticked = i == index
 
     def add(self, info: Tuple[pg.SurfaceType, str]) -> None:
         """
-        adds a check box at the end of the grid
+        adds a checkbox at the end of the grid
         takes check box info
         """
 
         img_on: pg.SurfaceType = add_border(info[0], WHITE)
         self.check_boxes.append(LockedCheckBox(
-                RectPos(self._x, self._y, self._pos.coord), (info[0], img_on), info[1]
+            RectPos(self.x, self.y, self.pos.coord), (info[0], img_on), info[1]
         ))
 
-        self._x += self._x_increment
+        self.x += self._increment.w
         if len(self.check_boxes) % self._cols == 0:
-            self._x = self._pos.x
-            self._y += self._y_increment
+            self.x = self.pos.x
+            self.y += self._increment.h
 
     def upt(self, mouse_info: MouseInfo) -> int:
         """
         makes the grid interactable and allows only one check_box to be pressed at a time
         takes mouse info
-        returns the index of the check box that was ticked on, if none was ticked on it returns -1
+        returns the index of the checkbox that was ticked on, if none was ticked on it returns -1
         """
 
         index: int = -1

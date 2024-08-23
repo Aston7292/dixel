@@ -79,7 +79,7 @@ class CheckBox(Clickable):
 
     def __init__(
             self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType], text: str
-        ) -> None:
+    ) -> None:
         """
         creates surfaces, rects and text object
         takes position, two images and text
@@ -145,8 +145,8 @@ class Button(Clickable):
 
     def __init__(
             self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType],
-            text: str, text_h: int=32
-        ) -> None:
+            text: str, text_h: int = 32
+    ) -> None:
         """
         creates surfaces, rects and text object
         takes position, two images, text and optional text height
@@ -180,6 +180,17 @@ class Button(Clickable):
         super().handle_resize(win_ratio_w, win_ratio_h)
         if self._text:
             self._text.handle_resize(win_ratio_w, win_ratio_h)
+
+    def move_rect(self, x: float, y: float,win_ratio_w: float, win_ratio_h: float) -> None:
+        """
+        moves the rect to a specific coordinate
+        takes x, y and window size ratio
+        """
+
+        self._init_pos.x, self._init_pos.y = x / win_ratio_w, y / win_ratio_h
+        self.rect: pg.FRect = self._imgs[0].get_frect(**{self._init_pos.coord: (x, y)})
+        if self._text:
+            self._text.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
 
     def upt(self, mouse_info: MouseInfo) -> bool:
         """

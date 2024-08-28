@@ -181,14 +181,14 @@ class Button(Clickable):
         if self._text:
             self._text.handle_resize(win_ratio_w, win_ratio_h)
 
-    def move_rect(self, x: float, y: float,win_ratio_w: float, win_ratio_h: float) -> None:
+    def move_rect(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
         """
         moves the rect to a specific coordinate
         takes x, y and window size ratio
         """
 
         self._init_pos.x, self._init_pos.y = x / win_ratio_w, y / win_ratio_h
-        self.rect: pg.FRect = self._imgs[0].get_frect(**{self._init_pos.coord: (x, y)})
+        setattr(self.rect, self._init_pos.coord, (x, y))
         if self._text:
             self._text.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
 

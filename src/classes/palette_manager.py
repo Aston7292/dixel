@@ -9,7 +9,7 @@ from typing import Tuple, List, Set, Final, Optional, Any
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
 from src.utils import RectPos, MouseInfo, add_border, ColorType, BlitSequence
-from src.const import EMPTY_1
+from src.const import BLACK, EMPTY_1
 
 OPTIONS: Final[Tuple[str, ...]] = ('modify', 'delete')
 
@@ -17,7 +17,7 @@ OPTIONS: Final[Tuple[str, ...]] = ('modify', 'delete')
 def get_color_info(color: ColorType) -> Tuple[pg.SurfaceType, str]:
     """
     creates a surface and a text for a color
-    takes color
+    takes color and window size ratio
     returns surface and text
     """
 
@@ -36,7 +36,7 @@ class PaletteManager:
     """
 
     __slots__ = (
-        'values', '_colors', '_options', '_view_menu', '_win_ratio_w', '_win_ratio_h'
+        '_win_ratio_w', '_win_ratio_h', 'values', '_colors', '_options', '_menu_i', '_view_menu'
     )
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType]) -> None:
@@ -45,16 +45,17 @@ class PaletteManager:
         takes position
         """
 
-        self.values: List[ColorType] = [(0, 0, 0)]
+        self._win_ratio_w: float = 1
+        self._win_ratio_h: float = 1
+
+        self.values: List[ColorType] = [BLACK]
         self._colors = CheckBoxGrid(pos, [get_color_info(self.values[0])], 5, (True, True))
 
         self._options: Tuple[Button, ...] = tuple(
             Button(RectPos(0, 0, 'topleft'), imgs, option, 20) for option in OPTIONS
         )
+        self._menu_i: int = 0
         self._view_menu: bool = False
-
-        self._win_ratio_w: float = 1
-        self._win_ratio_h: float = 1
 
     def blit(self) -> BlitSequence:
         """
@@ -89,7 +90,7 @@ class PaletteManager:
 
         if color not in self.values:
             self.values.append(color)
-            self._colors.add(get_color_info(color))
+            self._colors.add(get_color_info(color), self._win_ratio_w, self._win_ratio_h)
         self._colors.set(self.values.index(color))
 
         return color
@@ -100,8 +101,9 @@ class PaletteManager:
         takes path
         """
 
+        # TODO: get colors from grid pixels
         if not file_path:
-            self.values = [(0, 0, 0)]
+            self.values = [BLACK]
         else:
             img: Image.Image = Image.open(file_path).convert('RGB')
 
@@ -113,12 +115,12 @@ class PaletteManager:
                         colors.add(color)
             self.values = list(colors)
 
-        self._colors.x, self._colors.y = self._colors.pos.xy
+        self._colors.current_x, self._colors.current_y = self._colors.init_pos.xy
         self._colors.check_boxes = []
         for value in self.values:
-            self._colors.add(get_color_info(value))
+            self._colors.add(get_color_info(value), self._win_ratio_w, self._win_ratio_h)
 
-        self._colors.check_boxes[0].ticked = True
+        self._colors.set(0)
 
     def upt(self, mouse_info: MouseInfo, ctrl: int) -> Optional[ColorType]:
         """
@@ -127,29 +129,43 @@ class PaletteManager:
         returns the selected color
         """
 
-        index: int = self._colors.upt(mouse_info)
+        index: int = -1
+        clicked_option: bool = False
+        if self._view_menu:
+            if self._options[0].upt(mouse_info):
+                clicked_option = True
+
+            if self._options[1].upt(mouse_info):
+                self.values.pop(self._menu_i)
+                if not self.values:
+                    self.values = [BLACK]
+                index = self._colors.remove(
+                    self._menu_i, get_color_info(BLACK), self._win_ratio_w, self._win_ratio_h
+                )
+
+                clicked_option = True
+
+        if not clicked_option:
+            index = self._colors.upt(mouse_info)
 
         if mouse_info.released[2]:
             for i, check_box in enumerate(self._colors.check_boxes):
                 if check_box.rect.collidepoint(mouse_info.xy):
                     self._view_menu = not self._view_menu
                     if self._view_menu:
-                        y: float = mouse_info.y + 10
+                        self._menu_i = i
+                        y: float = mouse_info.y + 5
                         for option in self._options:
                             option.move_rect(
-                                mouse_info.x + 10, y, self._win_ratio_w, self._win_ratio_h
+                                mouse_info.x + 5, y, self._win_ratio_w, self._win_ratio_h
                             )
                             y += option.rect.h
 
                         pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                        self._colors.check_boxes[i].img_i = 0
-                        self._colors.check_boxes[i].hovering = False
+                        self._colors.check_boxes[self._menu_i].img_i = 0
+                        self._colors.check_boxes[self._menu_i].hovering = False
 
                     break
-
-        if self._view_menu:
-            for option in self._options:
-                option.upt(mouse_info)
 
         if mouse_info.released[0] or ctrl:
             self._view_menu = False

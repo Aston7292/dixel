@@ -671,11 +671,11 @@ class GridManager:
                     if x == x1 and y == y1:
                         break
 
-                    e2: int = err * 2
-                    if e2 > -d.y:
+                    err2: int = err * 2
+                    if err2 > -d.y:
                         err -= d.y
                         x += s.x
-                    if e2 < d.x:
+                    if err2 < d.x:
                         err += d.x
                         y += s.y
 

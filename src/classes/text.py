@@ -70,7 +70,7 @@ class Text:
 
         self._init_pos.x, self._init_pos.y = x / win_ratio_w, y / win_ratio_h
         self._pos = (x, y)
-        self.rect = self._surf.get_frect(**{self._init_pos.coord: self._pos})
+        setattr(self.rect, self._init_pos.coord, self._pos)
 
     def modify_text(self, text: str) -> None:
         """

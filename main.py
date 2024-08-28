@@ -61,11 +61,12 @@ CLOSE: Final[Button] = Button(
     RectPos(OPEN.rect.right, 0, 'topleft'), (BUTTON_S_OFF, BUTTON_S_ON), 'close file', 20
 )
 
-BRUSH_SIZES_INFO: List[Tuple[pg.SurfaceType, str]] = []
-for n in range(1, 6):
-    off: pg.SurfaceType = pg.image.load(path.join('sprites', f'size_{n}_off.png')).convert_alpha()
-    BRUSH_SIZES_INFO.append((off, str(n) + 'px'))
-
+BRUSH_SIZES_INFO: List[Tuple[pg.SurfaceType, str]] = [
+    (
+        pg.image.load(path.join('sprites', f'size_{n}_off.png')).convert_alpha(),
+        str(n) + 'px'
+    ) for n in range(1, 6)
+]
 BRUSH_SIZES: Final[CheckBoxGrid] = CheckBoxGrid(
     RectPos(10, SAVE_AS.rect.bottom + 10, 'topleft'), BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO),
     (False, False)
@@ -145,6 +146,7 @@ class Dixel:
             if self._file_path:
                 GRID_MANAGER.load_path(self._file_path)
                 PALETTE_MANAGER.load_path(self._file_path)
+                self._color = PALETTE_MANAGER.values[0]
 
     def _redraw(self) -> None:
         """
@@ -302,16 +304,18 @@ class Dixel:
                 self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
                 PALETTE_MANAGER.load_path(self._file_path)
+                self._color = PALETTE_MANAGER.values[0]
 
         if (
-                (CLOSE.upt(self._mouse_info) or (self._ctrl and pg.K_q in self._keys))
-                and self._file_path
+                (CLOSE.upt(self._mouse_info) or (self._ctrl and pg.K_q in self._keys)) and
+                self._file_path
         ):
             Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
 
             self._file_path = ''
             GRID_MANAGER.load_path(self._file_path)
             PALETTE_MANAGER.load_path(self._file_path)
+            self._color = PALETTE_MANAGER.values[0]
 
     def run(self) -> None:
         """

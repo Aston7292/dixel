@@ -107,8 +107,8 @@ class CheckBoxGrid:
     """
 
     __slots__ = (
-        'init_pos', 'current_x', 'current_y', '_cols', '_increment', '_increment', 'check_boxes',
-        'clicked_i'
+        'init_pos', 'current_x', 'current_y', '_cols', '_increment', '_increment', '_inverted_axes',
+        'check_boxes', 'clicked_i'
     )
 
     def __init__(
@@ -127,9 +127,10 @@ class CheckBoxGrid:
         self._cols: int = cols
 
         self._increment: Size = Size(info[0][0].get_width() + 10, info[0][0].get_height() + 10)
-        if inverted_axes[0]:
+        self._inverted_axes: Tuple[bool, bool] = inverted_axes
+        if self._inverted_axes[0]:
             self._increment.w *= -1
-        if inverted_axes[1]:
+        if self._inverted_axes[1]:
             self._increment.h *= -1
 
         self.check_boxes: List[LockedCheckBox] = []
@@ -144,8 +145,8 @@ class CheckBoxGrid:
             if (i + 1) % self._cols == 0:
                 self.current_x = self.init_pos.x
                 self.current_y += self._increment.h
-
         self.clicked_i: int = 0
+
         self.set(self.clicked_i)
 
     def blit(self) -> BlitSequence:
@@ -252,18 +253,55 @@ class CheckBoxGrid:
 
         return self.clicked_i
 
-    def upt(self, mouse_info: MouseInfo) -> int:
+    def upt(self, mouse_info: MouseInfo, keys: List[int]) -> int:
         """
         makes the grid interactable and allows only one check_box to be pressed at a time
-        takes mouse info
+        takes mouse info and keys
         returns the index of the checkbox that was ticked on, if none was ticked on it returns -1
         """
 
-        # TODO: arrow movement
-        ticked_on: bool = False
+        changed: bool = False
+
+        rects: Tuple[pg.FRect, ...] = tuple(check_box.rect for check_box in self.check_boxes)
+        left: float = min(rect.left for rect in rects)
+        right: float = max(rect.right for rect in rects)
+        top: float = min(rect.top for rect in rects)
+        bottom: float = max(rect.bottom for rect in rects)
+
+        if (left <= mouse_info.x <= right and top <= mouse_info.y <= bottom) and keys:
+            clicked_i: int = self.clicked_i
+
+            sub_1: int
+            add_1: int
+            sub_cols: int
+            add_cols: int
+            if not self._inverted_axes[0]:
+                sub_1, add_1 = pg.K_LEFT, pg.K_RIGHT
+            else:
+                sub_1, add_1 = pg.K_RIGHT, pg.K_LEFT
+            if not self._inverted_axes[1]:
+                sub_cols, add_cols = pg.K_UP, pg.K_DOWN
+            else:
+                sub_cols, add_cols = pg.K_DOWN, pg.K_UP
+
+            if sub_1 in keys:
+                clicked_i = max(clicked_i - 1, 0)
+            if add_1 in keys:
+                clicked_i = min(clicked_i + 1, len(self.check_boxes) - 1)
+            if sub_cols in keys:
+                if clicked_i - self._cols >= 0:
+                    clicked_i -= self._cols
+            if add_cols in keys:
+                if clicked_i + self._cols <= len(self.check_boxes) - 1:
+                    clicked_i += self._cols
+
+            if self.clicked_i != clicked_i:
+                self.set(clicked_i)
+                changed = True
+
         for i, check_box in enumerate(self.check_boxes):
             if check_box.upt(mouse_info):
                 self.set(i)
-                ticked_on = True
+                changed = True
 
-        return self.clicked_i if ticked_on else - 1
+        return self.clicked_i if changed else - 1

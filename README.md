@@ -5,8 +5,8 @@ Requires pygame-ce, numpy and Pillow.
 - **Load Images**: Import pngs into a pixel grid.
 - **View Navigation**: Move the view for large images.
 - **Edit Pixels**: Color and erase pixels.
-- **Palette Options**: Edit or delete a color from the palette with a dropdown menu
 - **Brush Size**: Select the brush size using checkboxes.
+- **Palette Options**: Edit or delete a color from the palette with a dropdown menu
 - **Zooming**: Zoom in/out towards the mouse
 - **Minimap**: At any point there's a minimap in the top right corner with a white square to indicate the current position
 - **Color Picker**: Select colors with a colorful and intuitive UI.

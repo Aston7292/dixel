@@ -2,15 +2,15 @@
 collections of shared functions, dataclasses and types
 """
 
-from pygame import SurfaceType, draw
+import pygame as pg
 from dataclasses import dataclass
 from typing import Tuple, List
 
 ColorType = Tuple[int, ...]
-BlitSequence = List[Tuple[SurfaceType, Tuple[float, float]]]
+BlitSequence = List[Tuple[pg.SurfaceType, Tuple[float, float]]]
 
 
-def add_border(img: SurfaceType, color: ColorType) -> SurfaceType:
+def add_border(img: pg.SurfaceType, color: ColorType) -> pg.SurfaceType:
     """
     add a colored border to an image
     takes image
@@ -24,10 +24,10 @@ def add_border(img: SurfaceType, color: ColorType) -> SurfaceType:
     w, h = img.get_size()
     dim: int = min(w, h) // 10
 
-    draw.rect(img, color, (0, 0, w, dim))
-    draw.rect(img, color, (w - dim, 0, dim, h))
-    draw.rect(img, color, (0, h - dim, w, dim))
-    draw.rect(img, color, (0, 0, dim, h))
+    pg.draw.rect(img, color, (0, 0, w, dim))
+    pg.draw.rect(img, color, (w - dim, 0, dim, h))
+    pg.draw.rect(img, color, (0, h - dim, w, dim))
+    pg.draw.rect(img, color, (0, 0, dim, h))
 
     return img
 

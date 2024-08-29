@@ -89,9 +89,7 @@ class Text:
         returns the x pos of the char at i
         """
 
-        sub_string: str = self.text[:i]
-
-        return self.rect.x + self._renderer.render(sub_string, False, WHITE).get_width()
+        return self.rect.x + self._renderer.render(self.text[:i], False, WHITE).get_width()
 
     def get_closest(self, x: int) -> int:
         """

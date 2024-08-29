@@ -145,7 +145,7 @@ class Dixel:
 
             if self._file_path:
                 GRID_MANAGER.load_path(self._file_path)
-                PALETTE_MANAGER.load_path(self._file_path)
+                PALETTE_MANAGER.load_path(GRID_MANAGER.grid.pixels)
                 self._color = PALETTE_MANAGER.values[0]
 
     def _redraw(self) -> None:
@@ -323,7 +323,7 @@ class Dixel:
                 # TODO: resize grid before loading image
                 self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
-                PALETTE_MANAGER.load_path(self._file_path)
+                PALETTE_MANAGER.load_path(GRID_MANAGER.grid.pixels)
                 self._color = PALETTE_MANAGER.values[0]
 
         if (
@@ -334,7 +334,7 @@ class Dixel:
 
             self._file_path = ''
             GRID_MANAGER.load_path(self._file_path)
-            PALETTE_MANAGER.load_path(self._file_path)
+            PALETTE_MANAGER.load_path(GRID_MANAGER.grid.pixels)
             self._color = PALETTE_MANAGER.values[0]
 
     def run(self) -> None:
@@ -344,7 +344,7 @@ class Dixel:
 
         try:
             while True:
-                CLOCK.tick(60)
+                CLOCK.tick(6000)
 
                 self._handle_events()
                 if not self._focused:
@@ -364,7 +364,7 @@ class Dixel:
                             self._mouse_info, self._keys, self._color, self._brush_size
                         )
 
-                        brush_size: int = BRUSH_SIZES.upt(self._mouse_info)
+                        brush_size: int = BRUSH_SIZES.upt(self._mouse_info, self._keys)
                         if brush_size != -1:
                             self._brush_size = brush_size + 1
 

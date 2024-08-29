@@ -43,7 +43,7 @@ class Grid:
         self._grid_pos: Tuple[float, float] = self._grid_init_pos.xy
 
         self.grid_pixel_dim: float = 18
-        self._grid_init_dim: int = self.grid_visible_area.w * self.grid_pixel_dim
+        self._grid_init_dim: int = int(self.grid_visible_area.w * self.grid_pixel_dim)
 
         self._grid_img: pg.SurfaceType = pg.Surface(
             (self._grid_init_dim, self._grid_init_dim)
@@ -587,8 +587,8 @@ class GridManager:
         returns the coordinates of every pixel in the rect
         """
 
-        pixels: NDArray[np.uint8] = self.grid.pixels
         changed_pixels: List[Tuple[int, int]] = []
+        pixels: NDArray[np.uint8] = self.grid.pixels
 
         for row in range(top, bottom):
             for col in range(left, right):
@@ -671,11 +671,10 @@ class GridManager:
                     if x == x1 and y == y1:
                         break
 
-                    err2: int = err * 2
-                    if err2 > -d.y:
+                    if err * 2 > -d.y:
                         err -= d.y
                         x += s.x
-                    if err2 < d.x:
+                    if err * 2 < d.x:
                         err += d.x
                         y += s.y
 

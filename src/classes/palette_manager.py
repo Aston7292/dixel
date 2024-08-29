@@ -3,8 +3,9 @@ class to manage color palettes
 """
 
 import pygame as pg
-from PIL import Image
-from typing import Tuple, List, Set, Final, Optional, Any
+import numpy as np
+from numpy.typing import NDArray
+from typing import Tuple, List, Final, Optional
 
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
@@ -104,25 +105,15 @@ class PaletteManager:
 
         return color
 
-    def load_path(self, file_path: str) -> None:
+    def load_path(self, pixels: NDArray[np.uint8]) -> None:
         """
         makes a palette out of every character in an image
         takes path
         """
 
-        # TODO: get colors from grid pixels
-        if not file_path:
-            self.values = [BLACK]
-        else:
-            img: Image.Image = Image.open(file_path).convert('RGB')
-
-            colors: Set[ColorType] = set()
-            for y in range(img.height):
-                for x in range(img.width):
-                    color: Any = img.getpixel((x, y))
-                    if isinstance(color, tuple):
-                        colors.add(color)
-            self.values = list(colors)
+        pixels = pixels.reshape(-1, 4)[:, :3]
+        colors: NDArray[np.uint8] = np.unique(pixels, axis=0)
+        self.values = [tuple(int(value) for value in color) for color in colors]
 
         self._colors.current_x, self._colors.current_y = self._colors.init_pos.xy
         self._colors.check_boxes = []
@@ -140,6 +131,8 @@ class PaletteManager:
         returns the selected color and the color to edit
         """
 
+        color_i: int
+
         if mouse_info.released[2]:
             for i, check_box in enumerate(self._colors.check_boxes):
                 if check_box.rect.collidepoint(mouse_info.xy):
@@ -155,7 +148,6 @@ class PaletteManager:
 
                     break
 
-        color_i: int
         clicked_option: bool = False
         if self._view_drop_down:
             if self._options[0].upt(mouse_info):
@@ -174,7 +166,7 @@ class PaletteManager:
 
                 clicked_option = True
 
-        color_i = self._colors.upt(mouse_info) if not clicked_option else -1
+        color_i = self._colors.upt(mouse_info, keys) if not clicked_option else -1
 
         if ctrl:
             self._view_drop_down = False

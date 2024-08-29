@@ -277,7 +277,7 @@ class Grid:
                 pixel_surf.fill(pixels[y, x])
                 sequence.append((pixel_surf.copy(), (x * 2, y * 2)))
 
-        # making a new surface and blitting it on the big minimap is inaccurate
+        # making a surface and blitting it on the big minimap is inaccurate
         self._small_minimap_img_1.fblits(sequence)
 
         self.get_section_indicator(offset)
@@ -324,12 +324,12 @@ class Grid:
 
         self.update_full(offset, selected_pixel_pos)
 
-    def resize(self, new_size: Size) -> None:
+    def resize(self, size: Size) -> None:
         """
         resizes the grid
-        takes new size
+        takes size
         """
-        self.grid_size = new_size
+        self.grid_size = size
 
         add_rows: int = self.grid_size.h - self.pixels.shape[0]
         add_cols: int = self.grid_size.w - self.pixels.shape[1]
@@ -725,15 +725,15 @@ class GridManager:
 
         return moved
 
-    def resize(self, new_size: Size) -> None:
+    def resize(self, size: Size) -> None:
         """
         resizes the grid
-        takes new size
+        takes size
         """
 
         self._traveled_dist.x, self._traveled_dist.y = 0, 0
 
-        self.grid.resize(new_size)
+        self.grid.resize(size)
         self._grid_offset.x = min(
             self._grid_offset.x, self.grid.grid_size.w - self.grid.grid_visible_area.w
         )

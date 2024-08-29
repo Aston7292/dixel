@@ -101,10 +101,10 @@ class NumInputBox:
         """
         makes the object interactable
         takes mouse info, keys, limits and selected bool
-        returns whatever the input box was clicked or not and the new text
+        returns whatever the input box was clicked or not and the text
         """
 
-        new_text: str = self.text.text
+        text: str = self.text.text
 
         if not self.box_rect.collidepoint(mouse_info.xy):
             if self.hovering:
@@ -119,7 +119,7 @@ class NumInputBox:
                 self.text_i = self.text.get_closest(mouse_info.x)
                 self.get_cursor_pos()
 
-                return True, new_text
+                return True, text
 
         self.selected = selected
         if self.selected and keys:
@@ -134,26 +134,26 @@ class NumInputBox:
             else:
                 k: int = keys[-1]
                 if k == pg.K_BACKSPACE and self.text_i:
-                    new_text = self.text.text[:self.text_i - 1] + self.text.text[self.text_i:]
+                    text = self.text.text[:self.text_i - 1] + self.text.text[self.text_i:]
                     self.text_i = max(self.text_i - 1, 0)
                 elif k == pg.K_DELETE:
-                    new_text = self.text.text[:self.text_i] + self.text.text[self.text_i + 1:]
+                    text = self.text.text[:self.text_i] + self.text.text[self.text_i + 1:]
                 elif k <= 0x10ffff and chr(k).isdigit():
-                    new_text = self.text.text[:self.text_i] + chr(k) + self.text.text[self.text_i:]
-                    self.text_i = min(self.text_i + 1, len(new_text))
+                    text = self.text.text[:self.text_i] + chr(k) + self.text.text[self.text_i:]
+                    self.text_i = min(self.text_i + 1, len(text))
 
-                    if len(new_text) > len(str(limits[1])):
-                        new_text = new_text[:len(str(limits[1]))]
+                    if len(text) > len(str(limits[1])):
+                        text = text[:len(str(limits[1]))]
 
-                    if int(new_text) < limits[0]:
-                        new_text = str(limits[0])
-                    elif int(new_text) > limits[1]:
-                        new_text = str(limits[1])
+                    if int(text) < limits[0]:
+                        text = str(limits[0])
+                    elif int(text) > limits[1]:
+                        text = str(limits[1])
 
-                if new_text:
-                    new_text = new_text.lstrip('0')
-                    if not new_text:
-                        new_text = '0'
+                if text:
+                    text = text.lstrip('0')
+                    if not text:
+                        text = '0'
             self.get_cursor_pos()
 
-        return False, new_text
+        return False, text

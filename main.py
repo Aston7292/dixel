@@ -264,9 +264,28 @@ class Dixel:
         if zoom_amount:
             GRID_MANAGER.zoom(zoom_amount, self._brush_size)
 
-    def _handle_file_operations(self) -> None:
+    def _handle_ui_buttons(self) -> None:
         """
-        handles the save as, open and close button actions
+        handles the buttons that open uis
+        """
+
+        if ADD_COLOR.upt(self._mouse_info) or (self._ctrl and pg.K_a in self._keys):
+            self._state = 1
+
+            COLOR_PICKER.ui.prev_mouse_cursor = pg.mouse.get_cursor()
+            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+            COLOR_PICKER.set(BLACK)
+
+        if MODIFY_GRID.upt(self._mouse_info) or (self._ctrl and pg.K_m in self._keys):
+            self._state = 2
+
+            GRID_UI.ui.prev_mouse_cursor = pg.mouse.get_cursor()
+            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+            GRID_UI.set(GRID_MANAGER.grid.grid_size, GRID_MANAGER.grid.pixels)
+
+    def _handle_file_buttons(self) -> None:
+        """
+        handles the save as, open and close buttons
         """
 
         root: Tk
@@ -301,6 +320,7 @@ class Dixel:
             root.destroy()
 
             if file_path:
+                # TODO: resize grid before loading image
                 self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
                 PALETTE_MANAGER.load_path(self._file_path)
@@ -348,30 +368,22 @@ class Dixel:
                         if brush_size != -1:
                             self._brush_size = brush_size + 1
 
-                        selected_color: Optional[ColorType] = PALETTE_MANAGER.upt(
-                            self._mouse_info, self._ctrl
+                        selected_color: Optional[ColorType]
+                        color_to_edit: Optional[ColorType]
+                        selected_color, color_to_edit = PALETTE_MANAGER.upt(
+                            self._mouse_info, self._keys, self._ctrl
                         )
                         if selected_color:
                             self._color = selected_color
-
-                        if ADD_COLOR.upt(self._mouse_info) or (self._ctrl and pg.K_a in self._keys):
+                        elif color_to_edit:
                             self._state = 1
 
                             COLOR_PICKER.ui.prev_mouse_cursor = pg.mouse.get_cursor()
                             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                            COLOR_PICKER.set(BLACK)
+                            COLOR_PICKER.set(color_to_edit)
 
-                        if (
-                                MODIFY_GRID.upt(self._mouse_info) or
-                                (self._ctrl and pg.K_m in self._keys)
-                        ):
-                            self._state = 2
-
-                            GRID_UI.ui.prev_mouse_cursor = pg.mouse.get_cursor()
-                            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                            GRID_UI.set(GRID_MANAGER.grid.grid_size, GRID_MANAGER.grid.pixels)
-
-                        self._handle_file_operations()
+                        self._handle_ui_buttons()
+                        self._handle_file_buttons()
 
                         if self._ctrl:  # independent shortcuts
                             for i in range(pg.K_1, pg.K_1 + len(BRUSH_SIZES.check_boxes)):
@@ -379,30 +391,34 @@ class Dixel:
                                     BRUSH_SIZES.set(i - pg.K_1)
                                     self._brush_size = i - pg.K_1 + 1
                     case 1:
-                        new_color: Optional[ColorType]
-                        closed, new_color = COLOR_PICKER.upt(
+                        color: Optional[ColorType]
+                        closed, color = COLOR_PICKER.upt(
                             self._mouse_info, self._keys, self._ctrl
                         )
                         if closed:
-                            if new_color:
-                                self._color = PALETTE_MANAGER.add(new_color)
+                            if color:
+                                self._color = PALETTE_MANAGER.add(color)
+                            else:
+                                PALETTE_MANAGER.changing_color = False
 
                             self._state = 0
                     case 2:
-                        new_size: Optional[Size]
-                        closed, new_size = GRID_UI.upt(self._mouse_info, self._keys, self._ctrl)
+                        size: Optional[Size]
+                        closed, size = GRID_UI.upt(self._mouse_info, self._keys, self._ctrl)
                         if closed:
-                            if new_size:
-                                GRID_MANAGER.resize(new_size)
+                            if size:
+                                GRID_MANAGER.resize(size)
 
                             self._state = 0
 
                 self._redraw()
+
         except KeyboardInterrupt:
             if self._file_path:
                 Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
             with open('data.txt', 'w', encoding='utf-8') as f:
                 f.write(self._file_path)
+
         except Exception:  # pylint: disable=broad-exception-caught
             if not self._file_path:
                 name: str = 'new_file.png'

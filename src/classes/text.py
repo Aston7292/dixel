@@ -75,7 +75,7 @@ class Text:
     def modify_text(self, text: str) -> None:
         """
         modifies text image and adjusts position
-        takes new text
+        takes text
         """
 
         self.text = text

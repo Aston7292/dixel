@@ -14,7 +14,7 @@ def add_border(img: SurfaceType, color: ColorType) -> SurfaceType:
     """
     add a colored border to an image
     takes image
-    returns new image
+    returns image
     """
 
     img = img.copy()

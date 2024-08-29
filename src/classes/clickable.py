@@ -18,7 +18,7 @@ class Clickable(ABC):
     """
 
     __slots__ = (
-        '_init_pos', '_imgs', 'rect', '_init_size', 'img_i', 'hovering'
+        'init_pos', '_imgs', 'rect', '_init_size', 'img_i', 'hovering'
     )
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType]) -> None:
@@ -27,10 +27,10 @@ class Clickable(ABC):
         takes position and two images
         """
 
-        self._init_pos: RectPos = pos
+        self.init_pos: RectPos = pos
 
         self._imgs: Tuple[pg.SurfaceType, ...] = imgs
-        self.rect: pg.FRect = self._imgs[0].get_frect(**{self._init_pos.coord: self._init_pos.xy})
+        self.rect: pg.FRect = self._imgs[0].get_frect(**{self.init_pos.coord: self.init_pos.xy})
 
         self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
 
@@ -53,10 +53,10 @@ class Clickable(ABC):
         size: Tuple[int, int] = (
             int(self._init_size.w * win_ratio_w), int(self._init_size.h * win_ratio_h)
         )
-        pos: Tuple[float, float] = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
+        pos: Tuple[float, float] = (self.init_pos.x * win_ratio_w, self.init_pos.y * win_ratio_h)
 
         self._imgs = tuple(pg.transform.scale(img, size) for img in self._imgs)
-        self.rect = self._imgs[0].get_frect(**{self._init_pos.coord: pos})
+        self.rect = self._imgs[0].get_frect(**{self.init_pos.coord: pos})
 
     @abstractmethod
     def upt(self, mouse_info: MouseInfo) -> bool:
@@ -187,8 +187,8 @@ class Button(Clickable):
         takes x, y and window size ratio
         """
 
-        self._init_pos.x, self._init_pos.y = x / win_ratio_w, y / win_ratio_h
-        setattr(self.rect, self._init_pos.coord, (x, y))
+        self.init_pos.x, self.init_pos.y = x / win_ratio_w, y / win_ratio_h
+        setattr(self.rect, self.init_pos.coord, (x, y))
         if self._text:
             self._text.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
 

@@ -11,7 +11,7 @@ from src.classes.clickable import Button
 from src.utils import RectPos, MouseInfo, add_border, ColorType, BlitSequence
 from src.const import BLACK, EMPTY_1
 
-OPTIONS: Final[Tuple[str, ...]] = ('modify', 'delete')
+OPTIONS: Final[Tuple[str, ...]] = ('edit', 'delete')
 
 
 def get_color_info(color: ColorType) -> Tuple[pg.SurfaceType, str]:
@@ -36,12 +36,13 @@ class PaletteManager:
     """
 
     __slots__ = (
-        '_win_ratio_w', '_win_ratio_h', 'values', '_colors', '_options', '_menu_i', '_view_menu'
+        '_win_ratio_w', '_win_ratio_h', 'values', '_colors',
+        '_options', '_drop_down_i', '_view_drop_down', 'changing_color'
     )
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType]) -> None:
         """
-        creates a grid of colors and a menu to modify it
+        creates a grid of colors and a drop-down menu to modify it
         takes position
         """
 
@@ -54,8 +55,9 @@ class PaletteManager:
         self._options: Tuple[Button, ...] = tuple(
             Button(RectPos(0, 0, 'topleft'), imgs, option, 20) for option in OPTIONS
         )
-        self._menu_i: int = 0
-        self._view_menu: bool = False
+        self._drop_down_i: int = 0
+        self._view_drop_down: bool = False
+        self.changing_color: bool = False
 
     def blit(self) -> BlitSequence:
         """
@@ -63,7 +65,7 @@ class PaletteManager:
         """
 
         sequence: BlitSequence = self._colors.blit()
-        if self._view_menu:
+        if self._view_drop_down:
             for option in self._options:
                 sequence += option.blit()
 
@@ -83,14 +85,21 @@ class PaletteManager:
 
     def add(self, color: ColorType) -> ColorType:
         """
-        adds a color to the palette
+        adds a color to the palette or edits one
         takes color
         returns color
         """
 
-        if color not in self.values:
+        if self.changing_color:
+            self.values[self._drop_down_i] = color
+            self._colors.insert(
+                get_color_info(color), self._win_ratio_w, self._win_ratio_h, self._drop_down_i
+            )
+
+            self.changing_color = False
+        elif color not in self.values:
             self.values.append(color)
-            self._colors.add(get_color_info(color), self._win_ratio_w, self._win_ratio_h)
+            self._colors.insert(get_color_info(color), self._win_ratio_w, self._win_ratio_h)
         self._colors.set(self.values.index(color))
 
         return color
@@ -118,42 +127,25 @@ class PaletteManager:
         self._colors.current_x, self._colors.current_y = self._colors.init_pos.xy
         self._colors.check_boxes = []
         for value in self.values:
-            self._colors.add(get_color_info(value), self._win_ratio_w, self._win_ratio_h)
+            self._colors.insert(get_color_info(value), self._win_ratio_w, self._win_ratio_h)
 
         self._colors.set(0)
 
-    def upt(self, mouse_info: MouseInfo, ctrl: int) -> Optional[ColorType]:
+    def upt(
+            self, mouse_info: MouseInfo, keys: List[int], ctrl: int
+    ) -> Tuple[Optional[ColorType], Optional[ColorType]]:
         """
         makes the object interactable
         takes mouse info, keys anf ctrl
-        returns the selected color
+        returns the selected color and the color to edit
         """
-
-        index: int = -1
-        clicked_option: bool = False
-        if self._view_menu:
-            if self._options[0].upt(mouse_info):
-                clicked_option = True
-
-            if self._options[1].upt(mouse_info):
-                self.values.pop(self._menu_i)
-                if not self.values:
-                    self.values = [BLACK]
-                index = self._colors.remove(
-                    self._menu_i, get_color_info(BLACK), self._win_ratio_w, self._win_ratio_h
-                )
-
-                clicked_option = True
-
-        if not clicked_option:
-            index = self._colors.upt(mouse_info)
 
         if mouse_info.released[2]:
             for i, check_box in enumerate(self._colors.check_boxes):
                 if check_box.rect.collidepoint(mouse_info.xy):
-                    self._view_menu = not self._view_menu
-                    if self._view_menu:
-                        self._menu_i = i
+                    self._view_drop_down = not self._view_drop_down
+                    if self._view_drop_down:
+                        self._drop_down_i = i
                         y: float = mouse_info.y + 5
                         for option in self._options:
                             option.move_rect(
@@ -161,13 +153,50 @@ class PaletteManager:
                             )
                             y += option.rect.h
 
-                        pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                        self._colors.check_boxes[self._menu_i].img_i = 0
-                        self._colors.check_boxes[self._menu_i].hovering = False
-
                     break
 
-        if mouse_info.released[0] or ctrl:
-            self._view_menu = False
+        color_i: int
+        clicked_option: bool = False
+        if self._view_drop_down:
+            if self._options[0].upt(mouse_info):
+                self.changing_color = True
 
-        return self.values[index] if index != -1 else None
+                clicked_option = True
+
+            if self._options[1].upt(mouse_info):
+                self.values.pop(self._drop_down_i)
+                if not self.values:
+                    self.values = [BLACK]
+                color_i = self._colors.remove(
+                    self._drop_down_i, get_color_info(self.values[0]),
+                    self._win_ratio_w, self._win_ratio_h
+                )
+
+                clicked_option = True
+
+        color_i = self._colors.upt(mouse_info) if not clicked_option else -1
+
+        if ctrl:
+            self._view_drop_down = False
+            if pg.K_e in keys:
+                self._drop_down_i = self._colors.clicked_i
+                self.changing_color = True
+            if pg.K_DELETE in keys:
+                self._drop_down_i = self._colors.clicked_i
+                self.values.pop(self._drop_down_i)
+                if not self.values:
+                    self.values = [BLACK]
+                color_i = self._colors.remove(
+                    self._drop_down_i, get_color_info(self.values[0]),
+                    self._win_ratio_w, self._win_ratio_h
+                )
+
+        if mouse_info.released[0]:
+            self._view_drop_down = False
+
+        selected_color: Optional[ColorType] = self.values[color_i] if color_i != -1 else None
+        color_to_edit: Optional[ColorType] = (
+            self.values[self._drop_down_i] if self.changing_color else None
+        )
+
+        return selected_color, color_to_edit

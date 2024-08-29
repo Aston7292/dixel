@@ -189,8 +189,8 @@ class ScrollBar:
         prev_text: str = self.value_input_box.text.text
 
         clicked: bool
-        new_text: str
-        clicked, new_text = self.value_input_box.upt(
+        text: str
+        clicked, text = self.value_input_box.upt(
             mouse_info, keys, (0, 255), selection == self.value_input_box
         )
 
@@ -201,7 +201,7 @@ class ScrollBar:
         if self.scrolling:
             value = ceil((mouse_info.x - self.bar_rect.x) / self._unit_w)
             value = max(min(value, 255), 0)
-            new_text = str(value)
+            text = str(value)
 
         if selection == self:
             self.slider_img_i = 1
@@ -220,13 +220,13 @@ class ScrollBar:
                     value = 0
                 elif pg.K_END in keys:
                     value = 255
-                new_text = str(value)
+                text = str(value)
 
-        if new_text != prev_text:
-            self.value = int(new_text) if new_text else 0
+        if text != prev_text:
+            self.value = int(text) if text else 0
             self._slider_rect.x = self.bar_rect.x + self._unit_w * self.value
 
-            self.value_input_box.text.modify_text(new_text)
+            self.value_input_box.text.modify_text(text)
             self.value_input_box.get_cursor_pos()
 
         return -1
@@ -340,7 +340,7 @@ class ColorPicker:
         """
         makes the object interactable
         takes mouse info, keys and ctrl
-        returns whatever the interface was closed or not and the new color
+        returns whatever the interface was closed or not and the color
         """
 
         if keys:
@@ -362,9 +362,9 @@ class ColorPicker:
         selection: Any = self._objs[self._selection_i.y][self._selection_i.x]
 
         for i, channel in enumerate(self._channels):
-            new_selection: int = channel.upt(mouse_info, keys, selection)
-            if new_selection != -1:
-                self._selection_i.x, self._selection_i.y = new_selection, i
+            selection_i: int = channel.upt(mouse_info, keys, selection)
+            if selection_i != -1:
+                self._selection_i.x, self._selection_i.y = selection_i, i
         self._color = tuple(channel.value for channel in self._channels)
 
         if self._color != prev_color:

@@ -96,8 +96,8 @@ class NumSlider:
         prev_text: str = self.value_input_box.text.text
 
         clicked: bool
-        new_text: str
-        clicked, new_text = self.value_input_box.upt(
+        text: str
+        clicked, text = self.value_input_box.upt(
             mouse_info, keys, (1, MAX_SIZE), selection == self
         )
 
@@ -122,12 +122,12 @@ class NumSlider:
                 self.traveled_x -= pixels_traveled * 10
 
                 value: int = max(min(self.value + pixels_traveled, MAX_SIZE), 1)
-                new_text = str(value)
+                text = str(value)
 
-        if new_text != prev_text:
-            self.value = int(new_text) if new_text else 1
+        if text != prev_text:
+            self.value = int(text) if text else 1
 
-            self.value_input_box.text.modify_text(new_text)
+            self.value_input_box.text.modify_text(text)
             self.value_input_box.get_cursor_pos()
 
         self._prev_mouse_x = mouse_info.x
@@ -240,21 +240,18 @@ class GridUI:
         self._h_chooser.handle_resize(win_ratio_w, win_ratio_h)
         self._check_box.handle_resize(win_ratio_w, win_ratio_h)
 
-    def set(self, new_size: Size, pixels: NDArray[np.uint8]) -> None:
+    def set(self, size: Size, pixels: NDArray[np.uint8]) -> None:
         """
         sets the ui on a specific size
         takes size and grid pixels
         """
 
-        self._w_chooser.set(new_size.w)
-        self._h_chooser.set(new_size.h)
+        self._w_chooser.set(size.w)
+        self._h_chooser.set(size.h)
         self._pixels = pixels
-        self._get_preview(new_size)
+        self._ratio = (size.h / size.w, size.w / size.h)
 
-        self._ratio = (
-            new_size.h / new_size.w,
-            new_size.w / new_size.h
-        )
+        self._get_preview(size)
 
     def _get_preview(self, grid_size: Size) -> None:
         """
@@ -314,7 +311,7 @@ class GridUI:
         """
         makes the object interactable
         takes mouse info, keys and ctrl
-        returns whatever the interface was closed or not and the new size
+        returns whatever the interface was closed or not and the size
         """
 
         if keys:

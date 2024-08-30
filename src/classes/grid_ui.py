@@ -5,29 +5,21 @@ interface to modify the grid
 import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
-from os import path
 from typing import Tuple, List, Final, Optional, Any
 
 from src.classes.num_input_box import NumInputBox
-from src.classes.ui import UI, INPUT_BOX
+from src.classes.ui import UI, CHECK_BOX_1, CHECK_BOX_2, INPUT_BOX
 from src.classes.clickable import CheckBox
 from src.classes.text import Text
 from src.utils import RectPos, Size, MouseInfo, ColorType, BlitSequence
 from src.const import EMPTY_1, EMPTY_2
-
-CHECK_BOX_1: Final[pg.SurfaceType] = pg.image.load(
-    path.join('sprites', 'check_box_off.png')
-).convert_alpha()
-CHECK_BOX_2: Final[pg.SurfaceType] = pg.image.load(
-    path.join('sprites', 'check_box_on.png')
-).convert_alpha()
 
 MAX_SIZE: Final[int] = 256
 
 
 class NumSlider:
     """
-    class that allows the user to pick a number in a predefined range
+    class that allows the user to pick a number in a predefined range either via mouse or keyboard
     """
 
     __slots__ = (
@@ -36,7 +28,7 @@ class NumSlider:
 
     def __init__(self, pos: RectPos, value: int, text: str) -> None:
         """
-        creates surfaces and rects
+        creates the slider and text
         takes position, starting value and text
         """
 
@@ -51,7 +43,7 @@ class NumSlider:
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
 
         self._add_text: Text = Text(
-            RectPos(self.value_input_box.box_rect.x - 10, self.rect.centery, 'midright'), text
+            RectPos(self.value_input_box.box_rect.x - 10.0, self.rect.centery, 'midright'), text
         )
 
     def blit(self) -> BlitSequence:
@@ -137,7 +129,7 @@ class NumSlider:
 
 class GridUI:
     """
-    class to create an interface that allows the user to modify the grid, size between 1 and 256
+    class to create an interface that allows the user to modify the grid, includes preview,
     """
 
     __slots__ = (
@@ -155,7 +147,7 @@ class GridUI:
         self.ui: UI = UI(pos, 'MODIFY GRID')
 
         self._preview_init_pos: RectPos = RectPos(
-            self.ui.rect.centerx, self.ui.rect.centery + 40, 'center'
+            self.ui.rect.centerx, self.ui.rect.centery + 40.0, 'center'
         )
         self._preview_pos: Tuple[float, float] = self._preview_init_pos.xy
 
@@ -169,11 +161,11 @@ class GridUI:
         )
 
         self._h_chooser: NumSlider = NumSlider(
-            RectPos(self._preview_rect.x + 20, self._preview_rect.y - 25, 'bottomleft'),
+            RectPos(self._preview_rect.x + 20.0, self._preview_rect.y - 25.0, 'bottomleft'),
             grid_size.h, 'height'
         )
         self._w_chooser: NumSlider = NumSlider(
-            RectPos(self._preview_rect.x + 20, self._h_chooser.rect.y - 25, 'bottomleft'),
+            RectPos(self._preview_rect.x + 20.0, self._h_chooser.rect.y - 25.0, 'bottomleft'),
             grid_size.w, 'width'
         )
         self._pixels: NDArray[np.uint8] = np.empty(
@@ -183,12 +175,12 @@ class GridUI:
         self._selection_i: int = 0
 
         self._check_box: CheckBox = CheckBox(
-            RectPos(self._preview_rect.right - 20, self._h_chooser.rect.centery, 'midright'),
+            RectPos(self._preview_rect.right - 20.0, self._h_chooser.rect.centery, 'midright'),
             (CHECK_BOX_1, CHECK_BOX_2), 'keep ratio'
         )
 
-        self._ratio: Tuple[float, float] = (0, 0)
-        self._min_win_ratio: float = 1
+        self._ratio: Tuple[float, float] = (0.0, 0.0)
+        self._min_win_ratio: float = 1.0
 
         self._small_preview_img: pg.SurfaceType = pg.Surface(
             (self._w_chooser.value * 2, self._h_chooser.value * 2)
@@ -275,19 +267,20 @@ class GridUI:
             pixels = np.pad(pixels, ((0, 0), (0, add_cols), (0, 0)), constant_values=0)
 
         empty_pixel: pg.SurfaceType = pg.Surface((2, 2))
-        for row in range(2):
-            for col in range(2):
-                color: ColorType = EMPTY_1 if (row + col) % 2 == 0 else EMPTY_2
-                empty_pixel.set_at((col, row), color)
+        for y in range(2):
+            for x in range(2):
+                color: ColorType = EMPTY_1 if (x + y) % 2 == 0 else EMPTY_2
+                empty_pixel.set_at((x, y), color)
 
         sequence: BlitSequence = []
         pixel_surf: pg.SurfaceType = pg.Surface((2, 2))
         for y in range(grid_size.h):
+            row: NDArray[np.uint8] = pixels[y]
             for x in range(grid_size.w):
-                if not pixels[y, x, -1]:
+                if not row[x, -1]:
                     sequence.append((empty_pixel, (x * 2, y * 2)))
                 else:
-                    pixel_surf.fill(pixels[y, x])
+                    pixel_surf.fill(row[x])
                     sequence.append((pixel_surf.copy(), (x * 2, y * 2)))
         self._small_preview_img.fblits(sequence)
 
@@ -341,7 +334,8 @@ class GridUI:
             self._get_preview(grid_size)
 
         if self._check_box.upt(mouse_info) or (ctrl and pg.K_k in keys):
-            self._check_box.img_i = int(not self._check_box.img_i)
+            if (ctrl and pg.K_k in keys):
+                self._check_box.img_i = int(not self._check_box.img_i)
 
             if self._check_box.img_i:
                 self._ratio = (

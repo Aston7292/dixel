@@ -22,7 +22,7 @@ class NumInputBox:
 
     def __init__(self, pos: RectPos, img: pg.SurfaceType, text: str) -> None:
         """
-        creates surfaces, rects and text object
+        creates the input box and text
         takes position, image and text
         """
 

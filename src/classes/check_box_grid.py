@@ -1,5 +1,5 @@
 """
-classes to create a checkbox or a grid of connected checkboxes
+classes to create a locked checkbox or a grid of connected checkboxes
 """
 
 import pygame as pg
@@ -13,7 +13,7 @@ from src.const import WHITE
 
 class LockedCheckBox(Clickable):
     """
-    class to create a checkbox, when hovered changes image and displays text and
+    class to create a checkbox, when hovered changes image and displays text,
     when ticked on it will always display the hovering image, cannot be ticked off
     """
 
@@ -25,7 +25,7 @@ class LockedCheckBox(Clickable):
             self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType], text: str
     ) -> None:
         """
-        creates surfaces and rects
+        creates the checkbox and text
         takes position, two images and text
         """
 
@@ -33,7 +33,7 @@ class LockedCheckBox(Clickable):
 
         self.ticked: bool = False
 
-        self._text: Text = Text(RectPos(0, 0, 'topleft'), text, 16)
+        self._text: Text = Text(RectPos(0.0, 0.0, 'topleft'), text, 12)
         self._text_surf: pg.SurfaceType = pg.Surface(
             (int(self._text.rect.w), int(self._text.rect.h))
         )
@@ -49,7 +49,7 @@ class LockedCheckBox(Clickable):
         sequence: BlitSequence = [(self._imgs[img_i], self.rect.topleft)]
         if self.hovering:
             mouse_pos: Point = Point(*pg.mouse.get_pos())
-            sequence += [(self._text_surf, (mouse_pos.x + 10, mouse_pos.y))]
+            sequence += [(self._text_surf, (mouse_pos.x + 15, mouse_pos.y))]
 
         return sequence
 
@@ -103,7 +103,7 @@ class LockedCheckBox(Clickable):
 
 class CheckBoxGrid:
     """
-    creates a grid of checkboxes of the same size with n rows
+    creates a grid of checkboxes with n rows (images should be of the same size)
     """
 
     __slots__ = (
@@ -135,10 +135,9 @@ class CheckBoxGrid:
 
         self.check_boxes: List[LockedCheckBox] = []
         for i, element in enumerate(info):
-            img_on: pg.SurfaceType = add_border(element[0], WHITE)
             self.check_boxes.append(LockedCheckBox(
                 RectPos(self.current_x, self.current_y, self.init_pos.coord),
-                (element[0], img_on), element[1]
+                (element[0], add_border(element[0], WHITE)), element[1]
             ))
 
             self.current_x += self._increment.w
@@ -220,8 +219,8 @@ class CheckBoxGrid:
         """
 
         check_box: LockedCheckBox = self.check_boxes.pop(drop_down_i)
-        self.current_x = int(getattr(check_box.rect, self.init_pos.coord)[0] / win_ratio_w)
-        self.current_y = int(getattr(check_box.rect, self.init_pos.coord)[1] / win_ratio_h)
+        self.current_x = getattr(check_box.rect, self.init_pos.coord)[0] / win_ratio_w
+        self.current_y = getattr(check_box.rect, self.init_pos.coord)[1] / win_ratio_h
         for i in range(drop_down_i, len(self.check_boxes)):
             self.check_boxes[i].init_pos.x = self.current_x
             self.check_boxes[i].init_pos.y = self.current_y
@@ -257,10 +256,8 @@ class CheckBoxGrid:
         """
         makes the grid interactable and allows only one check_box to be pressed at a time
         takes mouse info and keys
-        returns the index of the checkbox that was ticked on, if none was ticked on it returns -1
+        returns the index of the active checkbox
         """
-
-        changed: bool = False
 
         rects: Tuple[pg.FRect, ...] = tuple(check_box.rect for check_box in self.check_boxes)
         left: float = min(rect.left for rect in rects)
@@ -297,11 +294,9 @@ class CheckBoxGrid:
 
             if self.clicked_i != clicked_i:
                 self.set(clicked_i)
-                changed = True
 
         for i, check_box in enumerate(self.check_boxes):
             if check_box.upt(mouse_info):
                 self.set(i)
-                changed = True
 
-        return self.clicked_i if changed else - 1
+        return self.clicked_i

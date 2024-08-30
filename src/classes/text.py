@@ -21,9 +21,10 @@ class Text:
         '_init_pos', '_pos', '_init_h', '_renderer', 'text', '_surf', 'rect'
     )
 
-    def __init__(self, pos: RectPos, text: str, h: int = 32) -> None:
+    # TODO: multi line text
+    def __init__(self, pos: RectPos, text: str, h: int = 24) -> None:
         """
-        creates text surface and rect
+        creates the text
         takes position, text and optional height
         """
 
@@ -32,7 +33,7 @@ class Text:
 
         self._init_h: int = h
         if self._init_h not in RENDERERS_CACHE:
-            RENDERERS_CACHE[self._init_h] = pg.font.Font(size=self._init_h)
+            RENDERERS_CACHE[self._init_h] = pg.font.SysFont('helvetica', self._init_h)
         self._renderer: pg.Font = RENDERERS_CACHE[self._init_h]
 
         self.text: str = text
@@ -56,7 +57,7 @@ class Text:
         self._pos = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
 
         if h not in RENDERERS_CACHE:
-            RENDERERS_CACHE[h] = pg.font.Font(size=h)
+            RENDERERS_CACHE[h] = pg.font.SysFont('helvetica', h)
         self._renderer = RENDERERS_CACHE[h]
 
         self._surf = self._renderer.render(self.text, True, WHITE)

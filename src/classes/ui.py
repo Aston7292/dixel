@@ -27,12 +27,18 @@ CLOSE_2: Final[pg.SurfaceType] = pg.image.load(
     path.join('sprites', 'close_button_on.png')
 ).convert_alpha()
 
+CHECK_BOX_1: Final[pg.SurfaceType] = pg.image.load(
+    path.join('sprites', 'check_box_off.png')
+).convert_alpha()
+CHECK_BOX_2: Final[pg.SurfaceType] = pg.image.load(
+    path.join('sprites', 'check_box_on.png')
+).convert_alpha()
 INPUT_BOX: Final[pg.Surface] = pg.Surface((60, 40))
 
 
 class UI:
     """
-    class for rendering an ui with a title, confirm and exit button
+    class for creating an ui with a title, confirm and exit button
     """
 
     __slots__ = (
@@ -54,15 +60,15 @@ class UI:
         self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
 
         self._title: Text = Text(
-            RectPos(self.rect.centerx, self.rect.top + 10, 'midtop'), title, 40
+            RectPos(self.rect.centerx, self.rect.top + 10.0, 'midtop'), title, 32
         )
 
         self._confirm: Button = Button(
-            RectPos(self.rect.right - 10, self.rect.bottom - 10, 'bottomright'),
+            RectPos(self.rect.right - 10.0, self.rect.bottom - 10.0, 'bottomright'),
             (BUTTON_M_OFF, BUTTON_M_ON), 'confirm'
         )
         self._exit: Button = Button(
-            RectPos(self.rect.right - 10, self.rect.y + 10, 'topright'), (CLOSE_1, CLOSE_2), ''
+            RectPos(self.rect.right - 10.0, self.rect.y + 10.0, 'topright'), (CLOSE_1, CLOSE_2), ''
         )
 
         self.prev_mouse_cursor: pg.Cursor = pg.mouse.get_cursor()

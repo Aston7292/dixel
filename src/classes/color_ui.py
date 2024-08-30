@@ -30,14 +30,14 @@ class ScrollBar:
 
     def __init__(self, pos: Point, channel: int, color: ColorType) -> None:
         """
-        creates a bar and a slider
+        creates a bar, a slider and text
         takes position, the channel the scroll bar uses and starting color
         """
 
         self._bar_init_pos: RectPos = RectPos(*pos.xy, 'center')
 
         self._channel: int = channel
-        self._unit_w: float = 1
+        self._unit_w: float = 1.0
 
         self._bar_img = pg.Surface((int(255 * self._unit_w), 25))
         self.bar_rect: pg.FRect = self._bar_img.get_frect(
@@ -66,7 +66,7 @@ class ScrollBar:
         )
         self.value_input_box: NumInputBox = NumInputBox(
             RectPos(
-                self.bar_rect.right + self._slider_rect.w + 10, self.bar_rect.centery, 'midleft'
+                self.bar_rect.right + self._slider_rect.w + 10.0, self.bar_rect.centery, 'midleft'
             ), INPUT_BOX, str(self.value)
         )
 
@@ -234,7 +234,8 @@ class ScrollBar:
 
 class ColorPicker:
     """
-    class to create an interface that allows the user to pick a color trough 3 scroll bars
+    class to create an interface that allows the user to pick a color trough 3 scroll bars,
+    includes a preview
     """
 
     __slots__ = (

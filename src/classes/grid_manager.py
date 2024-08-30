@@ -15,7 +15,7 @@ TRANSPARENT: Final[ColorType] = (120, 120, 120, 125)
 
 class Grid:
     """
-    class to convert an image into a pixel array and blit a section of it into a grid
+    class to create a grid of pixels it's minimap
     """
 
     __slots__ = (
@@ -28,8 +28,7 @@ class Grid:
 
     def __init__(self, grid_pos: RectPos, minimap_pos: RectPos) -> None:
         """
-        loads an image into a grid, creates the surfaces including the empty and selected pixel
-        and creates a minimap
+        creates all the objects
         takes grid and minimap position
         """
 
@@ -42,7 +41,7 @@ class Grid:
         self._grid_init_pos: RectPos = grid_pos
         self._grid_pos: Tuple[float, float] = self._grid_init_pos.xy
 
-        self.grid_pixel_dim: float = 18
+        self.grid_pixel_dim: float = 18.0
         self._grid_init_dim: int = int(self.grid_visible_area.w * self.grid_pixel_dim)
 
         self._grid_img: pg.SurfaceType = pg.Surface(
@@ -58,10 +57,10 @@ class Grid:
         self._pixel_surf: pg.SurfaceType = pg.Surface((2, 2))
 
         self._empty_pixel: pg.SurfaceType = pg.Surface((2, 2))
-        for row in range(2):
-            for col in range(2):
-                pixel_color: ColorType = EMPTY_1 if (row + col) % 2 == 0 else EMPTY_2
-                self._empty_pixel.set_at((col, row), pixel_color)
+        for y in range(2):
+            for x in range(2):
+                pixel_color: ColorType = EMPTY_1 if (x + y) % 2 == 0 else EMPTY_2
+                self._empty_pixel.set_at((x, y), pixel_color)
 
         self.transparent_pixel: pg.SurfaceType = pg.Surface(
             (2, 2), pg.SRCALPHA
@@ -80,7 +79,7 @@ class Grid:
             **{self._minimap_init_pos.coord: self._minimap_init_pos.xy}
         )
 
-        self._min_win_ratio: float = 1
+        self._min_win_ratio: float = 1.0
 
         self._small_minimap_img_1: pg.SurfaceType = pg.Surface(
             (self.grid_size.w * 2, self.grid_size.h * 2)
@@ -216,11 +215,12 @@ class Grid:
         empty_pixel: pg.SurfaceType = self._empty_pixel
         pixel_surf: pg.SurfaceType = self._pixel_surf
         for y in range(grid_h):
+            row: NDArray[np.uint8] = pixels[y]
             for x in range(grid_w):
-                if not pixels[y, x, -1]:
+                if not row[x, -1]:
                     sequence.append((empty_pixel, (x * 2, y * 2)))
                 else:
-                    pixel_surf.fill(pixels[y, x])
+                    pixel_surf.fill(row[x])
                     sequence.append((pixel_surf.copy(), (x * 2, y * 2)))
 
         self._small_minimap_img_1.fblits(sequence)
@@ -427,7 +427,7 @@ class GridManager:
 
     def __init__(self, grid_pos: RectPos, minimap_pos: RectPos) -> None:
         """
-        loads an image, creates surfaces and rects
+        creates the grid
         takes grid and minimap position
         """
 
@@ -590,10 +590,11 @@ class GridManager:
         changed_pixels: List[Tuple[int, int]] = []
         pixels: NDArray[np.uint8] = self.grid.pixels
 
-        for row in range(top, bottom):
-            for col in range(left, right):
-                pixels[row, col] = color
-                changed_pixels.append((col, row))
+        for y in range(top, bottom):
+            row: NDArray[np.uint8] = pixels[y]
+            for x in range(left, right):
+                row[x] = color
+                changed_pixels.append((x, y))
 
         return changed_pixels
 
@@ -623,19 +624,19 @@ class GridManager:
                 (mouse_info.buttons[0] or mouse_info.buttons[2]) or
                 (pg.K_RETURN in keys or pg.K_BACKSPACE in keys)
         ):
-            x: int
-            y: int
+            x_1: int
+            y_1: int
             color = (
                 color + (255,) if mouse_info.buttons[0] or pg.K_RETURN in keys else (0, 0, 0, 0)
             )
             if start == end:
-                x = end.x + self._grid_offset.x
-                y = end.y + self._grid_offset.y
+                x_1 = end.x + self._grid_offset.x
+                y_1 = end.y + self._grid_offset.y
 
                 changed_pixels += self._draw_rect(
-                    max(x, 0), max(y, 0),
-                    min(x + brush_size, self.grid.grid_size.w),
-                    min(y + brush_size, self.grid.grid_size.h), color
+                    max(x_1, 0), max(y_1, 0),
+                    min(x_1 + brush_size, self.grid.grid_size.w),
+                    min(y_1 + brush_size, self.grid.grid_size.h), color
                 )
             else:
                 '''
@@ -643,40 +644,58 @@ class GridManager:
                 Bresenham's Line Algorithm and change the pixels
                 '''
 
-                x = max(
+                x_1 = max(
                     min(start.x, self.grid.grid_visible_area.w - 1), -brush_size + 1
                 ) + prev_grid_offset.x
-                y = max(
+                y_1 = max(
                     min(start.y, self.grid.grid_visible_area.h - 1), -brush_size + 1
                 ) + prev_grid_offset.y
-                x1: int = max(
+                x_2: int = max(
                     min(end.x, self.grid.grid_visible_area.w - 1), -brush_size + 1
                 ) + self._grid_offset.x
-                y1: int = max(
+                y_2: int = max(
                     min(end.y, self.grid.grid_visible_area.h - 1), -brush_size + 1
                 ) + self._grid_offset.y
 
-                d: Point = Point(abs(x1 - x), abs(y1 - y))
-                s: Point = Point(1 if x < x1 else -1, 1 if y < y1 else -1)
-                err: int = d.x - d.y
+                d: Point = Point(abs(x_2 - x_1), abs(y_2 - y_1))
+                s: Point = Point(1 if x_1 < x_2 else -1, 1 if y_1 < y_2 else -1)
+                err: float = d.x - d.y
 
                 grid_size: Size = self.grid.grid_size
-                while True:
-                    changed_pixels += self._draw_rect(
-                        max(x, 0), max(y, 0),
-                        min(x + brush_size, grid_size.w),
-                        min(y + brush_size, grid_size.h), color
-                    )
+                if d.x > d.y:
+                    err = d.x / 2.0
+                    while x_1 != x_2:
+                        changed_pixels += self._draw_rect(
+                            max(x_1, 0), max(y_1, 0),
+                            min(x_1 + brush_size, grid_size.w),
+                            min(y_1 + brush_size, grid_size.h), color
+                        )
 
-                    if x == x1 and y == y1:
-                        break
-
-                    if err * 2 > -d.y:
                         err -= d.y
-                        x += s.x
-                    if err * 2 < d.x:
-                        err += d.x
-                        y += s.y
+                        if err < 0:
+                            y_1 += s.y
+                            err += d.x
+                        x_1 += s.x
+                else:
+                    err = d.y / 2.0
+                    while y_1 != y_2:
+                        changed_pixels += self._draw_rect(
+                            max(x_1, 0), max(y_1, 0),
+                            min(x_1 + brush_size, grid_size.w),
+                            min(y_1 + brush_size, grid_size.h), color
+                        )
+
+                        err -= d.x
+                        if err < 0:
+                            x_1 += s.x
+                            err += d.y
+                        y_1 += s.y
+
+                changed_pixels += self._draw_rect(
+                    max(x_2, 0), max(y_2, 0),
+                    min(x_2 + brush_size, grid_size.w),
+                    min(y_2 + brush_size, grid_size.h), color
+                )
 
         return changed_pixels
 

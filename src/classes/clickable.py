@@ -1,5 +1,5 @@
 """
-class to create a button, when hovered changes image and text appears on top of it
+class to create various clickable objects
 """
 
 import pygame as pg
@@ -13,8 +13,8 @@ from src.utils import RectPos, Size, MouseInfo, BlitSequence
 class Clickable(ABC):
     """
     abstract class to create and object that changes between two images
-    includes: blit () -> BlitSequence, handle_resize (window size ratio) -> None
-    children should include: upt (mouse info) -> bool
+    includes: blit() -> BlitSequence, handle_resize(window size ratio) -> None
+    children should include: upt(mouse info) -> bool
     """
 
     __slots__ = (
@@ -23,7 +23,7 @@ class Clickable(ABC):
 
     def __init__(self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType]) -> None:
         """
-        creates surfaces and rects
+        creates the object
         takes position and two images
         """
 
@@ -70,7 +70,7 @@ class Clickable(ABC):
 
 class CheckBox(Clickable):
     """
-    class to create a checkbox with text on the left
+    class to create a checkbox with text on top
     """
 
     __slots__ = (
@@ -81,13 +81,15 @@ class CheckBox(Clickable):
             self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType], text: str
     ) -> None:
         """
-        creates surfaces, rects and text object
+        creates the checkbox and text
         takes position, two images and text
         """
 
         super().__init__(pos, imgs)
 
-        self._text: Text = Text(RectPos(self.rect.left - 10, self.rect.centery, 'midright'), text)
+        self._text: Text = Text(
+            RectPos(self.rect.centerx, self.rect.y - 5.0, 'midbottom'), text, 16
+        )
 
     def blit(self) -> BlitSequence:
         """
@@ -129,6 +131,8 @@ class CheckBox(Clickable):
             self.hovering = True
 
         if mouse_info.released[0]:
+            self.img_i = int(not self.img_i)
+
             return True
 
         return False
@@ -145,10 +149,10 @@ class Button(Clickable):
 
     def __init__(
             self, pos: RectPos, imgs: Tuple[pg.SurfaceType, pg.SurfaceType],
-            text: str, text_h: int = 32
+            text: str, text_h: int = 24
     ) -> None:
         """
-        creates surfaces, rects and text object
+        creates the button and text
         takes position, two images, text and optional text height
         """
 

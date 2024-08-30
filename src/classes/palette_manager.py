@@ -1,5 +1,5 @@
 """
-class to manage color palettes
+class to manage color palettes, includes a drop-down menu
 """
 
 import pygame as pg
@@ -17,8 +17,8 @@ OPTIONS: Final[Tuple[str, ...]] = ('edit', 'delete')
 
 def get_color_info(color: ColorType) -> Tuple[pg.SurfaceType, str]:
     """
-    creates a surface and a text for a color
-    takes color and window size ratio
+    creates surface and text for a color
+    takes color
     returns surface and text
     """
 
@@ -33,7 +33,7 @@ def get_color_info(color: ColorType) -> Tuple[pg.SurfaceType, str]:
 
 class PaletteManager:
     """
-    class to manage color palettes
+    class to manage color palettes, includes a drop-down menu
     """
 
     __slots__ = (
@@ -47,14 +47,16 @@ class PaletteManager:
         takes position
         """
 
-        self._win_ratio_w: float = 1
-        self._win_ratio_h: float = 1
+        self._win_ratio_w: float = 1.0
+        self._win_ratio_h: float = 1.0
 
         self.values: List[ColorType] = [BLACK]
-        self._colors = CheckBoxGrid(pos, [get_color_info(self.values[0])], 5, (True, True))
+        self._colors: CheckBoxGrid = CheckBoxGrid(
+            pos, [get_color_info(self.values[0])], 5, (True, True)
+        )
 
         self._options: Tuple[Button, ...] = tuple(
-            Button(RectPos(0, 0, 'topleft'), imgs, option, 20) for option in OPTIONS
+            Button(RectPos(0.0, 0.0, 'topleft'), imgs, option, 20) for option in OPTIONS
         )
         self._drop_down_i: int = 0
         self._view_drop_down: bool = False
@@ -124,7 +126,7 @@ class PaletteManager:
 
     def upt(
             self, mouse_info: MouseInfo, keys: List[int], ctrl: int
-    ) -> Tuple[Optional[ColorType], Optional[ColorType]]:
+    ) -> Tuple[ColorType, Optional[ColorType]]:
         """
         makes the object interactable
         takes mouse info, keys anf ctrl
@@ -139,10 +141,10 @@ class PaletteManager:
                     self._view_drop_down = not self._view_drop_down
                     if self._view_drop_down:
                         self._drop_down_i = i
-                        y: float = mouse_info.y + 5
+                        y: float = mouse_info.y + 5.0
                         for option in self._options:
                             option.move_rect(
-                                mouse_info.x + 5, y, self._win_ratio_w, self._win_ratio_h
+                                mouse_info.x + 5.0, y, self._win_ratio_w, self._win_ratio_h
                             )
                             y += option.rect.h
 
@@ -186,9 +188,9 @@ class PaletteManager:
         if mouse_info.released[0]:
             self._view_drop_down = False
 
-        selected_color: Optional[ColorType] = self.values[color_i] if color_i != -1 else None
+        color: ColorType = self.values[color_i]
         color_to_edit: Optional[ColorType] = (
             self.values[self._drop_down_i] if self.changing_color else None
         )
 
-        return selected_color, color_to_edit
+        return color, color_to_edit

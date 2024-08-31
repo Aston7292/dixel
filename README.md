@@ -8,7 +8,7 @@ Requires pygame-ce, numpy and Pillow.
 - **Brush Size**: Select the brush size using checkboxes.
 - **Palette Options**: Edit or delete a color from the palette with a dropdown menu
 - **Zooming**: Zoom in/out towards the mouse
-- **Minimap**: At any point there's a minimap in the top right corner with a white square to indicate the current position
+- **Minimap**: At any point there's a minimap in the top right corner with a white rectangle to indicate the current position
 - **Color Picker**: Select colors with a colorful and intuitive UI.
 - **Resizable Grid**: Change the grid size and have a preview of how it will look.
 - **Auto Save**: If you're editing an existing image it will be saved when the program or the file is closed, if the program crashes the image will always be saved.

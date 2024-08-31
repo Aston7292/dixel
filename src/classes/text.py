@@ -86,7 +86,7 @@ class Text:
 
     def get_pos_at(self, i: int) -> float:
         """
-        get x pos of the character at a given index
+        gets x pos of the character at a given index
         returns the x pos of the char at i
         """
 
@@ -94,7 +94,7 @@ class Text:
 
     def get_closest(self, x: int) -> int:
         """
-        get the index of the closest character to a given x
+        gets the index of the closest character to a given x
         takes x position
         returns index of closest character (0 - len(text))
         """

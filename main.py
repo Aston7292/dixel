@@ -7,8 +7,13 @@ from tkinter import Tk, filedialog
 from PIL import Image
 from os import path
 from traceback import print_exc
-from typing import Tuple, List, Final, Optional, Any
+from typing import Tuple, List, Dict, Final, Optional, Any
 
+from src.classes.palette_manager import PaletteManager
+from src.classes.grid_manager import GridManager
+from src.classes.check_box_grid import CheckBoxGrid
+from src.classes.clickable import Button
+from src.classes.text import Text
 from src.utils import RectPos, Size, MouseInfo, ColorType, BlitSequence
 from src.const import INIT_WIN_SIZE, BLACK
 
@@ -21,15 +26,11 @@ INIT_WIN: Final[pg.SurfaceType] = pg.display.set_mode(
 pg.display.set_caption('Dixel')
 pg.display.set_icon(pg.image.load(path.join('sprites', 'icon.png')).convert_alpha())
 
+# they load images at the start which require pygame to be already initialized
 from src.classes.grid_ui import GridUI
 from src.classes.color_ui import ColorPicker
 from src.classes.ui import BUTTON_M_OFF, BUTTON_M_ON
 from src.classes.tools_manager import ToolsManager
-from src.classes.palette_manager import PaletteManager
-from src.classes.grid_manager import GridManager
-from src.classes.check_box_grid import CheckBoxGrid
-from src.classes.clickable import Button
-from src.classes.text import Text
 
 BUTTON_S_OFF: Final[pg.SurfaceType] = pg.transform.scale(BUTTON_M_OFF, (64, 32))
 BUTTON_S_ON: Final[pg.SurfaceType] = pg.transform.scale(BUTTON_M_ON, (64, 32))
@@ -137,8 +138,8 @@ class Dixel:
             self._file_path = ''
         else:
             with open('data.txt', encoding='utf-8') as f:
-                prev_path: str = f.read()
-            self._file_path = prev_path if path.exists(prev_path) else ''
+                file_path: str = f.read()
+            self._file_path = file_path if path.exists(file_path) else ''
 
             if self._file_path:
                 GRID_MANAGER.load_path(self._file_path)
@@ -169,6 +170,14 @@ class Dixel:
         """
         resizes objects
         """
+
+        '''
+        blitting everything on a surface, scaling it to match window size and blitting it
+        removes text anti aliasing and causes 1 pixel offsets on some elements at certain sizes
+        pygame.SCALED doesn't scale position and image sizes
+        every object has an initial position and initial size attribute
+        to scale position and image size
+        '''
 
         win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
         win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
@@ -286,6 +295,7 @@ class Dixel:
 
         root: Tk
         file_path: str
+        img: Image.Image
         if SAVE_AS.upt(self._mouse_info) or (self._ctrl and pg.K_s in self._keys):
             root = Tk()
             root.withdraw()
@@ -299,11 +309,13 @@ class Dixel:
 
             if file_path:
                 self._file_path = file_path
-                Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+                img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
+                img.save(self._file_path)
 
         if OPEN.upt(self._mouse_info) or (self._ctrl and pg.K_o in self._keys):
             if self._file_path:
-                Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+                img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
+                img.save(self._file_path)
 
             root = Tk()
             root.withdraw()
@@ -325,7 +337,8 @@ class Dixel:
                 (CLOSE.upt(self._mouse_info) or (self._ctrl and pg.K_q in self._keys)) and
                 self._file_path
         ):
-            Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+            img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
+            img.save(self._file_path)
 
             self._file_path = ''
             GRID_MANAGER.load_path(self._file_path)
@@ -336,6 +349,7 @@ class Dixel:
         game loop
         """
 
+        img: Image.Image
         try:
             while True:
                 CLOCK.tick(60)
@@ -344,14 +358,16 @@ class Dixel:
                 if not self._focused:
                     continue
 
+                # when mouse is off the window it's position is (0, 0), it can cause wrong hovering
                 mouse_pos: Tuple[int, int] = (
                     pg.mouse.get_pos() if pg.mouse.get_focused() else (-1, -1)
-                )  # when mouse is off the windows position is (0, 0)
+                )
                 self._mouse_info = MouseInfo(
                     *mouse_pos, pg.mouse.get_pressed(), pg.mouse.get_just_released()
                 )
 
                 closed: bool
+                # TODO: better mouse sprite logic
                 match self._state:
                     case 0:
                         brush_size: int = BRUSH_SIZES.upt(self._mouse_info, self._keys) + 1
@@ -368,58 +384,57 @@ class Dixel:
                             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                             COLOR_PICKER.set(color_to_edit)
 
-                        TOOLS_MANAGER.upt(self._mouse_info, self._keys)
+                        tool_info: Tuple[str, Dict[str, Any]] = TOOLS_MANAGER.upt(
+                            self._mouse_info, self._keys
+                        )
 
                         GRID_MANAGER.upt(
-                            self._mouse_info, self._keys, color, brush_size
+                            self._mouse_info, self._keys, color, brush_size, tool_info
                         )
 
                         self._handle_ui_buttons()
                         self._handle_file_buttons()
 
                         if self._ctrl:  # independent shortcuts
-                            for i in range(pg.K_1, pg.K_1 + len(BRUSH_SIZES.check_boxes)):
-                                if i in self._keys:
-                                    BRUSH_SIZES.set(i - pg.K_1)
+                            # check if keys 1 trough max brush size are pressed
+                            for i in range(len(BRUSH_SIZES.check_boxes)):
+                                if pg.K_1 + i in self._keys:
+                                    BRUSH_SIZES.set(i)
                     case 1:
                         chose_color: Optional[ColorType]
                         closed, chose_color = COLOR_PICKER.upt(
                             self._mouse_info, self._keys, self._ctrl
                         )
                         if closed:
-                            if chose_color:
-                                PALETTE_MANAGER.add(chose_color)
-                            else:
-                                PALETTE_MANAGER.changing_color = False
-
+                            PALETTE_MANAGER.add(chose_color)
                             self._state = 0
                     case 2:
                         size: Optional[Size]
                         closed, size = GRID_UI.upt(self._mouse_info, self._keys, self._ctrl)
                         if closed:
-                            if size:
-                                GRID_MANAGER.resize(size)
-
+                            GRID_MANAGER.resize(size)
                             self._state = 0
 
                 self._redraw()
 
         except KeyboardInterrupt:
             if self._file_path:
-                Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+                img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
+                img.save(self._file_path)
             with open('data.txt', 'w', encoding='utf-8') as f:
                 f.write(self._file_path)
 
         except Exception:  # pylint: disable=broad-exception-caught
             if not self._file_path:
+                n: int = 0
                 name: str = 'new_file.png'
-                i = 0
                 while path.exists(name):
-                    i += 1
-                    name = f'new_file_{i}.png'
+                    n += 1
+                    name = f'new_file_{n}.png'
                 self._file_path = name
 
-            Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA').save(self._file_path)
+            img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
+            img.save(self._file_path)
             with open('data.txt', 'w', encoding='utf-8') as f:
                 f.write(self._file_path)
 

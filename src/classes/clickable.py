@@ -37,6 +37,7 @@ class Clickable(ABC):
         self.img_i: int = 0
         self.hovering: bool = False
 
+    @abstractmethod
     def blit(self) -> BlitSequence:
         """
         returns a sequence to add in the main blit sequence
@@ -44,6 +45,7 @@ class Clickable(ABC):
 
         return [(self._imgs[self.img_i], self.rect.topleft)]
 
+    @abstractmethod
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
         resizes objects
@@ -74,7 +76,7 @@ class CheckBox(Clickable):
     """
 
     __slots__ = (
-        '_text',
+        'ticked_on', '_text',
     )
 
     def __init__(
@@ -87,6 +89,7 @@ class CheckBox(Clickable):
 
         super().__init__(pos, imgs)
 
+        self.ticked_on: bool = bool(self.img_i)
         self._text: Text = Text(
             RectPos(self.rect.centerx, self.rect.y - 5.0, 'midbottom'), text, 16
         )
@@ -112,12 +115,18 @@ class CheckBox(Clickable):
         if self._text:
             self._text.handle_resize(win_ratio_w, win_ratio_h)
 
-    def upt(self, mouse_info: MouseInfo) -> bool:
+    def upt(self, mouse_info: MouseInfo, shortcut: bool = False) -> bool:
         """
         changes the checkbox image when clicked
-        takes mouse info
-        returns True if the checkbox was clicked
+        takes mouse info and optional shortcut bool
+        returns True if the checkbox was ticked on
         """
+
+        if shortcut:
+            self.ticked_on = not self.ticked_on
+            self.img_i = int(self.ticked_on)
+
+            return self.ticked_on
 
         if not self.rect.collidepoint(mouse_info.xy):
             if self.hovering:
@@ -131,9 +140,10 @@ class CheckBox(Clickable):
             self.hovering = True
 
         if mouse_info.released[0]:
-            self.img_i = int(not self.img_i)
+            self.ticked_on = not self.ticked_on
+            self.img_i = int(self.ticked_on)
 
-            return True
+            return self.ticked_on
 
         return False
 

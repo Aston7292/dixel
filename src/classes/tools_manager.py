@@ -31,16 +31,16 @@ extra ui element need:
     rect
 '''
 TOOLS_INFO: Dict[str, Dict[str, Any]] = {
-    'pencil': {
+    'brush': {
         'base_info': (PENCIL, 'edit pixels'),
         'extra_info': [
             {
                 'type': CheckBox, 'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'x mirror'],
-                'upt_args': ['mouse_info'], 'output_format': {'x_mirror': 'img_i'}
+                'upt_args': ['mouse_info'], 'output_format': {'x_mirror': 'ticked_on'}
             },
             {
                 'type': CheckBox, 'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'y mirror'],
-                'upt_args': ['mouse_info'], 'output_format': {'y_mirror': 'img_i'}
+                'upt_args': ['mouse_info'], 'output_format': {'y_mirror': 'ticked_on'}
             },
         ],
     },
@@ -50,7 +50,7 @@ TOOLS_INFO: Dict[str, Dict[str, Any]] = {
             {
                 'type': CheckBox,
                 'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'edit all the pixels of the same color'],
-                'upt_args': ['mouse_info'], 'output_format': {'same_color': 'img_i'}
+                'upt_args': ['mouse_info'], 'output_format': {'same_color': 'ticked_on'}
             }
         ]
     }
@@ -73,26 +73,32 @@ class ToolsManager:
         """
 
         self._names: Tuple[str, ...] = tuple(TOOLS_INFO.keys())
-
-        base_info: List[Tuple[pg.SurfaceType, str]] = []
-        extra_info: List[List[Dict[str, Any]]] = []
-        for info in TOOLS_INFO.values():
-            base_info.append(info['base_info'])
-            extra_info.append(info['extra_info'])
+        base_info: List[Tuple[pg.SurfaceType, str]] = [
+            info['base_info'] for info in TOOLS_INFO.values()
+        ]
+        extra_info: Tuple[List[Dict[str, Any]], ...] = tuple(
+            info['extra_info'] for info in TOOLS_INFO.values()
+        )
 
         self._tools: CheckBoxGrid = CheckBoxGrid(pos, base_info, 5, (False, True))
 
         self._extra_info: List[List[Dict[str, Any]]] = []
         for tool_info in extra_info:
             objs_info: List[Dict[str, Any]] = []
-            x: float = 10.0
+
+            check_box_rect: Tuple[pg.FRect, ...] = tuple(
+                check_box.rect for check_box in self._tools.check_boxes
+            )
+            x: float = min(rect.x for rect in check_box_rect)
+            y: float = min(rect.y for rect in check_box_rect) - 20.0
+
             for i in range(len(tool_info)):
                 obj_info: Dict[str, Any] = tool_info[i]
 
                 obj: Any = obj_info['type'](
-                    RectPos(x, self._tools.current_y - 100.0, 'bottomleft'), *obj_info['init_args']
+                    RectPos(x, y, 'bottomleft'), *obj_info['init_args']
                 )
-                x += obj.rect.w + 10.0
+                x += obj.rect.w + 20.0
                 obj_info['obj'] = obj
 
                 del obj_info['type'], obj_info['init_args']

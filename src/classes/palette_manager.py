@@ -86,12 +86,21 @@ class PaletteManager:
         for option in self._options:
             option.handle_resize(self._win_ratio_w, self._win_ratio_h)
 
-    def add(self, color: ColorType) -> ColorType:
+    def add(self, color: Optional[ColorType]) -> None:
         """
         adds a color to the palette or edits one
         takes color
-        returns color
         """
+
+        if not color:
+            self.changing_color = False
+
+            return
+
+        '''
+        insert uses window size ratio to adjust the initial position even when inserting
+        at a different window size
+        '''
 
         if self.changing_color:
             self.values[self._drop_down_i] = color
@@ -105,16 +114,14 @@ class PaletteManager:
             self._colors.insert(get_color_info(color), self._win_ratio_w, self._win_ratio_h)
         self._colors.set(self.values.index(color))
 
-        return color
-
     def load_path(self, pixels: NDArray[np.uint8]) -> None:
         """
         makes a palette out of every character in an image
         takes path
         """
 
-        pixels = pixels.reshape(-1, 4)[:, :3]
-        colors: NDArray[np.uint8] = np.unique(pixels, axis=0)
+        pixels_2d: NDArray[np.uint8] = pixels.reshape(-1, 4)[:, :3]
+        colors: NDArray[np.uint8] = np.unique(pixels_2d, axis=0)
         self.values = [tuple(int(value) for value in color) for color in colors]
 
         self._colors.current_x, self._colors.current_y = self._colors.init_pos.xy
@@ -133,8 +140,6 @@ class PaletteManager:
         returns the selected color and the color to edit
         """
 
-        color_i: int
-
         if mouse_info.released[2]:
             for i, check_box in enumerate(self._colors.check_boxes):
                 if check_box.rect.collidepoint(mouse_info.xy):
@@ -143,12 +148,18 @@ class PaletteManager:
                         self._drop_down_i = i
                         y: float = mouse_info.y + 5.0
                         for option in self._options:
+                            # also changes initial position for resizing
                             option.move_rect(
                                 mouse_info.x + 5.0, y, self._win_ratio_w, self._win_ratio_h
                             )
                             y += option.rect.h
 
                     break
+
+        '''
+        remove uses window size ratio to adjust the initial position even when removing
+        at a different window size
+        '''
 
         clicked_option: bool = False
         if self._view_drop_down:
@@ -161,14 +172,16 @@ class PaletteManager:
                 self.values.pop(self._drop_down_i)
                 if not self.values:
                     self.values = [BLACK]
-                color_i = self._colors.remove(
+                self._colors.remove(
                     self._drop_down_i, get_color_info(self.values[0]),
                     self._win_ratio_w, self._win_ratio_h
                 )
 
                 clicked_option = True
 
-        color_i = self._colors.upt(mouse_info, keys) if not clicked_option else -1
+        color_i: int = self._colors.clicked_i
+        if not clicked_option:
+            color_i = self._colors.upt(mouse_info, keys)
 
         if ctrl:
             self._view_drop_down = False
@@ -180,7 +193,7 @@ class PaletteManager:
                 self.values.pop(self._drop_down_i)
                 if not self.values:
                     self.values = [BLACK]
-                color_i = self._colors.remove(
+                self._colors.remove(
                     self._drop_down_i, get_color_info(self.values[0]),
                     self._win_ratio_w, self._win_ratio_h
                 )

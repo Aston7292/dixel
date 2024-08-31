@@ -18,7 +18,7 @@ class LockedCheckBox(Clickable):
     """
 
     __slots__ = (
-        'ticked', '_text', '_text_surf'
+        'ticked_on', '_text', '_text_surf'
     )
 
     def __init__(
@@ -31,7 +31,7 @@ class LockedCheckBox(Clickable):
 
         super().__init__(pos, imgs)
 
-        self.ticked: bool = False
+        self.ticked_on: bool = False
 
         self._text: Text = Text(RectPos(0.0, 0.0, 'topleft'), text, 12)
         self._text_surf: pg.SurfaceType = pg.Surface(
@@ -44,7 +44,7 @@ class LockedCheckBox(Clickable):
         returns two sequences to add in the main blit sequence,
         """
 
-        img_i: int = 1 if self.ticked else self.img_i
+        img_i: int = 1 if self.ticked_on else self.img_i
 
         sequence: BlitSequence = [(self._imgs[img_i], self.rect.topleft)]
         if self.hovering:
@@ -94,7 +94,7 @@ class LockedCheckBox(Clickable):
             self.hovering = True
 
         if mouse_info.released[0]:
-            self.ticked = True
+            self.ticked_on = True
 
             return True
 
@@ -103,7 +103,7 @@ class LockedCheckBox(Clickable):
 
 class CheckBoxGrid:
     """
-    creates a grid of checkboxes with n rows (images should be of the same size)
+    creates a grid of checkboxes with n rows (images must be of the same size)
     """
 
     __slots__ = (
@@ -179,9 +179,9 @@ class CheckBoxGrid:
         """
 
         if self.clicked_i < len(self.check_boxes):
-            self.check_boxes[self.clicked_i].ticked = False
+            self.check_boxes[self.clicked_i].ticked_on = False
         self.clicked_i = index
-        self.check_boxes[self.clicked_i].ticked = True
+        self.check_boxes[self.clicked_i].ticked_on = True
 
     def insert(
             self, info: Tuple[pg.SurfaceType, str], win_ratio_w: float, win_ratio_h: float,
@@ -211,11 +211,10 @@ class CheckBoxGrid:
     def remove(
             self, drop_down_i: int, fallback: Tuple[pg.SurfaceType, str],
             win_ratio_w: float, win_ratio_h: float
-    ) -> int:
+    ) -> None:
         """
         removes a checkbox from the grid
         takes drop-down index, fallback info and window size ratio
-        returns the index of the ticked on checkbox
         """
 
         check_box: LockedCheckBox = self.check_boxes.pop(drop_down_i)
@@ -248,9 +247,7 @@ class CheckBoxGrid:
             self.set(self.clicked_i - 1)
         elif self.clicked_i == drop_down_i:
             self.clicked_i = min(self.clicked_i, len(self.check_boxes) - 1)
-            self.check_boxes[self.clicked_i].ticked = True
-
-        return self.clicked_i
+            self.check_boxes[self.clicked_i].ticked_on = True
 
     def upt(self, mouse_info: MouseInfo, keys: List[int]) -> int:
         """

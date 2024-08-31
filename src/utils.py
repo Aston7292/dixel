@@ -12,24 +12,24 @@ BlitSequence = List[Tuple[pg.SurfaceType, Tuple[float, float]]]
 
 def add_border(img: pg.SurfaceType, color: ColorType) -> pg.SurfaceType:
     """
-    add a colored border to an image
+    adds a colored border to an image
     takes image
     returns image
     """
 
-    img = img.copy()
+    img_copy: pg.SurfaceType = img.copy()
 
     w: int
     h: int
     w, h = img.get_size()
     dim: int = min(w, h) // 10
 
-    pg.draw.rect(img, color, (0, 0, w, dim))
-    pg.draw.rect(img, color, (w - dim, 0, dim, h))
-    pg.draw.rect(img, color, (0, h - dim, w, dim))
-    pg.draw.rect(img, color, (0, 0, dim, h))
+    pg.draw.rect(img_copy, color, (0, 0, w, dim))
+    pg.draw.rect(img_copy, color, (w - dim, 0, dim, h))
+    pg.draw.rect(img_copy, color, (0, h - dim, w, dim))
+    pg.draw.rect(img_copy, color, (0, 0, dim, h))
 
-    return img
+    return img_copy
 
 
 @dataclass
@@ -84,7 +84,7 @@ class Size:
     @property
     def wh(self) -> Tuple[int, int]:
         """
-        returns w and h
+        returns width and height
         """
 
         return self.w, self.h

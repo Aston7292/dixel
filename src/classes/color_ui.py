@@ -120,7 +120,7 @@ class ScrollBar:
         self._channel_text.handle_resize(win_ratio_w, win_ratio_h)
         self.value_input_box.handle_resize(win_ratio_w, win_ratio_h)
 
-    def get_bar(self, current_color: ColorType) -> None:
+    def get_bar(self, color: ColorType) -> None:
         """
         draws a gradient on the bar
         takes color
@@ -129,17 +129,17 @@ class ScrollBar:
         sequence: BlitSequence = []
 
         original_size: Tuple[int, int] = self._bar_img.get_size()
+        #  drawing on the normal sized bar is inaccurate
         self._bar_img = pg.Surface((255, self._bar_init_size.h))
         sect_surf: pg.SurfaceType = pg.Surface((1, self._bar_init_size.h))
 
-        color: List[int] = list(current_color)
+        current_color: List[int] = list(color)
         for i in range(256):
-            color[self._channel] = i
-            sect_surf.fill(color)
+            current_color[self._channel] = i
+            sect_surf.fill(current_color)
             sequence.append((sect_surf.copy(), (i, 0)))
-
         self._bar_img.fblits(sequence)
-        #  drawing on the normal size bar is inaccurate
+
         self._bar_img = pg.transform.scale(self._bar_img, original_size)
 
     def set(self, color: ColorType) -> None:
@@ -158,7 +158,7 @@ class ScrollBar:
 
     def upt(self, mouse_info: MouseInfo, keys: List[int], selection: Any) -> int:
         """
-        Makes the object interactable
+        makes the object interactable
         takes mouse info, keys and the selection
         returns what was clicked: -1 = nothing, 0 = scroll bar, 1 = input box
         """

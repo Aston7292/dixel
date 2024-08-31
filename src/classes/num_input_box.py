@@ -89,7 +89,7 @@ class NumInputBox:
 
     def get_cursor_pos(self) -> None:
         """
-        calculates cursor position based on text index
+        gets cursor position based on text index
         """
 
         self._cursor_rect.x = self.text.get_pos_at(self.text_i)
@@ -103,6 +103,11 @@ class NumInputBox:
         takes mouse info, keys, limits and selected bool
         returns whatever the input box was clicked or not and the text
         """
+
+        '''
+        text object isn't updated here because it can be also changed by other classes
+        that use the input box
+        '''
 
         text: str = self.text.text
 
@@ -133,24 +138,29 @@ class NumInputBox:
                 self.text_i = len(self.text.text)
             else:
                 k: int = keys[-1]
+                chr_limit: int = 0x10ffff
                 if k == pg.K_BACKSPACE and self.text_i:
                     text = self.text.text[:self.text_i - 1] + self.text.text[self.text_i:]
                     self.text_i = max(self.text_i - 1, 0)
                 elif k == pg.K_DELETE:
                     text = self.text.text[:self.text_i] + self.text.text[self.text_i + 1:]
-                elif k <= 0x10ffff and chr(k).isdigit():
-                    text = self.text.text[:self.text_i] + chr(k) + self.text.text[self.text_i:]
-                    self.text_i = min(self.text_i + 1, len(text))
+                elif k <= chr_limit:
+                    char: str = chr(k)
+                    if char.isdigit():
+                        text = self.text.text[:self.text_i] + char + self.text.text[self.text_i:]
 
-                    if len(text) > len(str(limits[1])):
-                        text = text[:len(str(limits[1]))]
+                        max_length: int = len(str(limits[1]))
+                        if len(text) > max_length:
+                            text = text[:max_length]
 
-                    if int(text) < limits[0]:
-                        text = str(limits[0])
-                    elif int(text) > limits[1]:
-                        text = str(limits[1])
+                        self.text_i = min(self.text_i + 1, len(text))
 
-                if text:
+                        if int(text) < limits[0]:
+                            text = str(limits[0])
+                        elif int(text) > limits[1]:
+                            text = str(limits[1])
+
+                if text:  # if text is already empty (backspace/delete) it doesn't become 0
                     text = text.lstrip('0')
                     if not text:
                         text = '0'

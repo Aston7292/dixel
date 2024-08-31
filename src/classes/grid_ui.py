@@ -67,15 +67,18 @@ class NumSlider:
 
     def set(self, value: int) -> None:
         """
-        sets the chooser on a specific value
+        sets the slider on a specific value
         takes value
         """
 
         self.traveled_x = 0
         self.value = min(value, MAX_SIZE)
-        self.value_input_box.text.modify_text(str(self.value))
-        self.value_input_box.text_i = 0
+        if self.value > MAX_SIZE:
+            self.value = MAX_SIZE
+        else:
+            self.value_input_box.text_i = 0
 
+        self.value_input_box.text.modify_text(str(self.value))
         self.value_input_box.get_cursor_pos()
 
     def upt(self, mouse_info: MouseInfo, keys: List[int], selection: 'NumSlider') -> bool:
@@ -107,6 +110,7 @@ class NumSlider:
             else:
                 self.scrolling = True
 
+        # TODO: change mouse sprite when scrolling?
         if self.scrolling:
             self.traveled_x += mouse_info.x - self._prev_mouse_x
             if abs(self.traveled_x) >= 10:
@@ -134,8 +138,8 @@ class GridUI:
 
     __slots__ = (
         'ui', '_preview_init_pos', '_preview_pos', '_preview_init_dim',
-        '_preview_img', '_preview_rect', '_h_chooser', '_w_chooser', '_pixels', '_check_box',
-        '_ratio', '_min_win_ratio', '_small_preview_img', '_selection_i'
+        '_preview_img', '_preview_rect', '_h_chooser', '_w_chooser', '_values_ratio', '_pixels',
+        '_check_box', '_min_win_ratio', '_small_preview_img', '_selection_i'
     )
 
     def __init__(self, pos: RectPos, grid_size: Size) -> None:
@@ -168,6 +172,7 @@ class GridUI:
             RectPos(self._preview_rect.x + 20.0, self._h_chooser.rect.y - 25.0, 'bottomleft'),
             grid_size.w, 'width'
         )
+        self._values_ratio: Tuple[float, float] = (1.0, 1.0)
         self._pixels: NDArray[np.uint8] = np.empty(
             (self._h_chooser.value, self._w_chooser.value, 4), np.uint8
         )
@@ -179,9 +184,9 @@ class GridUI:
             (CHECK_BOX_1, CHECK_BOX_2), 'keep ratio'
         )
 
-        self._ratio: Tuple[float, float] = (0.0, 0.0)
-        self._min_win_ratio: float = 1.0
+        self._min_win_ratio: float = 1.0  # keeps the pixels as squares
 
+        # having a version where 1 grid pixel = 1 pixel is better for scaling
         self._small_preview_img: pg.SurfaceType = pg.Surface(
             (self._w_chooser.value * 2, self._h_chooser.value * 2)
         )
@@ -241,7 +246,7 @@ class GridUI:
         self._w_chooser.set(size.w)
         self._h_chooser.set(size.h)
         self._pixels = pixels
-        self._ratio = (size.h / size.w, size.w / size.h)
+        self._values_ratio = (size.h / size.w, size.w / size.h)
 
         self._get_preview(size)
 
@@ -314,7 +319,7 @@ class GridUI:
                 self._selection_i = 1
 
         prev_grid_size: Size = Size(self._w_chooser.value, self._h_chooser.value)
-        selection: Any = self._w_chooser if not self._selection_i else self._h_chooser
+        selection: Any = (self._w_chooser, self._h_chooser)[self._selection_i]
 
         if self._w_chooser.upt(mouse_info, keys, selection):
             self._selection_i = 0
@@ -323,25 +328,18 @@ class GridUI:
 
         grid_size: Size = Size(self._w_chooser.value, self._h_chooser.value)
         if grid_size != prev_grid_size:
-            if self._check_box.img_i == 1:
+            if self._check_box.ticked_on:
                 if grid_size.w != prev_grid_size.w:
-                    self._h_chooser.set(round(grid_size.w * self._ratio[0]))
+                    self._h_chooser.set(round(grid_size.w * self._values_ratio[0]))
                     grid_size.h = self._h_chooser.value
                 else:
-                    self._w_chooser.set(round(grid_size.h * self._ratio[1]))
+                    self._w_chooser.set(round(grid_size.h * self._values_ratio[1]))
                     grid_size.w = self._w_chooser.value
 
             self._get_preview(grid_size)
 
-        if self._check_box.upt(mouse_info) or (ctrl and pg.K_k in keys):
-            if (ctrl and pg.K_k in keys):
-                self._check_box.img_i = int(not self._check_box.img_i)
-
-            if self._check_box.img_i:
-                self._ratio = (
-                    grid_size.h / grid_size.w,
-                    grid_size.w / grid_size.h
-                )
+        if self._check_box.upt(mouse_info, bool(ctrl and pg.K_k in keys)):
+            self._values_ratio = (grid_size.h / grid_size.w, grid_size.w / grid_size.h)
 
         confirmed: bool
         exited: bool

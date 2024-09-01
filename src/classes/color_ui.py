@@ -129,7 +129,7 @@ class ScrollBar:
         sequence: BlitSequence = []
 
         original_size: Tuple[int, int] = self._bar_img.get_size()
-        #  drawing on the normal sized bar is inaccurate
+        #  drawing on the normal-sized bar is inaccurate
         self._bar_img = pg.Surface((255, self._bar_init_size.h))
         sect_surf: pg.SurfaceType = pg.Surface((1, self._bar_init_size.h))
 
@@ -232,14 +232,14 @@ class ScrollBar:
         return -1
 
 
-class ColorPicker:
+class ColorPicker(UI):
     """
     class to create an interface that allows the user to pick a color trough 3 scroll bars,
     includes a preview
     """
 
     __slots__ = (
-        'ui', '_color', '_preview_init_pos', '_preview_img', '_preview_rect', '_preview_init_size',
+        '_color', '_preview_init_pos', '_preview_img', '_preview_rect', '_preview_init_size',
         '_channels', '_objs', '_selection_i', '_hex_text'
     )
 
@@ -249,11 +249,11 @@ class ColorPicker:
         takes position and starting color
         """
 
-        self.ui: UI = UI(pos, 'CHOOSE A COLOR')
+        super().__init__(pos, 'CHOOSE A COLOR')
 
         self._color: ColorType = color
 
-        self._preview_init_pos: RectPos = RectPos(*self.ui.rect.center, 'midtop')
+        self._preview_init_pos: RectPos = RectPos(*self._ui_rect.center, 'midtop')
 
         self._preview_img: pg.SurfaceType = pg.Surface((100, 100))
         self._preview_img.fill(self._color)
@@ -264,13 +264,13 @@ class ColorPicker:
         self._preview_init_size: Size = Size(int(self._preview_rect.w), int(self._preview_rect.h))
 
         b: ScrollBar = ScrollBar(
-            Point(int(self.ui.rect.centerx), int(self._preview_rect.top - 50)), 2, self._color
+            Point(int(self._ui_rect.centerx), int(self._preview_rect.top - 50)), 2, self._color
         )
         g: ScrollBar = ScrollBar(
-            Point(int(self.ui.rect.centerx), int(b.bar_rect.top - 50)), 1, self._color
+            Point(int(self._ui_rect.centerx), int(b.bar_rect.top - 50)), 1, self._color
         )
         r: ScrollBar = ScrollBar(
-            Point(int(self.ui.rect.centerx), int(g.bar_rect.top - 50)), 0, self._color
+            Point(int(self._ui_rect.centerx), int(g.bar_rect.top - 50)), 0, self._color
         )
 
         self._channels: Tuple[ScrollBar, ...] = (r, g, b)
@@ -287,7 +287,7 @@ class ColorPicker:
         returns a sequence to add in the main blit sequence
         """
 
-        sequence: BlitSequence = self.ui.blit()
+        sequence: BlitSequence = super().blit()
         for channel in self._channels:
             sequence += channel.blit()
         sequence += [(self._preview_img, self._preview_rect.topleft)]
@@ -301,7 +301,7 @@ class ColorPicker:
         takes window size ratio
         """
 
-        self.ui.handle_resize(win_ratio_w, win_ratio_h)
+        super().handle_resize(win_ratio_w, win_ratio_h)
 
         preview_size: Tuple[int, int] = (
             int(self._preview_init_size.w * win_ratio_w),
@@ -334,6 +334,9 @@ class ColorPicker:
 
         hex_string: str = '#' + ''.join((f'{channel:02x}' for channel in self._color))
         self._hex_text.modify_text(hex_string)
+
+    def ui_upt(self, mouse_info: MouseInfo, keys: List[int], ctrl: int) -> Tuple[bool, bool]:
+        return super().ui_upt(mouse_info, keys, ctrl)
 
     def upt(
             self, mouse_info: MouseInfo, keys: List[int], ctrl: int
@@ -378,7 +381,7 @@ class ColorPicker:
 
         confirmed: bool
         exited: bool
-        confirmed, exited = self.ui.upt(mouse_info, keys, ctrl)
+        confirmed, exited = super().ui_upt(mouse_info, keys, ctrl)
 
         if confirmed or exited:
             self._selection_i.x = self._selection_i.y = 0

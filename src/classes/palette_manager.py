@@ -179,9 +179,8 @@ class PaletteManager:
 
                 clicked_option = True
 
-        color_i: int = self._colors.clicked_i
         if not clicked_option:
-            color_i = self._colors.upt(mouse_info, keys)
+            self._colors.upt(mouse_info, keys)
 
         if ctrl:
             self._view_drop_down = False
@@ -201,9 +200,13 @@ class PaletteManager:
         if mouse_info.released[0]:
             self._view_drop_down = False
 
-        color: ColorType = self.values[color_i]
-        color_to_edit: Optional[ColorType] = (
-            self.values[self._drop_down_i] if self.changing_color else None
-        )
+        color: ColorType = self.values[self._colors.clicked_i]
+        color_to_edit: Optional[ColorType] = None
+
+        if self.changing_color:
+            color_to_edit = self.values[self._drop_down_i]
+            for check_box in self._colors.check_boxes:
+                check_box.img_i = 0
+                check_box.hovering = False
 
         return color, color_to_edit

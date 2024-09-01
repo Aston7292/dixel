@@ -23,7 +23,7 @@ class NumSlider:
     """
 
     __slots__ = (
-        'value', 'value_input_box', 'rect', 'scrolling', 'traveled_x', '_prev_mouse_x', '_add_text'
+        'value', 'value_input_box', 'rect', 'traveled_x', 'scrolling', '_prev_mouse_x', '_add_text'
     )
 
     def __init__(self, pos: RectPos, value: int, text: str) -> None:
@@ -131,15 +131,15 @@ class NumSlider:
         return False
 
 
-class GridUI:
+class GridUI(UI):
     """
     class to create an interface that allows the user to modify the grid, includes preview,
     """
 
     __slots__ = (
-        'ui', '_preview_init_pos', '_preview_pos', '_preview_init_dim',
-        '_preview_img', '_preview_rect', '_h_chooser', '_w_chooser', '_values_ratio', '_pixels',
-        '_check_box', '_min_win_ratio', '_small_preview_img', '_selection_i'
+        '_preview_init_pos', '_preview_pos', '_preview_init_dim', '_preview_img', '_preview_rect',
+        '_h_chooser', '_w_chooser', '_values_ratio', '_pixels', '_selection_i', '_check_box',
+        '_min_win_ratio', '_small_preview_img'
     )
 
     def __init__(self, pos: RectPos, grid_size: Size) -> None:
@@ -148,10 +148,10 @@ class GridUI:
         takes position and starting grid size
         """
 
-        self.ui: UI = UI(pos, 'MODIFY GRID')
+        super().__init__(pos, 'MODIFY GRID')
 
         self._preview_init_pos: RectPos = RectPos(
-            self.ui.rect.centerx, self.ui.rect.centery + 40.0, 'center'
+            self._ui_rect.centerx, self._ui_rect.centery + 40.0, 'center'
         )
         self._preview_pos: Tuple[float, float] = self._preview_init_pos.xy
 
@@ -173,10 +173,10 @@ class GridUI:
             grid_size.w, 'width'
         )
         self._values_ratio: Tuple[float, float] = (1.0, 1.0)
+
         self._pixels: NDArray[np.uint8] = np.empty(
             (self._h_chooser.value, self._w_chooser.value, 4), np.uint8
         )
-
         self._selection_i: int = 0
 
         self._check_box: CheckBox = CheckBox(
@@ -197,7 +197,7 @@ class GridUI:
         returns a sequence to add in the main blit sequence
         """
 
-        sequence: BlitSequence = self.ui.blit()
+        sequence: BlitSequence = super().blit()
         sequence += self._w_chooser.blit()
         sequence += self._h_chooser.blit()
         sequence += self._check_box.blit()
@@ -213,7 +213,7 @@ class GridUI:
 
         self._min_win_ratio = min(win_ratio_w, win_ratio_h)
 
-        self.ui.handle_resize(win_ratio_w, win_ratio_h)
+        super().handle_resize(win_ratio_w, win_ratio_h)
 
         pixel_dim: float = min(
             self._preview_init_dim / self._w_chooser.value * self._min_win_ratio,
@@ -303,6 +303,9 @@ class GridUI:
             **{self._preview_init_pos.coord: self._preview_pos}
         )
 
+    def ui_upt(self, mouse_info: MouseInfo, keys: List[int], ctrl: int) -> Tuple[bool, bool]:
+        return super().ui_upt(mouse_info, keys, ctrl)
+
     def upt(
             self, mouse_info: MouseInfo, keys: List[int], ctrl: int
     ) -> Tuple[bool, Optional[Size]]:
@@ -343,7 +346,7 @@ class GridUI:
 
         confirmed: bool
         exited: bool
-        confirmed, exited = self.ui.upt(mouse_info, keys, ctrl)
+        confirmed, exited = super().ui_upt(mouse_info, keys, ctrl)
 
         if confirmed or exited:
             self._selection_i = 0

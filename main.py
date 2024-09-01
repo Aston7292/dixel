@@ -231,6 +231,7 @@ class Dixel:
         """
 
         zoom_amount: int = 0
+        reach_limit: List[bool] = [False, False]
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 raise KeyboardInterrupt
@@ -238,10 +239,10 @@ class Dixel:
             if event.type == pg.ACTIVEEVENT and event.state & pg.APPACTIVE:
                 self._focused = event.gain == 1
             elif event.type == pg.VIDEORESIZE:
-                if event.w < INIT_WIN_SIZE.w or event.h < INIT_WIN_SIZE.h:
-                    event.w, event.h = max(event.w, INIT_WIN_SIZE.w), max(event.h, INIT_WIN_SIZE.h)
-                    self._win = pg.display.set_mode((event.w, event.h), self._flag | ADD_FLAGS)
-                self._win_size.w, self._win_size.h = event.w, event.h
+                self._win_size.w = max(event.w, INIT_WIN_SIZE.w)
+                self._win_size.h = max(event.h, INIT_WIN_SIZE.h)
+                if self._win_size.w != event.w or self._win_size.h != event.h:
+                    self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
 
                 self._handle_resize()
             elif event.type == pg.MOUSEWHEEL:
@@ -262,12 +263,18 @@ class Dixel:
             self._last_k_input = pg.time.get_ticks()
 
         if self._ctrl:
-            if pg.K_PLUS in self._keys:
-                zoom_amount = 1
+            shift: int = pg.key.get_mods() & pg.KMOD_SHIFT
             if pg.K_MINUS in self._keys:
+                zoom_amount = 1
+                if shift:
+                    reach_limit[0] = True
+            if pg.K_PLUS in self._keys:
                 zoom_amount = -1
+                if shift:
+                    reach_limit[1] = True
+
         if zoom_amount:
-            GRID_MANAGER.zoom(zoom_amount, BRUSH_SIZES.clicked_i + 1)
+            GRID_MANAGER.zoom(zoom_amount, BRUSH_SIZES.clicked_i + 1, reach_limit)
 
     def _handle_ui_buttons(self) -> None:
         """
@@ -277,14 +284,14 @@ class Dixel:
         if ADD_COLOR.upt(self._mouse_info) or (self._ctrl and pg.K_a in self._keys):
             self._state = 1
 
-            COLOR_PICKER.ui.prev_mouse_cursor = pg.mouse.get_cursor()
+            COLOR_PICKER.prev_mouse_cursor = pg.mouse.get_cursor()
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
             COLOR_PICKER.set(BLACK)
 
         if MODIFY_GRID.upt(self._mouse_info) or (self._ctrl and pg.K_m in self._keys):
             self._state = 2
 
-            GRID_UI.ui.prev_mouse_cursor = pg.mouse.get_cursor()
+            GRID_UI.prev_mouse_cursor = pg.mouse.get_cursor()
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
             GRID_UI.set(GRID_MANAGER.grid.grid_size, GRID_MANAGER.grid.pixels)
 
@@ -380,7 +387,7 @@ class Dixel:
                         if color_to_edit:
                             self._state = 1
 
-                            COLOR_PICKER.ui.prev_mouse_cursor = pg.mouse.get_cursor()
+                            COLOR_PICKER.prev_mouse_cursor = pg.mouse.get_cursor()
                             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                             COLOR_PICKER.set(color_to_edit)
 

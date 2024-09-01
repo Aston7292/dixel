@@ -63,7 +63,7 @@ class Clickable(ABC):
     @abstractmethod
     def upt(self, mouse_info: MouseInfo) -> bool:
         """
-        method to interact with the object, should change mouse sprite and
+        makes the object interactable, should change mouse sprite and
         implement a way to change image index
         takes mouse info
         returns a boolean
@@ -168,10 +168,8 @@ class Button(Clickable):
 
         super().__init__(pos, imgs)
 
-        self._text: Optional[Text]
-        if not text:
-            self._text = None
-        else:
+        self._text: Optional[Text] = None
+        if text:
             self._text = Text(RectPos(*self.rect.center, 'center'), text, text_h)
 
     def blit(self) -> BlitSequence:

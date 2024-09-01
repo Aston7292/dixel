@@ -107,7 +107,7 @@ class CheckBoxGrid:
     """
 
     __slots__ = (
-        'init_pos', 'current_x', 'current_y', '_cols', '_increment', '_increment', '_inverted_axes',
+        'init_pos', 'current_x', 'current_y', '_cols', '_increment', '_inverted_axes',
         'check_boxes', 'clicked_i'
     )
 

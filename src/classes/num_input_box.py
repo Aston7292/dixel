@@ -41,7 +41,7 @@ class NumInputBox:
         self.text = Text(RectPos(*self.box_rect.center, 'center'), text)
         self.text_i: int = 0
 
-        self._cursor_img: pg.SurfaceType = pg.Surface((1, self.text.rect.h))
+        self._cursor_img: pg.SurfaceType = pg.Surface((1, int(self.text.rect.h)))
         self._cursor_img.fill(WHITE)
         self._cursor_rect: pg.FRect = self._cursor_img.get_frect(
             topleft=(self.text.get_pos_at(self.text_i), self.text.rect.y)
@@ -128,26 +128,29 @@ class NumInputBox:
 
         self.selected = selected
         if self.selected and keys:
+            prev_text_i: int = self.text_i
             if pg.K_LEFT in keys:
                 self.text_i = max(self.text_i - 1, 0)
-            elif pg.K_RIGHT in keys:
-                self.text_i = min(self.text_i + 1, len(self.text.text))
-            elif pg.K_HOME in keys:
+            if pg.K_RIGHT in keys:
+                self.text_i = min(self.text_i + 1, len(text))
+            if pg.K_HOME in keys:
                 self.text_i = 0
-            elif pg.K_END in keys:
-                self.text_i = len(self.text.text)
-            else:
+            if pg.K_END in keys:
+                self.text_i = len(text)
+
+            if self.text_i == prev_text_i:
                 k: int = keys[-1]
-                chr_limit: int = 0x10ffff
-                if k == pg.K_BACKSPACE and self.text_i:
-                    text = self.text.text[:self.text_i - 1] + self.text.text[self.text_i:]
-                    self.text_i = max(self.text_i - 1, 0)
+                chr_limit: int = 1_114_111
+                if k == pg.K_BACKSPACE:
+                    if self.text_i:
+                        text = text[:self.text_i - 1] + text[self.text_i:]
+                        self.text_i = max(self.text_i - 1, 0)
                 elif k == pg.K_DELETE:
-                    text = self.text.text[:self.text_i] + self.text.text[self.text_i + 1:]
+                    text = text[:self.text_i] + text[self.text_i + 1:]
                 elif k <= chr_limit:
                     char: str = chr(k)
                     if char.isdigit():
-                        text = self.text.text[:self.text_i] + char + self.text.text[self.text_i:]
+                        text = text[:self.text_i] + char + text[self.text_i:]
 
                         max_length: int = len(str(limits[1]))
                         if len(text) > max_length:

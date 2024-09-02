@@ -2,6 +2,47 @@
 drawing program for pixel art
 """
 
+'''
+TODO:
+- add hover text to clickables (displays keyboard shortcut)
+- open grid ui when opening file
+- save current colors along with the image
+- option to change the palette to match the current colors/multiple palettes
+- CTRL Z/Y (store without alpha channel, ui to view history)
+- option to make drawing only affect the visible area?
+- better mouse sprite handling
+
+- color ui:
+    - hex text as input box
+
+- grid ui:
+    - add option to resize to fit image
+    - option to change visible area?
+    - move image before resizing?
+    - change mouse sprite when using a slider?
+    - if check box is on, the current slider text is empty and the other slider value is 1
+    the other slider text should be empty
+
+- tools:
+    - brush (different shapes?)
+    - fill (change all pixels of the same color to the one in use)
+    - pick color
+    - draw line (pixelated?)
+    - draw rectangle (auto fill)
+    - draw circle, semi circle and ellipse (auto fill, pixelated?)
+    - copy and paste (flip and rotate?)
+    - move, flip or rotate section (affects all grid)
+    - change brightness of pixel/area
+    - scale section
+
+optimizations:
+    - general:
+        - scale large images with Pillow
+        - use pygame.surfarray.blit_array instead of nested for loops and fblits
+    - grid ui: get_preview
+    - grid: update_section (precalculate section indicator?)
+'''
+
 import pygame as pg
 from tkinter import Tk, filedialog
 from PIL import Image
@@ -133,15 +174,13 @@ class Dixel:
 
         self._state: int = 0
 
-        self._file_path: str
-        if not path.exists('data.txt'):
-            self._file_path = ''
-        else:
+        self._file_path: str = ''
+        if path.exists('data.txt'):
             with open('data.txt', encoding='utf-8') as f:
                 file_path: str = f.read()
-            self._file_path = file_path if path.exists(file_path) else ''
 
-            if self._file_path:
+            if path.exists(file_path):
+                self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
                 PALETTE_MANAGER.load_path(GRID_MANAGER.grid.pixels)
 
@@ -252,8 +291,7 @@ class Dixel:
             elif event.type == pg.KEYUP:
                 self._saved_keys.remove(event.key)
                 self._ctrl = pg.key.get_mods() & pg.KMOD_CTRL
-
-            if event.type == FPS_UPT:
+            elif event.type == FPS_UPT:
                 FPS_TEXT.modify_text('FPS: ' + str(int(CLOCK.get_fps())))
 
         if pg.time.get_ticks() - self._last_k_input < 100:
@@ -335,7 +373,6 @@ class Dixel:
             root.destroy()
 
             if file_path:
-                # TODO: resize grid before loading image
                 self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
                 PALETTE_MANAGER.load_path(GRID_MANAGER.grid.pixels)
@@ -359,7 +396,7 @@ class Dixel:
         img: Image.Image
         try:
             while True:
-                CLOCK.tick(60)
+                CLOCK.tick(6000)
 
                 self._handle_events()
                 if not self._focused:
@@ -374,7 +411,6 @@ class Dixel:
                 )
 
                 closed: bool
-                # TODO: better mouse sprite logic
                 match self._state:
                     case 0:
                         brush_size: int = BRUSH_SIZES.upt(self._mouse_info, self._keys) + 1

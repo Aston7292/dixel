@@ -210,15 +210,15 @@ class ScrollBar:
                 value = self.value
                 if pg.K_LEFT in keys:
                     value = max(value - 1, 0)
-                elif pg.K_RIGHT in keys:
+                if pg.K_RIGHT in keys:
                     value = min(value + 1, 255)
-                elif pg.K_PAGEDOWN in keys:
+                if pg.K_PAGEDOWN in keys:
                     value = max(value - 25, 0)
-                elif pg.K_PAGEUP in keys:
+                if pg.K_PAGEUP in keys:
                     value = min(value + 25, 255)
-                elif pg.K_HOME in keys:
+                if pg.K_HOME in keys:
                     value = 0
-                elif pg.K_END in keys:
+                if pg.K_END in keys:
                     value = 255
                 text = str(value)
 
@@ -227,6 +227,10 @@ class ScrollBar:
             self._slider_rect.x = self.bar_rect.x + self._unit_w * self.value
 
             self.value_input_box.text.modify_text(text)
+            self.value_input_box.text_i = min(
+                self.value_input_box.text_i, len(self.value_input_box.text.text)
+            )
+
             self.value_input_box.get_cursor_pos()
 
         return -1
@@ -350,13 +354,13 @@ class ColorPicker(UI):
         if keys:
             if pg.K_UP in keys:
                 self._selection_i.y = max(self._selection_i.y - 1, 0)
-            elif pg.K_DOWN in keys:
+            if pg.K_DOWN in keys:
                 self._selection_i.y = min(self._selection_i.y + 1, len(self._objs) - 1)
-            elif ctrl:
+            if ctrl:
                 prev_selection_x: int = self._selection_i.x
                 if pg.K_LEFT in keys:
                     self._selection_i.x = max(self._selection_i.x - 1, 0)
-                elif pg.K_RIGHT in keys:
+                if pg.K_RIGHT in keys:
                     self._selection_i.x = min(self._selection_i.x + 1, len(self._objs[0]) - 1)
 
                 if self._selection_i.x != prev_selection_x:

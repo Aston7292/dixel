@@ -30,6 +30,7 @@ extra ui element need:
     blit(), handle_resize(window size ratio), upt()
     rect
 '''
+
 TOOLS_INFO: Dict[str, Dict[str, Any]] = {
     'brush': {
         'base_info': (PENCIL, 'edit pixels'),
@@ -49,7 +50,7 @@ TOOLS_INFO: Dict[str, Dict[str, Any]] = {
         'extra_info': [
             {
                 'type': CheckBox,
-                'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'edit all the pixels of the same color'],
+                'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'edit pixels of\nthe same color'],
                 'upt_args': ['mouse_info'], 'output_format': {'same_color': 'ticked_on'}
             }
         ]
@@ -89,16 +90,16 @@ class ToolsManager:
             check_box_rect: Tuple[pg.FRect, ...] = tuple(
                 check_box.rect for check_box in self._tools.check_boxes
             )
-            x: float = min(rect.x for rect in check_box_rect)
-            y: float = min(rect.y for rect in check_box_rect) - 20.0
+            current_x: float = min(rect.x for rect in check_box_rect) + 20.0
+            current_y: float = min(rect.y for rect in check_box_rect) - 20.0
 
             for i in range(len(tool_info)):
                 obj_info: Dict[str, Any] = tool_info[i]
 
                 obj: Any = obj_info['type'](
-                    RectPos(x, y, 'bottomleft'), *obj_info['init_args']
+                    RectPos(current_x, current_y, 'bottomleft'), *obj_info['init_args']
                 )
-                x += obj.rect.w + 20.0
+                current_x += obj.rect.w + 20.0
                 obj_info['obj'] = obj
 
                 del obj_info['type'], obj_info['init_args']

@@ -146,13 +146,13 @@ class PaletteManager:
                     self._view_drop_down = not self._view_drop_down
                     if self._view_drop_down:
                         self._drop_down_i = i
-                        y: float = mouse_info.y + 5.0
+                        current_y: float = mouse_info.y + 5.0
                         for option in self._options:
                             # also changes initial position for resizing
                             option.move_rect(
-                                mouse_info.x + 5.0, y, self._win_ratio_w, self._win_ratio_h
+                                mouse_info.x + 5.0, current_y, self._win_ratio_w, self._win_ratio_h
                             )
-                            y += option.rect.h
+                            current_y += option.rect.h
 
                     break
 

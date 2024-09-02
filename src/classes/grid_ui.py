@@ -23,7 +23,7 @@ class NumSlider:
     """
 
     __slots__ = (
-        'value', 'value_input_box', 'rect', 'traveled_x', 'scrolling', '_prev_mouse_x', '_add_text'
+        'value', 'value_input_box', 'rect', 'traveled_x', 'sliding', '_prev_mouse_x', '_add_text'
     )
 
     def __init__(self, pos: RectPos, value: int, text: str) -> None:
@@ -38,12 +38,12 @@ class NumSlider:
         self.rect: pg.FRect = self.value_input_box.box_rect
 
         self.traveled_x: int = 0
-        self.scrolling: bool = False
+        self.sliding: bool = False
 
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
 
         self._add_text: Text = Text(
-            RectPos(self.value_input_box.box_rect.x - 10.0, self.rect.centery, 'midright'), text
+            RectPos(self.rect.x - 10.0, self.rect.centery, 'midright'), text
         )
 
     def blit(self) -> BlitSequence:
@@ -72,13 +72,10 @@ class NumSlider:
         """
 
         self.traveled_x = 0
-        self.value = min(value, MAX_SIZE)
-        if self.value > MAX_SIZE:
-            self.value = MAX_SIZE
-        else:
-            self.value_input_box.text_i = 0
-
+        self.value = value
         self.value_input_box.text.modify_text(str(self.value))
+        self.value_input_box.text_i = 0
+
         self.value_input_box.get_cursor_pos()
 
     def upt(self, mouse_info: MouseInfo, keys: List[int], selection: 'NumSlider') -> bool:
@@ -101,17 +98,16 @@ class NumSlider:
 
         if not self.value_input_box.hovering:
             if not mouse_info.buttons[0]:
-                self.scrolling = False
+                self.sliding = False
                 self.traveled_x = 0
         else:
             if not mouse_info.buttons[0]:
-                self.scrolling = False
+                self.sliding = False
                 self.traveled_x = 0
             else:
-                self.scrolling = True
+                self.sliding = True
 
-        # TODO: change mouse sprite when scrolling?
-        if self.scrolling:
+        if self.sliding:
             self.traveled_x += mouse_info.x - self._prev_mouse_x
             if abs(self.traveled_x) >= 10:
                 pixels_traveled: int = round(self.traveled_x / 10)
@@ -138,7 +134,7 @@ class GridUI(UI):
 
     __slots__ = (
         '_preview_init_pos', '_preview_pos', '_preview_init_dim', '_preview_img', '_preview_rect',
-        '_h_chooser', '_w_chooser', '_values_ratio', '_pixels', '_selection_i', '_check_box',
+        '_h_slider', '_w_slider', '_values_ratio', '_pixels', '_selection_i', '_check_box',
         '_min_win_ratio', '_small_preview_img'
     )
 
@@ -147,6 +143,8 @@ class GridUI(UI):
         initializes the interface
         takes position and starting grid size
         """
+
+        #  preview pixel dim is a float to represent the full size more accurately when resizing
 
         super().__init__(pos, 'MODIFY GRID')
 
@@ -164,23 +162,23 @@ class GridUI(UI):
             **{self._preview_init_pos.coord: self._preview_pos}
         )
 
-        self._h_chooser: NumSlider = NumSlider(
+        self._h_slider: NumSlider = NumSlider(
             RectPos(self._preview_rect.x + 20.0, self._preview_rect.y - 25.0, 'bottomleft'),
             grid_size.h, 'height'
         )
-        self._w_chooser: NumSlider = NumSlider(
-            RectPos(self._preview_rect.x + 20.0, self._h_chooser.rect.y - 25.0, 'bottomleft'),
+        self._w_slider: NumSlider = NumSlider(
+            RectPos(self._preview_rect.x + 20.0, self._h_slider.rect.y - 25.0, 'bottomleft'),
             grid_size.w, 'width'
         )
         self._values_ratio: Tuple[float, float] = (1.0, 1.0)
 
         self._pixels: NDArray[np.uint8] = np.empty(
-            (self._h_chooser.value, self._w_chooser.value, 4), np.uint8
+            (self._h_slider.value, self._w_slider.value, 4), np.uint8
         )
         self._selection_i: int = 0
 
         self._check_box: CheckBox = CheckBox(
-            RectPos(self._preview_rect.right - 20.0, self._h_chooser.rect.centery, 'midright'),
+            RectPos(self._preview_rect.right - 20.0, self._h_slider.rect.centery, 'midright'),
             (CHECK_BOX_1, CHECK_BOX_2), 'keep ratio'
         )
 
@@ -188,9 +186,9 @@ class GridUI(UI):
 
         # having a version where 1 grid pixel = 1 pixel is better for scaling
         self._small_preview_img: pg.SurfaceType = pg.Surface(
-            (self._w_chooser.value * 2, self._h_chooser.value * 2)
+            (self._w_slider.value * 2, self._h_slider.value * 2)
         )
-        self._get_preview(Size(self._w_chooser.value, self._h_chooser.value))
+        self._get_preview(Size(self._w_slider.value, self._h_slider.value))
 
     def blit(self) -> BlitSequence:
         """
@@ -198,8 +196,8 @@ class GridUI(UI):
         """
 
         sequence: BlitSequence = super().blit()
-        sequence += self._w_chooser.blit()
-        sequence += self._h_chooser.blit()
+        sequence += self._w_slider.blit()
+        sequence += self._h_slider.blit()
         sequence += self._check_box.blit()
         sequence += [(self._preview_img, self._preview_rect.topleft)]
 
@@ -216,12 +214,12 @@ class GridUI(UI):
         super().handle_resize(win_ratio_w, win_ratio_h)
 
         pixel_dim: float = min(
-            self._preview_init_dim / self._w_chooser.value * self._min_win_ratio,
-            self._preview_init_dim / self._h_chooser.value * self._min_win_ratio
+            self._preview_init_dim / self._w_slider.value * self._min_win_ratio,
+            self._preview_init_dim / self._h_slider.value * self._min_win_ratio
         )
         size: Tuple[int, int] = (
-            int(self._w_chooser.value * pixel_dim),
-            int(self._h_chooser.value * pixel_dim)
+            int(self._w_slider.value * pixel_dim),
+            int(self._h_slider.value * pixel_dim)
         )
 
         self._preview_pos = (
@@ -233,8 +231,8 @@ class GridUI(UI):
             **{self._preview_init_pos.coord: self._preview_pos}
         )
 
-        self._w_chooser.handle_resize(win_ratio_w, win_ratio_h)
-        self._h_chooser.handle_resize(win_ratio_w, win_ratio_h)
+        self._w_slider.handle_resize(win_ratio_w, win_ratio_h)
+        self._h_slider.handle_resize(win_ratio_w, win_ratio_h)
         self._check_box.handle_resize(win_ratio_w, win_ratio_h)
 
     def set(self, size: Size, pixels: NDArray[np.uint8]) -> None:
@@ -243,8 +241,8 @@ class GridUI(UI):
         takes size and grid pixels
         """
 
-        self._w_chooser.set(size.w)
-        self._h_chooser.set(size.h)
+        self._w_slider.set(size.w)
+        self._h_slider.set(size.h)
         self._pixels = pixels
         self._values_ratio = (size.h / size.w, size.w / size.h)
 
@@ -318,26 +316,37 @@ class GridUI(UI):
         if keys:
             if pg.K_UP in keys:
                 self._selection_i = 0
-            elif pg.K_DOWN in keys:
+            if pg.K_DOWN in keys:
                 self._selection_i = 1
 
-        prev_grid_size: Size = Size(self._w_chooser.value, self._h_chooser.value)
-        selection: Any = (self._w_chooser, self._h_chooser)[self._selection_i]
+        prev_grid_size: Size = Size(self._w_slider.value, self._h_slider.value)
+        selection: Any = (self._w_slider, self._h_slider)[self._selection_i]
 
-        if self._w_chooser.upt(mouse_info, keys, selection):
+        if self._w_slider.upt(mouse_info, keys, selection):
             self._selection_i = 0
-        if self._h_chooser.upt(mouse_info, keys, selection):
+        if self._h_slider.upt(mouse_info, keys, selection):
             self._selection_i = 1
 
-        grid_size: Size = Size(self._w_chooser.value, self._h_chooser.value)
+        grid_size: Size = Size(self._w_slider.value, self._h_slider.value)
         if grid_size != prev_grid_size:
             if self._check_box.ticked_on:
+                value: int
+                slider: NumSlider  # opposite to the one in use
                 if grid_size.w != prev_grid_size.w:
-                    self._h_chooser.set(round(grid_size.w * self._values_ratio[0]))
-                    grid_size.h = self._h_chooser.value
+                    value = max(min(round(grid_size.w * self._values_ratio[0]), MAX_SIZE), 1)
+                    slider = self._h_slider
                 else:
-                    self._w_chooser.set(round(grid_size.h * self._values_ratio[1]))
-                    grid_size.w = self._w_chooser.value
+                    value = max(min(round(grid_size.h * self._values_ratio[1]), MAX_SIZE), 1)
+                    slider = self._w_slider
+
+                slider.value = value
+                slider.value_input_box.text.modify_text(str(slider.value))
+                slider.value_input_box.text_i = min(
+                    slider.value_input_box.text_i, len(slider.value_input_box.text.text)
+                )
+
+                slider.value_input_box.get_cursor_pos()
+                grid_size.w, grid_size.h = self._w_slider.value, self._h_slider.value
 
             self._get_preview(grid_size)
 
@@ -350,10 +359,10 @@ class GridUI(UI):
 
         if confirmed or exited:
             self._selection_i = 0
-            for chooser in (self._w_chooser, self._h_chooser):
-                chooser.scrolling = False
-                chooser.traveled_x = 0
-                chooser.value_input_box.hovering = chooser.value_input_box.selected = False
+            for slider in (self._w_slider, self._h_slider):
+                slider.sliding = False
+                slider.traveled_x = 0
+                slider.value_input_box.hovering = slider.value_input_box.selected = False
 
             self._check_box.hovering = False
 

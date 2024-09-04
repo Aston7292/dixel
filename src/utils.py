@@ -4,10 +4,12 @@ collections of shared functions, dataclasses and types
 
 import pygame as pg
 from dataclasses import dataclass
-from typing import Tuple, List
 
-ColorType = Tuple[int, ...]
-BlitSequence = List[Tuple[pg.SurfaceType, Tuple[float, float]]]
+ColorType = tuple[int, ...]
+BlitSequence = list[tuple[pg.SurfaceType, tuple[float, float]]]
+# last element is layer
+LayeredBlitSequence = list[tuple[pg.SurfaceType, tuple[float, float], int]]
+LayersInfo = list[tuple[str, int, int]]  # object name, layer, nesting counter (for nicer printing)
 
 
 def add_border(img: pg.SurfaceType, color: ColorType) -> pg.SurfaceType:
@@ -43,7 +45,7 @@ class Point:
     y: int
 
     @property
-    def xy(self) -> Tuple[int, int]:
+    def xy(self) -> tuple[int, int]:
         """
         returns x and y
         """
@@ -63,7 +65,7 @@ class RectPos:
     coord: str
 
     @property
-    def xy(self) -> Tuple[float, float]:
+    def xy(self) -> tuple[float, float]:
         """
         returns x and y
         """
@@ -82,7 +84,7 @@ class Size:
     h: int
 
     @property
-    def wh(self) -> Tuple[int, int]:
+    def wh(self) -> tuple[int, int]:
         """
         returns width and height
         """
@@ -93,16 +95,16 @@ class Size:
 @dataclass
 class MouseInfo:
     """
-    dataclass for storing every info needed about the mouse
+    dataclass for storing all info needed about the mouse
     """
 
     x: int
     y: int
-    buttons: Tuple[bool, ...]
-    released: Tuple[bool, ...]
+    buttons: tuple[bool, ...]
+    released: tuple[bool, ...]
 
     @property
-    def xy(self) -> Tuple[int, int]:
+    def xy(self) -> tuple[int, int]:
         """
         returns x and y
         """

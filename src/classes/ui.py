@@ -5,11 +5,12 @@ abstract class to create a default ui with a title, a confirm and exit buttons
 import pygame as pg
 from abc import ABC, abstractmethod
 from os import path
-from typing import Tuple, List, Final
+from typing import Final, Any
 
 from src.classes.clickable import Button
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo, BlitSequence
+from src.utils import RectPos, Size, MouseInfo, LayeredBlitSequence, LayersInfo
+from src.const import UI_LAYER
 
 INTERFACE: Final[pg.SurfaceType] = pg.Surface((500, 700))
 INTERFACE.fill((60, 60, 60))
@@ -40,13 +41,15 @@ INPUT_BOX: Final[pg.Surface] = pg.Surface((60, 40))
 class UI(ABC):
     """
     abstract class to create a default ui with a title, a confirm and exit buttons
-    includes: blit() -> BlitSequence, handle_resize(window size ratio) -> None,
-    upt(mouse, keys, ctrl) -> confirmed, exited
+
+    - includes: blit() -> PriorityBlitSequence, handle_resize(window size ratio) -> None,
+    base_upt(mouse, keys, ctrl) -> confirmed, exited
+    - children should include: upt(mouse info, keys, ctrl) -> tuple[bool, Any]
     """
 
     __slots__ = (
-        '_ui_init_pos', '_ui_img', '_ui_rect', '_ui_init_size', '_title', '_confirm', '_exit',
-        'prev_mouse_cursor'
+        '_ui_init_pos', '_ui_img', '_ui_rect', '_ui_init_size', '_base_layer', '_title',
+        '_confirm', '_exit'
     )
 
     def __init__(self, pos: RectPos, title: str) -> None:
@@ -64,45 +67,44 @@ class UI(ABC):
 
         self._ui_init_size: Size = Size(int(self._ui_rect.w), int(self._ui_rect.h))
 
+        self._base_layer: int = UI_LAYER
+
         self._title: Text = Text(
-            RectPos(self._ui_rect.centerx, self._ui_rect.top + 10.0, 'midtop'), title, 32
+            RectPos(self._ui_rect.centerx, self._ui_rect.top + 10.0, 'midtop'), title,
+            self._base_layer, 32
         )
 
         self._confirm: Button = Button(
             RectPos(self._ui_rect.right - 10.0, self._ui_rect.bottom - 10.0, 'bottomright'),
-            (BUTTON_M_OFF, BUTTON_M_ON), 'confirm'
+            (BUTTON_M_OFF, BUTTON_M_ON), 'confirm', '(CTRL+ENTER)', self._base_layer
         )
         self._exit: Button = Button(
             RectPos(self._ui_rect.right - 10.0, self._ui_rect.y + 10.0, 'topright'),
-            (CLOSE_1, CLOSE_2), ''
+            (CLOSE_1, CLOSE_2), '', '(CTRL+BACKSPACE)', self._base_layer
         )
 
-        self.prev_mouse_cursor: pg.Cursor = pg.mouse.get_cursor()
-
-    @abstractmethod
-    def blit(self) -> BlitSequence:
+    def blit(self) -> LayeredBlitSequence:
         """
         returns a sequence to add in the main blit sequence
         """
 
-        sequence: BlitSequence = [(self._ui_img, self._ui_rect.topleft)]
+        sequence: LayeredBlitSequence = [(self._ui_img, self._ui_rect.topleft, self._base_layer)]
         sequence += self._title.blit()
         sequence += self._confirm.blit()
         sequence += self._exit.blit()
 
         return sequence
 
-    @abstractmethod
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
         resizes objects
         takes window size ratio
         """
 
-        size: Tuple[int, int] = (
+        size: tuple[int, int] = (
             int(self._ui_init_size.w * win_ratio_w), int(self._ui_init_size.h * win_ratio_h)
         )
-        pos: Tuple[float, float] = (
+        pos: tuple[float, float] = (
             self._ui_init_pos.x * win_ratio_w, self._ui_init_pos.y * win_ratio_h
         )
 
@@ -113,10 +115,23 @@ class UI(ABC):
         self._confirm.handle_resize(win_ratio_w, win_ratio_h)
         self._exit.handle_resize(win_ratio_w, win_ratio_h)
 
-    @abstractmethod
-    def ui_upt(self, mouse_info: MouseInfo, keys: List[int], ctrl: int) -> Tuple[bool, bool]:
+    def print_layers(self, name: str, counter: int) -> LayersInfo:
         """
-        makes the object interactable
+        prints the layers of everything the object has
+        takes name and nesting counter
+        returns layers info
+        """
+
+        layers_info: LayersInfo = [(name, self._base_layer, counter)]
+        layers_info += self._exit.print_layers('button exit', counter + 1)
+        layers_info += self._confirm.print_layers('button confirm', counter + 1)
+        layers_info += self._title.print_layers('text title', counter + 1)
+
+        return layers_info
+
+    def _base_upt(self, mouse_info: MouseInfo, keys: list[int], ctrl: int) -> tuple[bool, bool]:
+        """
+        handles the base behavior
         takes mouse info, keys and ctrl
         returns the buttons that were clicked
         """
@@ -125,8 +140,15 @@ class UI(ABC):
         exited: bool = self._exit.upt(mouse_info) or bool(ctrl and pg.K_BACKSPACE in keys)
 
         if confirmed or exited:
-            self._confirm.img_i = self._exit.img_i = 0
-            self._confirm.hovering = self._exit.hovering = False
-            pg.mouse.set_cursor(self.prev_mouse_cursor)
+            self._confirm.leave()
+            self._exit.leave()
 
         return confirmed, exited
+
+    @abstractmethod
+    def upt(self, mouse_info: MouseInfo, keys: list[int], ctrl: int) -> tuple[bool, Any]:
+        """
+        should implement a way to make the object interactable
+        takes mouse info, keys and ctrl
+        returns whatever the interface was closed or not and the extra info
+        """

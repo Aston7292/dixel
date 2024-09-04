@@ -43,7 +43,9 @@ Requires pygame-ce, numpy and Pillow
 - **CTRL Del**: delete selected color
 
 - **CTRL left/right**: switch between scrollbar and input box in color picking ui
-- **CTRL k**: toggle check box in grid ui
+- **CTRL K**: toggle check box in grid ui
+
+- **ALT L**: print debug information about layers
 
 ## Screenshots
 

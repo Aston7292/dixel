@@ -4,12 +4,12 @@ renderers are cached
 """
 
 import pygame as pg
-from typing import Tuple, List, Dict, Final
+from typing import Final
 
-from src.utils import RectPos, BlitSequence
-from src.const import WHITE
+from src.utils import RectPos, LayeredBlitSequence, LayersInfo
+from src.const import WHITE, BG_LAYER, TEXT_LAYER
 
-RENDERERS_CACHE: Final[Dict[int, pg.Font]] = {}
+RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
 
 
 class Text:
@@ -19,13 +19,13 @@ class Text:
 
     __slots__ = (
         '_init_pos', '_x', '_y', '_init_h', '_renderer', 'text', '_lines',
-        '_imgs', '_rects', 'rect'
+        '_imgs', 'rects', 'rect', '_layer'
     )
 
-    def __init__(self, pos: RectPos, text: str, h: int = 24) -> None:
+    def __init__(self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 24) -> None:
         """
         creates the text
-        takes position, text and optional height
+        takes position, text, base_layer (default = BG_LAYER) and height (default = 24)
         """
 
         self._init_pos: RectPos = pos
@@ -38,22 +38,26 @@ class Text:
         self._renderer: pg.Font = RENDERERS_CACHE[self._init_h]
 
         self.text: str = text
-        self._lines: List[str] = self.text.split('\n')
+        self._lines: list[str] = self.text.split('\n')
 
-        self._imgs: Tuple[pg.SurfaceType, ...] = tuple(
+        self._imgs: tuple[pg.SurfaceType, ...] = tuple(
             self._renderer.render(line, True, WHITE) for line in self._lines
         )
-        self._rects: list[pg.FRect] = []
+        self.rects: list[pg.FRect] = []
         self.rect: pg.FRect = pg.FRect(0, 0, 0, 0)
+
+        self._layer: int = base_layer + TEXT_LAYER
 
         self._get_rects()
 
-    def blit(self) -> BlitSequence:
+    def blit(self) -> LayeredBlitSequence:
         """
         returns a sequence to add in the main blit sequence
         """
 
-        sequence: BlitSequence = [(img, rect.topleft) for img, rect in zip(self._imgs, self._rects)]
+        sequence: LayeredBlitSequence = [
+            (img, rect.topleft, self._layer) for img, rect in zip(self._imgs, self.rects)
+        ]
 
         return sequence
 
@@ -73,27 +77,37 @@ class Text:
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
         self._get_rects()
 
+    def print_layers(self, name: str, counter: int) -> LayersInfo:
+        """
+        prints the layers of everything the object has
+        takes names and nesting counter
+        """
+
+        layers_info: LayersInfo = [(name, self._layer, counter)]
+
+        return layers_info
+
     def _get_rects(self) -> None:
         """
         calculates rects and rect depending on the position coordinate
         """
 
-        self._rects = []
+        self.rects = []
 
         current_y: float = self._y
         rect_h: float = sum(img.get_height() for img in self._imgs)
         if 'bottom' in self._init_pos.coord:
             current_y -= rect_h - self._imgs[-1].get_height()
         elif self._init_pos.coord in ('midright', 'center', 'midleft'):
-            current_y -= (rect_h - self._imgs[-1].get_height()) / 2
+            current_y -= (rect_h - self._imgs[-1].get_height()) / 2.0
 
         for img in self._imgs:
-            self._rects.append(img.get_frect(**{self._init_pos.coord: (self._x, current_y)}))
-            current_y += self._rects[-1].h
+            self.rects.append(img.get_frect(**{self._init_pos.coord: (self._x, current_y)}))
+            current_y += self.rects[-1].h
 
-        rect_x: float = min(rect.x for rect in self._rects)
-        rect_y: float = min(rect.y for rect in self._rects)
-        rect_w: float = max(rect.w for rect in self._rects)
+        rect_x: float = min(rect.x for rect in self.rects)
+        rect_y: float = min(rect.y for rect in self.rects)
+        rect_w: float = max(rect.w for rect in self.rects)
         self.rect = pg.FRect(rect_x, rect_y, rect_w, rect_h)
 
     def move_rect(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
@@ -106,9 +120,9 @@ class Text:
         self._x, self._y = x, y
         self._get_rects()
 
-    def modify_text(self, text: str) -> None:
+    def set_text(self, text: str) -> None:
         """
-        modifies text image and adjusts position
+        sets text image and adjusts position
         takes text
         """
 
@@ -126,12 +140,12 @@ class Text:
         """
 
         x: float = (
-            self._rects[0].x + self._renderer.render(self._lines[0][:i], False, WHITE).get_width()
+            self.rects[0].x + self._renderer.render(self._lines[0][:i], False, WHITE).get_width()
         )
 
         return x
 
-    def get_closest(self, x: int) -> int:
+    def get_closest_to(self, x: int) -> int:
         """
         calculates the index of the closest character to a given x
         only for single line text
@@ -139,7 +153,7 @@ class Text:
         returns index of closest character (0 - len(text))
         """
 
-        current_x: int = int(self._rects[0].x)
+        current_x: int = int(self.rects[0].x)
         for i, char in enumerate(self._lines[0]):
             next_x: int = current_x + self._renderer.render(char, False, WHITE).get_width()
             if x < next_x:

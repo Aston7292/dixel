@@ -4,12 +4,12 @@ class to manage drawing tools
 
 import pygame as pg
 from os import path
-from typing import Tuple, List, Dict, Final, Any
+from typing import Final, Any
 
 from src.classes.ui import CHECK_BOX_1, CHECK_BOX_2
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import CheckBox
-from src.utils import RectPos, MouseInfo, BlitSequence
+from src.utils import RectPos, MouseInfo, LayeredBlitSequence, LayersInfo
 
 PENCIL: Final[pg.SurfaceType] = pg.image.load(
     path.join('sprites', 'pencil_tool.png')
@@ -17,7 +17,7 @@ PENCIL: Final[pg.SurfaceType] = pg.image.load(
 BUCKET: Final[pg.SurfaceType] = PENCIL.copy()
 
 '''
-each tool has:
+all tools have:
 - name
 - base info (image and text)
 - info for extra ui elements with:
@@ -26,12 +26,12 @@ each tool has:
     - arguments to pass in the upt method
     - format to send it to the grid
 
-extra ui element need:
+extra ui elements need:
     blit(), handle_resize(window size ratio), upt()
     rect
 '''
 
-TOOLS_INFO: Dict[str, Dict[str, Any]] = {
+TOOLS_INFO: dict[str, dict[str, Any]] = {
     'brush': {
         'base_info': (PENCIL, 'edit pixels'),
         'extra_info': [
@@ -73,28 +73,28 @@ class ToolsManager:
         takes position
         """
 
-        self._names: Tuple[str, ...] = tuple(TOOLS_INFO.keys())
-        base_info: List[Tuple[pg.SurfaceType, str]] = [
+        self._names: tuple[str, ...] = tuple(TOOLS_INFO.keys())
+        base_info: list[tuple[pg.SurfaceType, str]] = [
             info['base_info'] for info in TOOLS_INFO.values()
         ]
-        extra_info: Tuple[List[Dict[str, Any]], ...] = tuple(
+        extra_info: tuple[list[dict[str, Any]], ...] = tuple(
             info['extra_info'] for info in TOOLS_INFO.values()
         )
 
         self._tools: CheckBoxGrid = CheckBoxGrid(pos, base_info, 5, (False, True))
 
-        self._extra_info: List[List[Dict[str, Any]]] = []
+        self._extra_info: list[list[dict[str, Any]]] = []
         for tool_info in extra_info:
-            objs_info: List[Dict[str, Any]] = []
+            objs_info: list[dict[str, Any]] = []
 
-            check_box_rect: Tuple[pg.FRect, ...] = tuple(
+            check_box_rect: tuple[pg.FRect, ...] = tuple(
                 check_box.rect for check_box in self._tools.check_boxes
             )
             current_x: float = min(rect.x for rect in check_box_rect) + 20.0
             current_y: float = min(rect.y for rect in check_box_rect) - 20.0
 
             for i in range(len(tool_info)):
-                obj_info: Dict[str, Any] = tool_info[i]
+                obj_info: dict[str, Any] = tool_info[i]
 
                 obj: Any = obj_info['type'](
                     RectPos(current_x, current_y, 'bottomleft'), *obj_info['init_args']
@@ -106,12 +106,12 @@ class ToolsManager:
                 objs_info.append(obj_info)
             self._extra_info.append(objs_info)
 
-    def blit(self) -> BlitSequence:
+    def blit(self) -> LayeredBlitSequence:
         """
         returns a sequence to add in the main blit sequence
         """
 
-        sequence: BlitSequence = self._tools.blit()
+        sequence: LayeredBlitSequence = self._tools.blit()
         for info in self._extra_info[self._tools.clicked_i]:
             sequence += info['obj'].blit()
 
@@ -128,7 +128,32 @@ class ToolsManager:
             for info in tool_info:
                 info['obj'].handle_resize(win_ratio_w, win_ratio_h)
 
-    def upt(self, mouse_info: MouseInfo, keys: List[int]) -> Tuple[str, Dict[str, Any]]:
+    def leave(self) -> None:
+        """
+        clears everything that needs to be cleared when the object is leaved
+        """
+
+        self._tools.leave()
+        for info in self._extra_info[self._tools.clicked_i]:
+            info['obj'].leave()
+
+    def print_layers(self, name: str, counter: int) -> LayersInfo:
+        """
+        prints the layers of everything the object has
+        takes name and nesting counter
+        returns layers info
+        """
+
+        layers_info: LayersInfo = [(name, -1, counter)]
+        layers_info += self._tools.print_layers('tools', counter + 1)
+        layers_info += [('extra options', -1, counter + 1)]
+        for tool_info in self._extra_info:
+            for info in tool_info:
+                layers_info += info['obj'].print_layers('option', counter + 2)
+
+        return layers_info
+
+    def upt(self, mouse_info: MouseInfo, keys: list[int]) -> tuple[str, dict[str, Any]]:
         """
         makes the object interactable
         takes mouse info and keys
@@ -137,13 +162,13 @@ class ToolsManager:
 
         self._tools.upt(mouse_info, keys)
 
-        local_vars: Dict[str, Any] = locals()
-        output_dict: Dict[str, Any] = {}
+        local_vars: dict[str, Any] = locals()
+        output_dict: dict[str, Any] = {}
         for info in self._extra_info[self._tools.clicked_i]:
-            args: Tuple[Any, ...] = tuple(local_vars[arg] for arg in info['upt_args'])
+            args: tuple[Any, ...] = tuple(local_vars[arg] for arg in info['upt_args'])
             info['obj'].upt(*args)
 
-            obj_output_dict: Dict[str, Any] = info['output_format'].copy()
+            obj_output_dict: dict[str, Any] = info['output_format'].copy()
             for key in obj_output_dict:
                 obj_output_dict[key] = getattr(info['obj'], obj_output_dict[key])
             output_dict.update(obj_output_dict)

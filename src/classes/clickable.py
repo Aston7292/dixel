@@ -4,7 +4,7 @@ class to create various clickable objects
 
 import pygame as pg
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Any
 
 from src.classes.text import Text
 from src.utils import Point, RectPos, Size, MouseInfo, LayeredBlitSequence, LayersInfo
@@ -114,6 +114,17 @@ class Clickable(ABC):
 
         self.hovering = False
 
+    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        obj: Any = self if self.rect.collidepoint(mouse_pos) else None
+
+        return obj, self._layer
+
     def print_layers(self, name: str, counter: int) -> LayersInfo:
         """
         prints the layers of everything the object has
@@ -130,14 +141,14 @@ class Clickable(ABC):
     @abstractmethod
     def blit(self) -> LayeredBlitSequence:
         """
-        should return a sequence to add in the main blit sequence
+        returns a sequence to add in the main blit sequence
         """
 
     @abstractmethod
-    def upt(self, mouse_info: MouseInfo) -> bool:
+    def upt(self, hover_obj: Any, mouse_info: MouseInfo) -> bool:
         """
         should implement a way to make the object interactable
-        takes mouse info
+        takes hovered object (can be None) mouse info
         returns a boolean related to clicking
         """
 
@@ -201,10 +212,10 @@ class CheckBox(Clickable):
 
         return layers_info
 
-    def upt(self, mouse_info: MouseInfo, shortcut: bool = False) -> bool:
+    def upt(self, hover_obj: Any, mouse_info: MouseInfo, shortcut: bool = False) -> bool:
         """
         changes the checkbox image when clicked
-        takes mouse info and shortcut bool (default = False)
+        takes hovered object (can be None), mouse info and shortcut bool (default = False)
         returns True if the checkbox was ticked on
         """
 
@@ -213,7 +224,7 @@ class CheckBox(Clickable):
 
             return self.ticked_on
 
-        if not self.rect.collidepoint(mouse_info.xy):
+        if self != hover_obj:
             if self.hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                 self.leave()
@@ -302,14 +313,14 @@ class Button(Clickable):
         if self._text:
             self._text.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
 
-    def upt(self, mouse_info: MouseInfo) -> bool:
+    def upt(self, hover_obj: Any, mouse_info: MouseInfo) -> bool:
         """
         updates the button image if the mouse is hovering it
-        takes mouse info
+        takes hovered object (can be None) and mouse info
         returns whatever the button was clicked or not
         """
 
-        if not self.rect.collidepoint(mouse_info.xy):
+        if self != hover_obj:
             if self.hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                 self.leave()

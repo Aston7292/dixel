@@ -4,7 +4,6 @@ drawing program for pixel art
 
 '''
 TODO:
-- if two objects are on top of each other allow interaction with only one of them
 - open GRID_UI when opening file
 - save current colors along with the image
 - slider is faster when moving the mouse faster
@@ -65,7 +64,7 @@ from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
 from src.classes.text import Text
 from src.utils import (
-    RectPos, Size, MouseInfo, ColorType, BlitSequence, LayeredBlitSequence, LayersInfo
+    Point, RectPos, Size, MouseInfo, ColorType, BlitSequence, LayeredBlitSequence, LayersInfo
 )
 from src.const import INIT_WIN_SIZE, BLACK
 
@@ -126,7 +125,7 @@ BRUSH_SIZES: Final[CheckBoxGrid] = CheckBoxGrid(
 )
 
 PALETTE_MANAGER: Final[PaletteManager] = PaletteManager(
-    RectPos(INIT_WIN_SIZE.w - 75.0, ADD_COLOR.rect.y - 100.0, 'bottomright'),
+    RectPos(INIT_WIN_SIZE.w - 75.0, ADD_COLOR.rect.y - 25.0, 'bottomright'),
     (BUTTON_S_OFF, BUTTON_S_ON)
 )
 
@@ -175,7 +174,7 @@ class Dixel:
 
     __slots__ = (
         '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win', '_mouse_info',
-        '_saved_keys', '_keys', '_last_k_input', '_ctrl', '_state', '_file_path'
+        '_saved_keys', '_keys', '_last_k_input', '_ctrl', '_hover_obj', '_state', '_file_path'
     )
 
     def __init__(self) -> None:
@@ -200,7 +199,8 @@ class Dixel:
         self._last_k_input: int = pg.time.get_ticks()
         self._ctrl: int = 0
 
-        self._state: int = 0
+        self._hover_obj: Any = None
+        self._state: str = 'main_interface'
 
         self._file_path: str = ''
         if path.exists('data.txt'):
@@ -225,9 +225,9 @@ class Dixel:
             layered_blit_sequence += obj.blit()
 
         match self._state:
-            case 1:
+            case 'color_ui':
                 layered_blit_sequence += COLOR_PICKER.blit()
-            case 2:
+            case 'grid_ui':
                 layered_blit_sequence += GRID_UI.blit()
 
         layer_i: int = 2
@@ -372,12 +372,14 @@ class Dixel:
         handles the buttons that open uis
         """
 
-        if ADD_COLOR.upt(self._mouse_info) or (self._ctrl and pg.K_a in self._keys):
-            self._state = 1
+        ctrl_a: bool = bool(self._ctrl and pg.K_a in self._keys)
+        if ADD_COLOR.upt(self._hover_obj, self._mouse_info) or ctrl_a:
+            self._state = 'color_ui'
             COLOR_PICKER.set_color(BLACK)
 
-        if MODIFY_GRID.upt(self._mouse_info) or (self._ctrl and pg.K_m in self._keys):
-            self._state = 2
+        ctrl_m: bool = bool(self._ctrl and pg.K_m in self._keys)
+        if MODIFY_GRID.upt(self._hover_obj, self._mouse_info) or ctrl_m:
+            self._state = 'grid_ui'
             GRID_UI.set_size(GRID_MANAGER.grid.grid_size, GRID_MANAGER.grid.pixels)
 
     def _handle_file_buttons(self) -> None:
@@ -388,7 +390,7 @@ class Dixel:
         root: Tk
         file_path: str
         img: Image.Image
-        if SAVE_AS.upt(self._mouse_info) or (self._ctrl and pg.K_s in self._keys):
+        if SAVE_AS.upt(self._hover_obj, self._mouse_info) or (self._ctrl and pg.K_s in self._keys):
             self._leave()
             self._draw()  # applies self._leave changes immediately since root stops the execution
 
@@ -407,7 +409,7 @@ class Dixel:
                 img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
                 img.save(self._file_path)
 
-        if OPEN.upt(self._mouse_info) or (self._ctrl and pg.K_o in self._keys):
+        if OPEN.upt(self._hover_obj, self._mouse_info) or (self._ctrl and pg.K_o in self._keys):
             if self._file_path:
                 img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
                 img.save(self._file_path)
@@ -430,10 +432,8 @@ class Dixel:
                 GRID_MANAGER.load_path(self._file_path)
                 PALETTE_MANAGER.load_path(GRID_MANAGER.grid.pixels)
 
-        if (
-                (CLOSE.upt(self._mouse_info) or (self._ctrl and pg.K_q in self._keys)) and
-                self._file_path
-        ):
+        ctrl_q: bool = bool(self._ctrl and pg.K_q in self._keys)
+        if (CLOSE.upt(self._hover_obj, self._mouse_info) or ctrl_q) and self._file_path:
             img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
             img.save(self._file_path)
             self._leave()
@@ -450,7 +450,7 @@ class Dixel:
         img: Image.Image
         try:
             while True:
-                CLOCK.tick(6000)
+                CLOCK.tick(6000)  # TODO: put at 60
 
                 self._handle_events()
                 if not self._focused:
@@ -468,26 +468,40 @@ class Dixel:
 
                 closed: bool
                 match self._state:
-                    case 0:
-                        prev_state: int = self._state
+                    case 'main_interface':
+                        prev_state: str = self._state
 
-                        brush_size: int = BRUSH_SIZES.upt(self._mouse_info, self._keys) + 1
+                        self._hover_obj = None
+                        hover_layer: int = 0
+                        for obj in GLOBAL_OBJS:
+                            if hasattr(obj, 'check_hover'):
+                                current_hover_obj: Any
+                                current_hover_layer: int
+                                current_hover_obj, current_hover_layer = obj.check_hover(mouse_pos)
+                                if current_hover_obj and current_hover_layer >= hover_layer:
+                                    self._hover_obj = current_hover_obj
+                                    hover_layer = current_hover_layer
+
+                        brush_size: int = BRUSH_SIZES.upt(
+                            self._hover_obj, self._mouse_info, self._keys
+                        ) + 1
 
                         color: ColorType
                         color_to_edit: Optional[ColorType]
                         color, color_to_edit = PALETTE_MANAGER.upt(
-                            self._mouse_info, self._keys, self._ctrl
+                            self._hover_obj, self._mouse_info, self._keys, self._ctrl
                         )
                         if color_to_edit:
-                            self._state = 1
+                            self._state = 'color_ui'
                             COLOR_PICKER.set_color(color_to_edit)
 
                         tool_info: tuple[str, dict[str, Any]] = TOOLS_MANAGER.upt(
-                            self._mouse_info, self._keys
+                            self._hover_obj, self._mouse_info, self._keys
                         )
 
                         GRID_MANAGER.upt(
-                            self._mouse_info, self._keys, color, brush_size, tool_info
+                            self._hover_obj, self._mouse_info, self._keys, color, brush_size,
+                            tool_info
                         )
 
                         self._handle_open_ui_buttons()
@@ -501,20 +515,20 @@ class Dixel:
 
                         if self._state != prev_state:
                             self._leave()
-                    case 1:
+                    case 'color_ui':
                         chose_color: Optional[ColorType]
                         closed, chose_color = COLOR_PICKER.upt(
                             self._mouse_info, self._keys, self._ctrl
                         )
                         if closed:
                             PALETTE_MANAGER.add(chose_color)
-                            self._state = 0
-                    case 2:
+                            self._state = 'main_interface'
+                    case 'grid_ui':
                         size: Optional[Size]
                         closed, size = GRID_UI.upt(self._mouse_info, self._keys, self._ctrl)
                         if closed:
                             GRID_MANAGER.resize(size)
-                            self._state = 0
+                            self._state = 'main_interface'
 
                 self._draw()
 

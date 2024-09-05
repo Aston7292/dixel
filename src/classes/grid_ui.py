@@ -349,7 +349,7 @@ class GridUI(UI):
         """
         makes the object interactable
         takes mouse info, keys and ctrl
-        returns whatever the interface was closed or not and the size
+        returns whatever the interface was closed or not and the size (can be None)
         """
 
         if keys:

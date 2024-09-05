@@ -27,7 +27,7 @@ all tools have:
     - format to send it to the grid
 
 extra ui elements need:
-    blit(), handle_resize(window size ratio), upt()
+    blit(), handle_resize(window size ratio), leave(), check_hover(mouse info), upt()
     rect
 '''
 
@@ -37,11 +37,13 @@ TOOLS_INFO: dict[str, dict[str, Any]] = {
         'extra_info': [
             {
                 'type': CheckBox, 'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'x mirror'],
-                'upt_args': ['mouse_info'], 'output_format': {'x_mirror': 'ticked_on'}
+                'upt_args': ['hover_obj', 'mouse_info'],
+                'output_format': {'x_mirror': 'ticked_on'}
             },
             {
                 'type': CheckBox, 'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'y mirror'],
-                'upt_args': ['mouse_info'], 'output_format': {'y_mirror': 'ticked_on'}
+                'upt_args': ['hover_obj', 'mouse_info'],
+                'output_format': {'y_mirror': 'ticked_on'}
             },
         ],
     },
@@ -51,7 +53,8 @@ TOOLS_INFO: dict[str, dict[str, Any]] = {
             {
                 'type': CheckBox,
                 'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'edit pixels of\nthe same color'],
-                'upt_args': ['mouse_info'], 'output_format': {'same_color': 'ticked_on'}
+                'upt_args': ['hover_obj', 'mouse_info'],
+                'output_format': {'same_color': 'ticked_on'}
             }
         ]
     }
@@ -137,6 +140,27 @@ class ToolsManager:
         for info in self._extra_info[self._tools.clicked_i]:
             info['obj'].leave()
 
+    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        hover_obj: Any
+        hover_layer: int
+        hover_obj, hover_layer = self._tools.check_hover(mouse_pos)
+
+        for info in self._extra_info[self._tools.clicked_i]:
+            current_hover_obj: Any
+            current_hover_layer: int
+            current_hover_obj, current_hover_layer = info['obj'].check_hover(mouse_pos)
+            if current_hover_obj and current_hover_layer > hover_layer:
+                hover_obj = current_hover_obj
+                hover_layer = current_hover_layer
+
+        return hover_obj, hover_layer
+
     def print_layers(self, name: str, counter: int) -> LayersInfo:
         """
         prints the layers of everything the object has
@@ -153,14 +177,16 @@ class ToolsManager:
 
         return layers_info
 
-    def upt(self, mouse_info: MouseInfo, keys: list[int]) -> tuple[str, dict[str, Any]]:
+    def upt(
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int]
+    ) -> tuple[str, dict[str, Any]]:
         """
         makes the object interactable
-        takes mouse info and keys
+        takes hovered object (can be None), mouse info and keys
         returns the tool name and sub options state
         """
 
-        self._tools.upt(mouse_info, keys)
+        self._tools.upt(hover_obj, mouse_info, keys)
 
         local_vars: dict[str, Any] = locals()
         output_dict: dict[str, Any] = {}

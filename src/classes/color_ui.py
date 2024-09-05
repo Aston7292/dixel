@@ -396,7 +396,7 @@ class ColorPicker(UI):
         """
         makes the object interactable
         takes mouse info, keys and ctrl
-        returns whatever the interface was closed or not and the color
+        returns whatever the interface was closed or not and the color (can be None)
         """
 
         if keys:

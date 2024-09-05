@@ -152,15 +152,31 @@ class Grid:
             **{self._minimap_init_pos.coord: self._minimap_pos}
         )
 
-    def print_layers(self, counter: int) -> LayersInfo:
+    def check_hover(
+            self, mouse_pos: tuple[int, int], prev_mouse_pos: tuple[int, int]
+    ) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position and previous mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        obj: Any = None
+        # drawing is possible even 1 frame later the grid was left
+        if self.grid_rect.collidepoint(mouse_pos) or self.grid_rect.collidepoint(prev_mouse_pos):
+            obj = self
+
+        return obj, self._layer
+
+    def print_layers(self, name: str, counter: int) -> LayersInfo:
         """
         prints the layers of everything the object has
-        takes nesting counter
+        takes name and nesting counter
         returns layers info
         """
 
         layers_info: LayersInfo = [
-            ('grid', self._layer, counter),
+            (name, self._layer, counter),
             ('minimap', self._layer, counter)
         ]
 
@@ -492,6 +508,19 @@ class GridManager:
 
         self.grid.get_grid(self._grid_offset, self._selected_pixels)
 
+    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        hover_obj: Any
+        hover_layer: int
+        hover_obj, hover_layer = self.grid.check_hover(mouse_pos, self._prev_mouse_pos.xy)
+
+        return hover_obj, hover_layer
+
     def print_layers(self, name: str, counter: int) -> LayersInfo:
         """
         prints the layers of everything the object has
@@ -500,7 +529,7 @@ class GridManager:
         """
 
         layers_info: LayersInfo = [(name, -1, counter)]
-        layers_info += self.grid.print_layers(counter + 1)
+        layers_info += self.grid.print_layers('grid', counter + 1)
 
         return layers_info
 
@@ -627,7 +656,7 @@ class GridManager:
         """
         handles brush tool
         takes start, end, drawing bool, brush size and extra info
-        return changed pixels
+        returns changed pixels
         """
 
         single_pixels: list[tuple[int, int]] = []
@@ -700,26 +729,15 @@ class GridManager:
         takes mouse_info, keys, color, brush size and tool info
         """
 
-        hovering: bool = (
-            self.grid.grid_rect.collidepoint(self._prev_mouse_pos.xy) or
-            self.grid.grid_rect.collidepoint(mouse_info.xy)
-        )
-        if not hovering:
-            if self._selected_pixels:
-                self._selected_pixels = []
-                self.grid.get_grid(self._grid_offset, self._selected_pixels)
-
-            return
+        prev_mouse_pixel: Point  # (absolute coordinate)
+        mouse_pixel: Point  # (absolute coordinate)
+        prev_mouse_pixel, mouse_pixel = self._get_pixel_info(mouse_info, keys, brush_size)
 
         if self.grid.transparent_pixel.get_width() != brush_size * 2:
             self.grid.transparent_pixel = pg.transform.scale(
                 self.grid.transparent_pixel, (brush_size * 2, brush_size * 2)
             )
             self.grid.get_grid(self._grid_offset, self._selected_pixels)
-
-        prev_mouse_pixel: Point  # (absolute coordinate)
-        mouse_pixel: Point  # (absolute coordinate)
-        prev_mouse_pixel, mouse_pixel = self._get_pixel_info(mouse_info, keys, brush_size)
 
         prev_selected_pixels: list[Point] = self._selected_pixels
         self._selected_pixels = []
@@ -861,24 +879,27 @@ class GridManager:
         self.grid.get_section_indicator(self._grid_offset)
 
     def upt(
-            self, mouse_info: MouseInfo, keys: list[int], color: ColorType, brush_size: int,
-            tool_info: tuple[str, dict[str, Any]]
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], color: ColorType,
+            brush_size: int, tool_info: tuple[str, dict[str, Any]]
     ) -> None:
         """
         makes the object interactable
-        takes mouse info, keys, color and tool info
+        takes hovered object (can be None), mouse info, keys, color, brush size and tool info
         """
 
-        if not self.grid.grid_rect.collidepoint(mouse_info.xy):
+        if self.grid != hover_obj:
             if self._hovering:
+                self._selected_pixels = []
+                self.grid.get_grid(self._grid_offset, self._selected_pixels)
+
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                 self._hovering = False
         else:
             if not self._hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_CROSSHAIR)
                 self._hovering = True
+            self._draw(mouse_info, keys, color, brush_size, tool_info)
 
-        self._draw(mouse_info, keys, color, brush_size, tool_info)
         self._move(mouse_info)
 
         k_mods: int = pg.key.get_mods()

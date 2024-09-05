@@ -5,7 +5,7 @@ class to manage color palettes, includes a drop-down menu
 import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
-from typing import Final, Optional
+from typing import Final, Optional, Any
 
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
@@ -100,6 +100,28 @@ class PaletteManager:
         for option in self._options:
             option.leave()
 
+    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        hover_obj: Any
+        hover_layer: int
+        hover_obj, hover_layer = self._colors.check_hover(mouse_pos)
+
+        if self._view_drop_down:
+            for option in self._options:
+                current_hover_obj: Any
+                current_hover_layer: int
+                current_hover_obj, current_hover_layer = option.check_hover(mouse_pos)
+                if current_hover_obj and current_hover_layer > hover_layer:
+                    hover_obj = current_hover_obj
+                    hover_layer = current_hover_layer
+
+        return hover_obj, hover_layer
+
     def print_layers(self, name: str, counter: int) -> LayersInfo:
         """
         prints the layers of everything the object has
@@ -118,7 +140,7 @@ class PaletteManager:
     def add(self, color: Optional[ColorType]) -> None:
         """
         adds a color to the palette or edits one
-        takes color
+        takes color (if it's None it sets the changing_color flag off off)
         """
 
         if not color:
@@ -161,12 +183,12 @@ class PaletteManager:
         self._colors.tick_on(0)
 
     def upt(
-            self, mouse_info: MouseInfo, keys: list[int], ctrl: int
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], ctrl: int
     ) -> tuple[ColorType, Optional[ColorType]]:
         """
         makes the object interactable
-        takes mouse info, keys anf ctrl
-        returns the selected color and the color to edit
+        takes hovered object (can be None), mouse info, keys anf ctrl
+        returns the selected color and the color to edit (can be None)
         """
 
         if mouse_info.released[2]:
@@ -195,22 +217,6 @@ class PaletteManager:
         '''
 
         clicked_option: bool = False
-        if self._view_drop_down:
-            if self._options[0].upt(mouse_info):
-                self.changing_color = True
-
-                clicked_option = True
-            if self._options[1].upt(mouse_info):
-                self.values.pop(self._drop_down_i)
-                if not self.values:
-                    self.values = [BLACK]
-                self._colors.remove(
-                    self._drop_down_i, get_color_info(self.values[0]),
-                    self._win_ratio_w, self._win_ratio_h
-                )
-
-                clicked_option = True
-
         if ctrl:
             if pg.K_e in keys:
                 self._drop_down_i = self._colors.clicked_i
@@ -229,10 +235,26 @@ class PaletteManager:
 
                 clicked_option = True
 
+        if self._view_drop_down:
+            if self._options[0].upt(hover_obj, mouse_info):
+                self.changing_color = True
+
+                clicked_option = True
+            if self._options[1].upt(hover_obj, mouse_info):
+                self.values.pop(self._drop_down_i)
+                if not self.values:
+                    self.values = [BLACK]
+                self._colors.remove(
+                    self._drop_down_i, get_color_info(self.values[0]),
+                    self._win_ratio_w, self._win_ratio_h
+                )
+
+                clicked_option = True
+
         if clicked_option:
             self._view_drop_down = False
         else:
-            self._colors.upt(mouse_info, keys)
+            self._colors.upt(hover_obj, mouse_info, keys)
 
         color: ColorType = self.values[self._colors.clicked_i]
         color_to_edit: Optional[ColorType] = None

@@ -7,21 +7,28 @@ from abc import ABC, abstractmethod
 from typing import Optional, Any
 
 from src.classes.text import Text
-from src.utils import Point, RectPos, Size, MouseInfo, LayeredBlitSequence, LayersInfo
-from src.const import BG_LAYER, ELEMENT_LAYER, HOVERING_LAYER
+from src.utils import Point, RectPos, Size, MouseInfo
+from src.type_utils import LayeredBlitSequence, LayerSequence
+from src.const import BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
 
 class Clickable(ABC):
     """
-    abstract class to create and object that changes between two images
+    abstract class to create an object that changes between two images (must be of the same size)
 
-    - includes: base_blit(image index) -> PriorityBlitSequence,
-    handle_resize(window size ratio) -> None
-    - children should include: blit() -> PriorityBlitSequence, upt(mouse info) -> bool
+    includes:
+        base_blit(image index) -> PriorityBlitSequence
+        check_hover(mouse_position) -> tuple[object, layer]
+        leave()
+        handle_resize(window size ratio) -> None
+
+    children should include:
+        blit() -> PriorityBlitSequence
+        upt(mouse info) -> bool
     """
 
     __slots__ = (
-        'init_pos', '_imgs', 'rect', '_init_size', 'hovering', '_layer', '_hoovering_layer',
+        'init_pos', '_imgs', 'rect', '_init_size', '_hovering', '_layer', '_hoovering_layer',
         '_hover_text', '_hover_text_surfaces'
     )
 
@@ -41,10 +48,10 @@ class Clickable(ABC):
 
         self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
 
-        self.hovering: bool = False
+        self._hovering: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
-        self._hoovering_layer: int = base_layer + HOVERING_LAYER
+        self._hoovering_layer: int = base_layer + TOP_LAYER
 
         self._hover_text: Optional[Text] = None
         self._hover_text_surfaces: tuple[pg.SurfaceType, ...] = ()
@@ -55,7 +62,7 @@ class Clickable(ABC):
             it can't be done with other images
             because blitting something would permanently change them
             and it would be noticeable when resized
-            but these surfaces get recalculated every handle_resize
+            but these surfaces get recalculated every handle_resize call
             '''
 
             self._hover_text = Text(RectPos(0.0, 0.0, 'topleft'), hover_text, h=12)
@@ -68,13 +75,13 @@ class Clickable(ABC):
 
     def _base_blit(self, img_i: int) -> LayeredBlitSequence:
         """
-        handles the base blitting behavior, draws the image at a give index
+        handles the base blitting behavior, draws the image at a given index
         takes image index
         returns a sequence to add in the main blit sequence
         """
 
         sequence: LayeredBlitSequence = [(self._imgs[img_i], self.rect.topleft, self._layer)]
-        if self.hovering:
+        if self._hovering:
             mouse_pos: Point = Point(*pg.mouse.get_pos())
             x: int = mouse_pos.x + 15
             y: int = mouse_pos.y
@@ -83,6 +90,24 @@ class Clickable(ABC):
                 y += surf.get_height()
 
         return sequence
+
+    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        hover_obj: Any = self if self.rect.collidepoint(mouse_pos) else None
+
+        return hover_obj, self._layer
+
+    def leave(self) -> None:
+        """
+        clears relevant data when a state is leaved
+        """
+
+        self._hovering = False
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -107,36 +132,18 @@ class Clickable(ABC):
             for target, (surf, _, _) in zip(self._hover_text_surfaces, self._hover_text.blit()):
                 target.blit(surf)
 
-    def leave(self) -> None:
-        """
-        clears everything that needs to be cleared when the object is leaved
-        """
-
-        self.hovering = False
-
-    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
-        '''
-        checks if the mouse is hovering any interactable part of the object
-        takes mouse position
-        returns the object that's being hovered (can be None) and the layer
-        '''
-
-        obj: Any = self if self.rect.collidepoint(mouse_pos) else None
-
-        return obj, self._layer
-
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = [(name, self._layer, counter)]
+        layer_sequence: LayerSequence = [(name, self._layer, counter)]
         if self._hover_text:
-            layers_info += [('hover_text', self._hoovering_layer, counter + 1)]
+            layer_sequence += [('hover text', self._hoovering_layer, counter + 1)]
 
-        return layers_info
+        return layer_sequence
 
     @abstractmethod
     def blit(self) -> LayeredBlitSequence:
@@ -148,7 +155,7 @@ class Clickable(ABC):
     def upt(self, hover_obj: Any, mouse_info: MouseInfo) -> bool:
         """
         should implement a way to make the object interactable
-        takes hovered object (can be None) mouse info
+        takes hovered object (can be None) and mouse info
         returns a boolean related to clicking
         """
 
@@ -200,17 +207,17 @@ class CheckBox(Clickable):
         if self._text:
             self._text.handle_resize(win_ratio_w, win_ratio_h)
 
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = super().print_layers(name, counter)
-        layers_info += self._text.print_layers('text', counter + 1)
+        layer_sequence: LayerSequence = super().print_layers(name, counter)
+        layer_sequence += self._text.print_layers('text', counter + 1)
 
-        return layers_info
+        return layer_sequence
 
     def upt(self, hover_obj: Any, mouse_info: MouseInfo, shortcut: bool = False) -> bool:
         """
@@ -225,15 +232,15 @@ class CheckBox(Clickable):
             return self.ticked_on
 
         if self != hover_obj:
-            if self.hovering:
+            if self._hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self.leave()
+                self._hovering = False
 
             return False
 
-        if not self.hovering:
+        if not self._hovering:
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
-            self.hovering = True
+            self._hovering = True
 
         if mouse_info.released[0]:
             self.ticked_on = not self.ticked_on
@@ -273,7 +280,7 @@ class Button(Clickable):
         returns a sequence to add in the main blit sequence
         """
 
-        sequence: LayeredBlitSequence = self._base_blit(int(self.hovering))
+        sequence: LayeredBlitSequence = self._base_blit(int(self._hovering))
         if self._text:
             sequence += self._text.blit()
 
@@ -289,18 +296,18 @@ class Button(Clickable):
         if self._text:
             self._text.handle_resize(win_ratio_w, win_ratio_h)
 
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
         returns layers info
         """
 
-        layers_info: LayersInfo = super().print_layers(name, counter)
+        layer_sequence: LayerSequence = super().print_layers(name, counter)
         if self._text:
-            layers_info += self._text.print_layers('text', counter + 1)
+            layer_sequence += self._text.print_layers('text', counter + 1)
 
-        return layers_info
+        return layer_sequence
 
     def move_rect(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -311,7 +318,7 @@ class Button(Clickable):
         self.init_pos.x, self.init_pos.y = x / win_ratio_w, y / win_ratio_h
         setattr(self.rect, self.init_pos.coord, (x, y))
         if self._text:
-            self._text.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
+            self._text.move_rects(*self.rect.center, win_ratio_w, win_ratio_h)
 
     def upt(self, hover_obj: Any, mouse_info: MouseInfo) -> bool:
         """
@@ -321,14 +328,14 @@ class Button(Clickable):
         """
 
         if self != hover_obj:
-            if self.hovering:
+            if self._hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self.leave()
+                self._hovering = False
 
             return False
 
-        if not self.hovering:
+        if not self._hovering:
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
-            self.hovering = True
+            self._hovering = True
 
         return mouse_info.released[0]

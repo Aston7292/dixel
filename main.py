@@ -3,6 +3,69 @@ drawing program for pixel art
 """
 
 '''
+INFO:
+
+there are three states, the main interface and 2 extra UI windows
+that can be opened by clicking their respective button
+
+keyboard input:
+    every key that's currently pressed is in a list, accidental spamming is prevented
+    by temporarily clearing this list when a key is held and reverting it back for
+    one frame every 100ms
+
+mouse info:
+    mouse info is contained a dataclass that tracks:
+    position, button states and recently released buttons (for clicking elements)
+
+blitting:
+    every object has a blit method that returns a list with one or more groups of
+    image, position and layer
+    objects with an higher layer will be blitted on top of objects with a lower one
+
+    there are 4 layer types:
+        background: background elements and grid
+        element: UI elements that can be interacted with
+        text: normal text labels
+        top: elements that aren't always present like text on hover or a cursor in an input box
+
+    layers can also be extended into the special group,
+    they will still keep their hierarchy so special top goes on top of special text and so on
+    but every special layer goes on top of any normal one,
+    used for stuff like drop down menus that appear on right click,
+    the UI group extends the special group in a similar way,
+    used for the UI windows of the other states
+
+hover checking:
+    almost every object has a check_hover method that takes the mouse info and
+    returns the object that it's being hovered and its layer,
+    only one object can be hovered at a time,
+    if there's more than one it will be chose the one with the highest layer
+
+leaving a state:
+    almost every object has a leave method that get's called when the state changes
+    and clears relevant data, like the selected pixels of the grid or
+    the hovering flag for clickables, responsible for showing hovering text
+
+window resizing:
+    every object is resized manually through its handle_resize method:
+    blitting everything on a surface, scaling it to match the window size and blitting it
+    removes text anti aliasing and causes 1 pixel offsets on some elements at specific sizes
+    pygame.SCALED doesn't scale position and images
+
+layer debugging:
+    every object has a print_layer method to print the layer of itself and all its sub objects
+    in a nested hierarchy for debugging purposes, if it doesn't have a layer it will print None
+    it takes the name the object should be printed as and the number of tabs it should have
+    a printed element looks like this:
+    button: 1
+        hover text: 3
+        text: 2
+
+interacting with elements:
+    almost every element has an upt method that allows it to be interacted with
+'''
+
+'''
 TODO:
 - open GRID_UI when opening file
 - save current colors along with the image
@@ -63,9 +126,9 @@ from src.classes.grid_manager import GridManager
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
 from src.classes.text import Text
-from src.utils import (
-    Point, RectPos, Size, MouseInfo, ColorType, BlitSequence, LayeredBlitSequence, LayersInfo
-)
+from src.utils import RectPos, Size, MouseInfo, ColorType, check_nested_hover
+from src.type_utils import BlitSequence, LayeredBlitSequence, LayerSequence
+
 from src.const import INIT_WIN_SIZE, BLACK
 
 pg.init()
@@ -237,24 +300,6 @@ class Dixel:
         self._win.fblits(blit_sequence)
         pg.display.flip()
 
-    def _handle_resize(self) -> None:
-        """
-        resizes objects
-        """
-
-        '''
-        blitting everything on a surface, scaling it to match to self._win_size and blitting it
-        removes text anti aliasing and causes 1 pixel offsets on some elements at specific sizes
-        pygame.SCALED doesn't scale position and images
-        all objects have an init_pos and init_size
-        to scale position and image size
-        '''
-
-        win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
-        win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
-        for obj in ALL_OBJS.values():
-            obj.handle_resize(win_ratio_w, win_ratio_h)
-
     def _leave(self) -> None:
         """
         clears everything that needs to be cleared when leaving state 0
@@ -264,6 +309,16 @@ class Dixel:
             if hasattr(obj, 'leave'):
                 obj.leave()
         pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+
+    def _handle_resize(self) -> None:
+        """
+        resizes objects
+        """
+
+        win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
+        win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
+        for obj in ALL_OBJS.values():
+            obj.handle_resize(win_ratio_w, win_ratio_h)
 
     def _handle_keys(self, k: int) -> None:
         """
@@ -358,11 +413,11 @@ class Dixel:
 
         if pg.key.get_mods() & pg.KMOD_ALT:
             if pg.K_l in self._keys:
-                layers_info: LayersInfo = []
+                layer_sequence: LayerSequence = []
                 for name, obj in ALL_OBJS.items():
-                    layers_info += obj.print_layers(name, 0)
+                    layer_sequence += obj.print_layers(name, 0)
 
-                for name, layer, counter in layers_info:
+                for name, layer, counter in layer_sequence:
                     string_layer: str = str(layer) if layer != -1 else 'None'
                     print(f'{'\t' * counter}{name}: {string_layer}')
                 print('-' * 50)
@@ -450,7 +505,7 @@ class Dixel:
         img: Image.Image
         try:
             while True:
-                CLOCK.tick(6000)  # TODO: put at 60
+                CLOCK.tick(60)
 
                 self._handle_events()
                 if not self._focused:
@@ -473,14 +528,13 @@ class Dixel:
 
                         self._hover_obj = None
                         hover_layer: int = 0
-                        for obj in GLOBAL_OBJS:
-                            if hasattr(obj, 'check_hover'):
-                                current_hover_obj: Any
-                                current_hover_layer: int
-                                current_hover_obj, current_hover_layer = obj.check_hover(mouse_pos)
-                                if current_hover_obj and current_hover_layer >= hover_layer:
-                                    self._hover_obj = current_hover_obj
-                                    hover_layer = current_hover_layer
+                        objs: tuple[Any, ...] = tuple(
+                            obj for obj in GLOBAL_OBJS if hasattr(obj, 'check_hover')
+                        )
+
+                        self._hover_obj, hover_layer = check_nested_hover(
+                            mouse_pos, objs, self._hover_obj, hover_layer
+                        )
 
                         brush_size: int = BRUSH_SIZES.upt(
                             self._hover_obj, self._mouse_info, self._keys

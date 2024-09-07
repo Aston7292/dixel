@@ -4,18 +4,35 @@ collections of shared functions, dataclasses and types
 
 import pygame as pg
 from dataclasses import dataclass
+from typing import Iterable, Any
 
-ColorType = tuple[int, ...]
-BlitSequence = list[tuple[pg.SurfaceType, tuple[float, float]]]
-# last element is layer
-LayeredBlitSequence = list[tuple[pg.SurfaceType, tuple[float, float], int]]
-LayersInfo = list[tuple[str, int, int]]  # object name, layer, nesting counter (for nicer printing)
+from src.type_utils import ColorType
+
+
+def check_nested_hover(
+        mouse_pos: tuple[int, int], objs: Iterable[Any], hover_obj: Any, hover_layer: int
+) -> tuple[Any, int]:
+    """
+    checks if the mouse is hovering any object in a list
+    takes mouse position, objects, hovered object (can be None) and its layer
+    returns the hovered object (can be None) and its layer
+    """
+
+    for obj in objs:
+        current_hover_obj: Any
+        current_hover_layer: int
+        current_hover_obj, current_hover_layer = obj.check_hover(mouse_pos)
+        if current_hover_obj and current_hover_layer > hover_layer:
+            hover_obj = current_hover_obj
+            hover_layer = current_hover_layer
+
+    return hover_obj, hover_layer
 
 
 def add_border(img: pg.SurfaceType, color: ColorType) -> pg.SurfaceType:
     """
     adds a colored border to an image
-    takes image
+    takes image and color
     returns image
     """
 
@@ -57,7 +74,7 @@ class Point:
 class RectPos:
     """
     dataclass for representing the position of a rect
-    takes x, y and the value they represent (e.g. topleft)
+    takes x, y and the coordinate they represent (e.g. topleft)
     """
 
     x: float

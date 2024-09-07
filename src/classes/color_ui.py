@@ -9,9 +9,9 @@ from typing import Final, Optional, Any
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, INPUT_BOX
 from src.classes.text import Text
-from src.utils import (
-    Point, RectPos, Size, MouseInfo, ColorType, BlitSequence, LayeredBlitSequence, LayersInfo
-)
+from src.utils import Point, RectPos, Size, MouseInfo, ColorType, check_nested_hover
+from src.type_utils import BlitSequence, LayeredBlitSequence, LayerSequence
+
 from src.const import BG_LAYER, ELEMENT_LAYER
 
 SLIDER_1: Final[pg.SurfaceType] = pg.Surface((10, 35))
@@ -28,7 +28,7 @@ class ScrollBar:
     __slots__ = (
         '_bar_init_pos', '_channel', '_unit_w', '_bar_img', 'bar_rect', '_bar_init_size',
         'value', '_slider_init_pos', '_slider_imgs', '_slider_rect', '_slider_init_size',
-        'slider_img_i', 'hovering', 'scrolling', '_layer', '_channel_text', 'value_input_box'
+        '_slider_img_i', '_hovering', '_scrolling', '_layer', '_channel_text', 'value_input_box'
     )
 
     def __init__(
@@ -36,7 +36,7 @@ class ScrollBar:
     ) -> None:
         """
         creates a bar, a slider and text
-        takes position, the channel the scroll bar uses and starting color
+        takes the position, the channel the scroll bar uses and the starting color
         """
 
         self._bar_init_pos: RectPos = pos
@@ -62,9 +62,9 @@ class ScrollBar:
 
         self._slider_init_size: Size = Size(int(self._slider_rect.w), int(self._slider_rect.h))
 
-        self.slider_img_i: int = 0
-        self.hovering: bool = False
-        self.scrolling: bool = False
+        self._slider_img_i: int = 0
+        self._hovering: bool = False
+        self._scrolling: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
 
@@ -86,12 +86,43 @@ class ScrollBar:
 
         sequence: LayeredBlitSequence = [
             (self._bar_img, self.bar_rect.topleft, self._layer),
-            (self._slider_imgs[self.slider_img_i], self._slider_rect.topleft, self._layer)
+            (self._slider_imgs[self._slider_img_i], self._slider_rect.topleft, self._layer)
         ]
         sequence += self._channel_text.blit()
         sequence += self.value_input_box.blit()
 
         return sequence
+
+    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        hover_obj: Any = None
+        hover_layer: int = 0
+        if self.bar_rect.collidepoint(mouse_pos) or self._slider_rect.collidepoint(mouse_pos):
+            hover_obj = self
+            hover_layer = self._layer
+
+        current_hover_obj: Any
+        current_hover_layer: int
+        current_hover_obj, current_hover_layer = self.value_input_box.check_hover(mouse_pos)
+        if current_hover_obj and current_hover_layer > hover_layer:
+            hover_obj = current_hover_obj
+            hover_layer = current_hover_layer
+
+        return hover_obj, hover_layer
+
+    def leave(self) -> None:
+        """
+        clears relevant data when a state is leaved
+        """
+
+        self._slider_img_i = 0
+        self._hovering = self._scrolling = False
+        self.value_input_box.leave()
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -127,28 +158,19 @@ class ScrollBar:
         self._channel_text.handle_resize(win_ratio_w, win_ratio_h)
         self.value_input_box.handle_resize(win_ratio_w, win_ratio_h)
 
-    def leave(self) -> None:
-        """
-        clears everything that needs to be cleared when the object is leaved
-        """
-
-        self.slider_img_i = 0
-        self.hovering = self.scrolling = False
-        self.value_input_box.leave()
-
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = [(name, -1, counter)]
-        layers_info += [('bar', self._layer, counter + 1), ('slider', self._layer, counter + 1)]
-        layers_info += self._channel_text.print_layers('text', counter + 1)
-        layers_info += self.value_input_box.print_layers('input box', counter + 1)
+        layer_sequence: LayerSequence = [(name, -1, counter)]
+        layer_sequence += [('bar', self._layer, counter + 1), ('slider', self._layer, counter + 1)]
+        layer_sequence += self._channel_text.print_layers('text', counter + 1)
+        layer_sequence += self.value_input_box.print_layers('input box', counter + 1)
 
-        return layers_info
+        return layer_sequence
 
     def get_bar(self, color: ColorType) -> None:
         """
@@ -186,54 +208,50 @@ class ScrollBar:
         self.get_bar(color)
         self.value_input_box.get_cursor_pos()
 
-    def upt(self, mouse_info: MouseInfo, keys: list[int], selection: Any) -> int:
+    def upt(self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], selection: Any) -> int:
         """
-        makes the object interactable
-        takes mouse info, keys and the selection
+        allows to pick a value for a channel in a color with either a scroll bar or an input box
+        takes the hovered object (can be None), mouse info, keys and selection
         returns what was clicked: -1 = nothing, 0 = scroll bar, 1 = input box
         """
 
-        if self.hovering and mouse_info.released[0]:
+        if self == hover_obj and mouse_info.released[0]:
             return 0
 
         clicked: bool
         text: str
         clicked, text = self.value_input_box.upt(
-            mouse_info, keys, (0, 255), selection == self.value_input_box
+            hover_obj, mouse_info, keys, (0, 255), selection == self.value_input_box
         )
 
         if clicked:
             return 1
 
-        hovering: bool = (
-            self.bar_rect.collidepoint(mouse_info.xy) or
-            self._slider_rect.collidepoint(mouse_info.xy)
-        )
-        if not hovering:
-            if self.hovering:
+        if self != hover_obj:
+            if self._hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self.hovering = False
+                self._hovering = False
 
             if not mouse_info.buttons[0]:
-                self.scrolling = False
+                self._scrolling = False
         else:
-            if not self.hovering:
+            if not self._hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
-                self.hovering = True
+                self._hovering = True
 
-            self.scrolling = bool(mouse_info.buttons[0])
+            self._scrolling = bool(mouse_info.buttons[0])
 
-        self.slider_img_i = 0
+        self._slider_img_i = 0
         prev_text: str = self.value_input_box.text.text
 
         value: int
-        if self.scrolling:
+        if self._scrolling:
             value = ceil((mouse_info.x - self.bar_rect.x) / self._unit_w)
             value = max(min(value, 255), 0)
             text = str(value)
 
         if selection == self:
-            self.slider_img_i = 1
+            self._slider_img_i = 1
 
             if keys:
                 value = self.value
@@ -360,20 +378,20 @@ class ColorPicker(UI):
             channel.handle_resize(win_ratio_w, win_ratio_h)
         self._hex_text.handle_resize(win_ratio_w, win_ratio_h)
 
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = super().print_layers(name, counter)
+        layer_sequence: LayerSequence = super().print_layers(name, counter)
         for channel in self._channels:
-            layers_info += channel.print_layers('scroll bar', counter + 1)
-        layers_info += self._hex_text.print_layers('text hex', counter + 1)
-        layers_info += [('preview', self._preview_layer, counter + 1)]
+            layer_sequence += channel.print_layers('scroll bar', counter + 1)
+        layer_sequence += self._hex_text.print_layers('text hex', counter + 1)
+        layer_sequence += [('preview', self._preview_layer, counter + 1)]
 
-        return layers_info
+        return layer_sequence
 
     def set_color(self, color: ColorType) -> None:
         """
@@ -394,10 +412,18 @@ class ColorPicker(UI):
             self, mouse_info: MouseInfo, keys: list[int], ctrl: int
     ) -> tuple[bool, Optional[ColorType]]:
         """
-        makes the object interactable
+        allows to select a color through 3 scroll bars and view it's preview
         takes mouse info, keys and ctrl
         returns whatever the interface was closed or not and the color (can be None)
         """
+
+        hover_obj: Any = None
+        hover_layer: int = 0
+        hover_obj, hover_layer = super().check_hover(mouse_info.xy)
+
+        hover_obj, hover_layer = check_nested_hover(
+            mouse_info.xy, self._channels, hover_obj, hover_layer
+        )
 
         if keys:
             if pg.K_UP in keys:
@@ -418,7 +444,7 @@ class ColorPicker(UI):
         selection: Any = self._objs[self._selection_i.y][self._selection_i.x]
 
         for i, channel in enumerate(self._channels):
-            selection_i: int = channel.upt(mouse_info, keys, selection)
+            selection_i: int = channel.upt(hover_obj, mouse_info, keys, selection)
             if selection_i != -1:
                 self._selection_i.x, self._selection_i.y = selection_i, i
         self._color = tuple(channel.value for channel in self._channels)
@@ -433,7 +459,7 @@ class ColorPicker(UI):
 
         confirmed: bool
         exited: bool
-        confirmed, exited = self._base_upt(mouse_info, keys, ctrl)
+        confirmed, exited = self._base_upt(hover_obj, mouse_info, keys, ctrl)
 
         if confirmed or exited:
             self._selection_i.x = self._selection_i.y = 0

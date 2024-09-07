@@ -3,10 +3,12 @@ class to choose a number in range with an input box
 """
 
 import pygame as pg
+from typing import Any
 
 from src.classes.text import Text
-from src.utils import MouseInfo, RectPos, Size, LayeredBlitSequence, LayersInfo
-from src.const import WHITE, BG_LAYER, ELEMENT_LAYER, HOVERING_LAYER
+from src.utils import MouseInfo, RectPos, Size
+from src.type_utils import LayeredBlitSequence, LayerSequence
+from src.const import WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
 
 class NumInputBox:
@@ -15,7 +17,7 @@ class NumInputBox:
     """
 
     __slots__ = (
-        '_box_init_pos', '_box_img', 'box_rect', '_box_init_size', 'hovering', 'selected',
+        '_box_init_pos', '_box_img', 'box_rect', '_box_init_size', 'hovering', '_selected',
         '_layer', '_hoovering_layer', 'text', 'text_i', '_cursor_img', '_cursor_rect',
         '_cursor_init_size'
     )
@@ -25,7 +27,7 @@ class NumInputBox:
     ) -> None:
         """
         creates the input box and text
-        takes position, image, text and base layer (default = BG_LAYER)
+        takes the position, image, text and base layer (default = BG_LAYER)
         """
 
         self._box_init_pos: RectPos = pos
@@ -38,10 +40,10 @@ class NumInputBox:
         self._box_init_size: Size = Size(int(self.box_rect.w), int(self.box_rect.h))
 
         self.hovering: bool = False
-        self.selected: bool = False
+        self._selected: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
-        self._hoovering_layer: int = base_layer + HOVERING_LAYER
+        self._hoovering_layer: int = base_layer + TOP_LAYER
 
         self.text = Text(RectPos(*self.box_rect.center, 'center'), text, base_layer)
         self.text_i: int = 0
@@ -61,10 +63,29 @@ class NumInputBox:
 
         sequence: LayeredBlitSequence = [(self._box_img, self.box_rect.topleft, self._layer)]
         sequence += self.text.blit()
-        if self.selected:
+        if self._selected:
             sequence += [(self._cursor_img, self._cursor_rect.topleft, self._hoovering_layer)]
 
         return sequence
+
+    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        hover_obj: Any = self if self.box_rect.collidepoint(mouse_pos) else None
+
+        return hover_obj, self._layer
+
+    def leave(self) -> None:
+        """
+        clears relevant data when a state is leaved
+        """
+
+        self.hovering = self._selected = False
+        self.text_i = 0
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -92,52 +113,45 @@ class NumInputBox:
         self._cursor_img = pg.transform.scale(self._cursor_img, cursor_size)
         self.get_cursor_pos()
 
-    def leave(self) -> None:
-        """
-        clears everything that needs to be cleared when the object is leaved
-        """
-
-        self.hovering = self.selected = False
-        self.text_i = 0
-
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = [(name, self._layer, counter)]
-        layers_info += [('cursor', self._hoovering_layer, counter + 1)]
-        layers_info += self.text.print_layers('text', counter + 1)
+        layer_sequence: LayerSequence = [(name, self._layer, counter)]
+        layer_sequence += [('cursor', self._hoovering_layer, counter + 1)]
+        layer_sequence += self.text.print_layers('text', counter + 1)
 
-        return layers_info
+        return layer_sequence
 
     def get_cursor_pos(self) -> None:
         """
-        gets cursor position based on text index
+        gets the cursor position based on text index
         """
 
         self._cursor_rect.x = self.text.get_pos_at(self.text_i)
         self._cursor_rect.y = self.text.rect.y
 
     def upt(
-            self, mouse_info: MouseInfo, keys: list[int], limits: tuple[int, int], selected: bool
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], limits: tuple[int, int],
+            selected: bool
     ) -> tuple[bool, str]:
         """
-        makes the object interactable
-        takes mouse info, keys, limits and selected bool
+        allows typing numbers, moving the cursor and deleting a character
+        takes hovered object (can be None), mouse info, keys, limits and selected bool
         returns whatever the input box was clicked or not and the text
         """
 
         '''
-        text object isn't updated here because it can be also changed by other classes
+        the text object isn't updated here because it can be also changed by other classes
         that use the NumInputBox
         '''
 
         text: str = self.text.text
 
-        if not self.box_rect.collidepoint(mouse_info.xy):
+        if self != hover_obj:
             if self.hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                 self.hovering = False
@@ -152,8 +166,8 @@ class NumInputBox:
 
                 return True, text
 
-        self.selected = selected
-        if self.selected and keys:
+        self._selected = selected
+        if self._selected and keys:
             prev_text_i: int = self.text_i
             if pg.K_LEFT in keys:
                 self.text_i = max(self.text_i - 1, 0)

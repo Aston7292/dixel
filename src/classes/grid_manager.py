@@ -7,9 +7,9 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import Final, Optional, Any
 
-from src.utils import (
-    Point, Size, RectPos, MouseInfo, ColorType, BlitSequence, LayeredBlitSequence, LayersInfo
-)
+from src.utils import Point, Size, RectPos, MouseInfo, ColorType
+from src.type_utils import BlitSequence, LayeredBlitSequence, LayerSequence
+
 from src.const import WHITE, EMPTY_1, EMPTY_2, BG_LAYER
 
 TRANSPARENT: Final[ColorType] = (120, 120, 120, 125)
@@ -17,7 +17,7 @@ TRANSPARENT: Final[ColorType] = (120, 120, 120, 125)
 
 class Grid:
     """
-    class to create a grid of pixels it's minimap
+    class to create a grid of pixels and it's minimap
     """
 
     __slots__ = (
@@ -111,6 +111,22 @@ class Grid:
 
         return sequence
 
+    def check_hover(
+            self, mouse_pos: tuple[int, int], prev_mouse_pos: tuple[int, int]
+    ) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position and previous mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        hover_obj: Any = None
+        # make drawing possible even 1 frame after the grid was left
+        if self.grid_rect.collidepoint(mouse_pos) or self.grid_rect.collidepoint(prev_mouse_pos):
+            hover_obj = self
+
+        return hover_obj, self._layer
+
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
         resizes objects
@@ -152,35 +168,19 @@ class Grid:
             **{self._minimap_init_pos.coord: self._minimap_pos}
         )
 
-    def check_hover(
-            self, mouse_pos: tuple[int, int], prev_mouse_pos: tuple[int, int]
-    ) -> tuple[Any, int]:
-        '''
-        checks if the mouse is hovering any interactable part of the object
-        takes mouse position and previous mouse position
-        returns the object that's being hovered (can be None) and the layer
-        '''
-
-        obj: Any = None
-        # drawing is possible even 1 frame later the grid was left
-        if self.grid_rect.collidepoint(mouse_pos) or self.grid_rect.collidepoint(prev_mouse_pos):
-            obj = self
-
-        return obj, self._layer
-
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = [
+        layer_sequence: LayerSequence = [
             (name, self._layer, counter),
             ('minimap', self._layer, counter)
         ]
 
-        return layers_info
+        return layer_sequence
 
     def get_section_indicator(self, offset: Point) -> None:
         """
@@ -443,6 +443,7 @@ class Grid:
     def reset(self, selected_pixels: list[Point]) -> None:
         """
         resets visible area and offset
+        takes selected pixels
         """
 
         self.grid_visible_area.w = self.grid_visible_area.h = self._grid_init_visible_area
@@ -489,25 +490,6 @@ class GridManager:
 
         return sequence
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
-        """
-        resizes objects
-        takes window size ratio
-        """
-
-        self.grid.handle_resize(win_ratio_w, win_ratio_h)
-
-    def leave(self) -> None:
-        """
-        clears everything that needs to be cleared when the object is leaved
-        """
-
-        self._selected_pixels = []
-        self._hovering = False
-        self._traveled_dist.x = self._traveled_dist.y = 0
-
-        self.grid.get_grid(self._grid_offset, self._selected_pixels)
-
     def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
         '''
         checks if the mouse is hovering any interactable part of the object
@@ -521,22 +503,41 @@ class GridManager:
 
         return hover_obj, hover_layer
 
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def leave(self) -> None:
+        """
+        clears relevant data when a state is leaved
+        """
+
+        self._selected_pixels = []
+        self._hovering = False
+        self._traveled_dist.x = self._traveled_dist.y = 0
+
+        self.grid.get_grid(self._grid_offset, self._selected_pixels)
+
+    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+        """
+        resizes objects
+        takes window size ratio
+        """
+
+        self.grid.handle_resize(win_ratio_w, win_ratio_h)
+
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = [(name, -1, counter)]
-        layers_info += self.grid.print_layers('grid', counter + 1)
+        layer_sequence: LayerSequence = [(name, -1, counter)]
+        layer_sequence += self.grid.print_layers('grid', counter + 1)
 
-        return layers_info
+        return layer_sequence
 
     def load_path(self, file_path: str) -> None:
         """
         loads an image from a path and renders it into the grid
-        takes path if it's empty it creates an empty grid
+        takes path, if it's empty it creates an empty grid
         """
 
         self._grid_offset.x = self._grid_offset.y = 0
@@ -729,8 +730,8 @@ class GridManager:
         takes mouse_info, keys, color, brush size and tool info
         """
 
-        prev_mouse_pixel: Point  # (absolute coordinate)
-        mouse_pixel: Point  # (absolute coordinate)
+        prev_mouse_pixel: Point  # absolute coordinate
+        mouse_pixel: Point  # absolute coordinate
         prev_mouse_pixel, mouse_pixel = self._get_pixel_info(mouse_info, keys, brush_size)
 
         if self.grid.transparent_pixel.get_width() != brush_size * 2:
@@ -883,7 +884,7 @@ class GridManager:
             brush_size: int, tool_info: tuple[str, dict[str, Any]]
     ) -> None:
         """
-        makes the object interactable
+        allows drawing, moving and zooming
         takes hovered object (can be None), mouse info, keys, color, brush size and tool info
         """
 

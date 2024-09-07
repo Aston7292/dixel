@@ -1,5 +1,5 @@
 """
-interface to modify the grid
+interface to modify the grid's size
 """
 
 import pygame as pg
@@ -11,9 +11,9 @@ from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, CHECK_BOX_1, CHECK_BOX_2, INPUT_BOX
 from src.classes.clickable import CheckBox
 from src.classes.text import Text
-from src.utils import (
-    RectPos, Size, MouseInfo, ColorType, BlitSequence, LayeredBlitSequence, LayersInfo
-)
+from src.utils import RectPos, Size, MouseInfo, ColorType, check_nested_hover
+from src.type_utils import BlitSequence, LayeredBlitSequence, LayerSequence
+
 from src.const import EMPTY_1, EMPTY_2, BG_LAYER, ELEMENT_LAYER
 
 MAX_SIZE: Final[int] = 256
@@ -21,17 +21,17 @@ MAX_SIZE: Final[int] = 256
 
 class NumSlider:
     """
-    class that allows the user to pick a number in a predefined range either via mouse or keyboard
+    class that allows the user to pick a number in a predefined range either by sliding or typing
     """
 
     __slots__ = (
-        'value', 'value_input_box', 'rect', 'traveled_x', 'sliding', '_prev_mouse_x', '_add_text'
+        'value', 'value_input_box', 'rect', '_traveled_x', '_sliding', '_prev_mouse_x', '_add_text'
     )
 
     def __init__(self, pos: RectPos, value: int, text: str, base_layer: int = BG_LAYER) -> None:
         """
         creates the slider and text
-        takes position, starting value and text
+        takes position, starting value, text and base layer (default = BG_LAYER)
         """
 
         self.value: int = value
@@ -41,8 +41,8 @@ class NumSlider:
 
         self.rect: pg.FRect = self.value_input_box.box_rect
 
-        self.traveled_x: int = 0
-        self.sliding: bool = False
+        self._traveled_x: int = 0
+        self._sliding: bool = False
 
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
 
@@ -60,6 +60,28 @@ class NumSlider:
 
         return sequence
 
+    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+        '''
+        checks if the mouse is hovering any interactable part of the object
+        takes mouse position
+        returns the object that's being hovered (can be None) and the layer
+        '''
+
+        hover_obj: Any
+        hover_layer: int
+        hover_obj, hover_layer = self.value_input_box.check_hover(mouse_pos)
+
+        return hover_obj, hover_layer
+
+    def leave(self) -> None:
+        """
+        clears relevant data when a state is leaved
+        """
+
+        self._sliding = False
+        self._traveled_x = 0
+        self.value_input_box.leave()
+
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
         resizes objects
@@ -69,27 +91,18 @@ class NumSlider:
         self.value_input_box.handle_resize(win_ratio_w, win_ratio_h)
         self._add_text.handle_resize(win_ratio_w, win_ratio_h)
 
-    def leave(self) -> None:
-        """
-        clears everything that needs to be cleared when the object is leaved
-        """
-
-        self.sliding = False
-        self.traveled_x = 0
-        self.value_input_box.leave()
-
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = [('slider', -1, counter)]
-        layers_info += self.value_input_box.print_layers('input box', counter + 1)
-        layers_info += self._add_text.print_layers('text', counter + 1)
+        layer_sequence: LayerSequence = [('slider', -1, counter)]
+        layer_sequence += self.value_input_box.print_layers('input box', counter + 1)
+        layer_sequence += self._add_text.print_layers('text', counter + 1)
 
-        return layers_info
+        return layer_sequence
 
     def set_value(self, value: int) -> None:
         """
@@ -97,17 +110,19 @@ class NumSlider:
         takes value
         """
 
-        self.traveled_x = 0
+        self._traveled_x = 0
         self.value = value
         self.value_input_box.text.set_text(str(self.value))
         self.value_input_box.text_i = 0
 
         self.value_input_box.get_cursor_pos()
 
-    def upt(self, mouse_info: MouseInfo, keys: list[int], selection: 'NumSlider') -> bool:
+    def upt(
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], selection: 'NumSlider'
+    ) -> bool:
         """
-        makes the object interactable
-        takes mouse info, keys and selection
+        allows to select a color either by scrolling or typing
+        takes hovered object (can be None), mouse info, keys and selection
         returns whatever the slider was clicked or not
         """
 
@@ -116,7 +131,7 @@ class NumSlider:
         clicked: bool
         text: str
         clicked, text = self.value_input_box.upt(
-            mouse_info, keys, (1, MAX_SIZE), selection == self
+            hover_obj, mouse_info, keys, (1, MAX_SIZE), selection == self
         )
 
         if clicked:
@@ -124,20 +139,20 @@ class NumSlider:
 
         if not self.value_input_box.hovering:
             if not mouse_info.buttons[0]:
-                self.sliding = False
-                self.traveled_x = 0
+                self._sliding = False
+                self._traveled_x = 0
         else:
             if not mouse_info.buttons[0]:
-                self.sliding = False
-                self.traveled_x = 0
+                self._sliding = False
+                self._traveled_x = 0
             else:
-                self.sliding = True
+                self._sliding = True
 
-        if self.sliding:
-            self.traveled_x += mouse_info.x - self._prev_mouse_x
-            if abs(self.traveled_x) >= 10:
-                pixels_traveled: int = round(self.traveled_x / 10)
-                self.traveled_x -= pixels_traveled * 10
+        if self._sliding:
+            self._traveled_x += mouse_info.x - self._prev_mouse_x
+            if abs(self._traveled_x) >= 10:
+                pixels_traveled: int = round(self._traveled_x / 10)
+                self._traveled_x -= pixels_traveled * 10
 
                 value: int = max(min(self.value + pixels_traveled, MAX_SIZE), 1)
                 text = str(value)
@@ -154,7 +169,8 @@ class NumSlider:
 
 class GridUI(UI):
     """
-    class to create an interface that allows the user to modify the grid, includes preview,
+    class to create an interface that allows the user to modify the grid's size trough 2 sliders,
+    includes preview
     """
 
     __slots__ = (
@@ -262,20 +278,20 @@ class GridUI(UI):
         self._h_slider.handle_resize(win_ratio_w, win_ratio_h)
         self._check_box.handle_resize(win_ratio_w, win_ratio_h)
 
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = super().print_layers(name, counter)
-        layers_info += self._w_slider.print_layers('slider', counter + 1)
-        layers_info += self._h_slider.print_layers('slider', counter + 1)
-        layers_info += self._check_box.print_layers('checkbox', counter + 1)
-        layers_info += [('preview', self._preview_layer, counter + 1)]
+        layer_sequence: LayerSequence = super().print_layers(name, counter)
+        layer_sequence += self._w_slider.print_layers('slider', counter + 1)
+        layer_sequence += self._h_slider.print_layers('slider', counter + 1)
+        layer_sequence += self._check_box.print_layers('checkbox', counter + 1)
+        layer_sequence += [('preview', self._preview_layer, counter + 1)]
 
-        return layers_info
+        return layer_sequence
 
     def set_size(self, size: Size, pixels: NDArray[np.uint8]) -> None:
         """
@@ -347,10 +363,19 @@ class GridUI(UI):
             self, mouse_info: MouseInfo, keys: list[int], ctrl: int
     ) -> tuple[bool, Optional[Size]]:
         """
-        makes the object interactable
+        allows to select a grid size through 2 sliders and view it's preview
         takes mouse info, keys and ctrl
         returns whatever the interface was closed or not and the size (can be None)
         """
+
+        hover_obj: Any = None
+        hover_layer: int = 0
+        objs: tuple[Any, ...] = (self._w_slider, self._h_slider, self._check_box)
+        hover_obj, hover_layer = super().check_hover(mouse_info.xy)
+
+        hover_obj, hover_layer = check_nested_hover(
+            mouse_info.xy, objs, hover_obj, hover_layer
+        )
 
         if keys:
             if pg.K_UP in keys:
@@ -361,9 +386,9 @@ class GridUI(UI):
         prev_grid_size: Size = Size(self._w_slider.value, self._h_slider.value)
         selection: Any = (self._w_slider, self._h_slider)[self._selection_i]
 
-        if self._w_slider.upt(mouse_info, keys, selection):
+        if self._w_slider.upt(hover_obj, mouse_info, keys, selection):
             self._selection_i = 0
-        if self._h_slider.upt(mouse_info, keys, selection):
+        if self._h_slider.upt(hover_obj, mouse_info, keys, selection):
             self._selection_i = 1
 
         grid_size: Size = Size(self._w_slider.value, self._h_slider.value)
@@ -389,12 +414,12 @@ class GridUI(UI):
 
             self._get_preview(grid_size)
 
-        if self._check_box.upt(mouse_info, bool(ctrl and pg.K_k in keys)):
+        if self._check_box.upt(hover_obj, mouse_info, bool(ctrl and pg.K_k in keys)):
             self._values_ratio = (grid_size.h / grid_size.w, grid_size.w / grid_size.h)
 
         confirmed: bool
         exited: bool
-        confirmed, exited = self._base_upt(mouse_info, keys, ctrl)
+        confirmed, exited = self._base_upt(hover_obj, mouse_info, keys, ctrl)
 
         if confirmed or exited:
             self._selection_i = 0

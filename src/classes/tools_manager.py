@@ -9,7 +9,8 @@ from typing import Final, Any
 from src.classes.ui import CHECK_BOX_1, CHECK_BOX_2
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import CheckBox
-from src.utils import RectPos, MouseInfo, LayeredBlitSequence, LayersInfo
+from src.utils import RectPos, MouseInfo, check_nested_hover
+from src.type_utils import LayeredBlitSequence, LayerSequence
 
 PENCIL: Final[pg.SurfaceType] = pg.image.load(
     path.join('sprites', 'pencil_tool.png')
@@ -27,8 +28,7 @@ all tools have:
     - format to send it to the grid
 
 extra ui elements need:
-    blit(), handle_resize(window size ratio), leave(), check_hover(mouse info), upt()
-    rect
+    blit(), check_hover(mouse info), leave(), handle_resize(window size ratio), upt(), rect
 '''
 
 TOOLS_INFO: dict[str, dict[str, Any]] = {
@@ -120,26 +120,6 @@ class ToolsManager:
 
         return sequence
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
-        """
-        resizes objects
-        takes window size ratio
-        """
-
-        self._tools.handle_resize(win_ratio_w, win_ratio_h)
-        for tool_info in self._extra_info:
-            for info in tool_info:
-                info['obj'].handle_resize(win_ratio_w, win_ratio_h)
-
-    def leave(self) -> None:
-        """
-        clears everything that needs to be cleared when the object is leaved
-        """
-
-        self._tools.leave()
-        for info in self._extra_info[self._tools.clicked_i]:
-            info['obj'].leave()
-
     def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
         '''
         checks if the mouse is hovering any interactable part of the object
@@ -151,37 +131,54 @@ class ToolsManager:
         hover_layer: int
         hover_obj, hover_layer = self._tools.check_hover(mouse_pos)
 
-        for info in self._extra_info[self._tools.clicked_i]:
-            current_hover_obj: Any
-            current_hover_layer: int
-            current_hover_obj, current_hover_layer = info['obj'].check_hover(mouse_pos)
-            if current_hover_obj and current_hover_layer > hover_layer:
-                hover_obj = current_hover_obj
-                hover_layer = current_hover_layer
+        extra_info = self._extra_info[self._tools.clicked_i]
+        hover_obj, hover_layer = check_nested_hover(
+            mouse_pos, (info['obj'] for info in extra_info), hover_obj, hover_layer
+        )
 
         return hover_obj, hover_layer
 
-    def print_layers(self, name: str, counter: int) -> LayersInfo:
+    def leave(self) -> None:
+        """
+        clears relevant data when a state is leaved
+        """
+
+        self._tools.leave()
+        for info in self._extra_info[self._tools.clicked_i]:
+            info['obj'].leave()
+
+    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+        """
+        resizes objects
+        takes window size ratio
+        """
+
+        self._tools.handle_resize(win_ratio_w, win_ratio_h)
+        for tool_info in self._extra_info:
+            for info in tool_info:
+                info['obj'].handle_resize(win_ratio_w, win_ratio_h)
+
+    def print_layers(self, name: str, counter: int) -> LayerSequence:
         """
         prints the layers of everything the object has
         takes name and nesting counter
-        returns layers info
+        returns a sequence to add in the main layer sequence
         """
 
-        layers_info: LayersInfo = [(name, -1, counter)]
-        layers_info += self._tools.print_layers('tools', counter + 1)
-        layers_info += [('extra options', -1, counter + 1)]
+        layer_sequence: LayerSequence = [(name, -1, counter)]
+        layer_sequence += self._tools.print_layers('tools', counter + 1)
+        layer_sequence += [('extra options', -1, counter + 1)]
         for tool_info in self._extra_info:
             for info in tool_info:
-                layers_info += info['obj'].print_layers('option', counter + 2)
+                layer_sequence += info['obj'].print_layers('option', counter + 2)
 
-        return layers_info
+        return layer_sequence
 
     def upt(
             self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int]
     ) -> tuple[str, dict[str, Any]]:
         """
-        makes the object interactable
+        allows to select a tool and it's extra options
         takes hovered object (can be None), mouse info and keys
         returns the tool name and sub options state
         """

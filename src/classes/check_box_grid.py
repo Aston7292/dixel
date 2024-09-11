@@ -1,19 +1,19 @@
 """
-classes to create a locked checkbox or a grid of connected checkboxes
+Classes to create a locked checkbox or a grid of connected checkboxes
 """
 
 import pygame as pg
 from typing import Any
 
 from src.classes.clickable import Clickable
-from src.utils import RectPos, Size, MouseInfo, add_border, check_nested_hover  # TODO: use it
-from src.type_utils import LayeredBlitSequence, LayerSequence
-from src.const import WHITE, BG_LAYER
+from src.utils import RectPos, Size, MouseInfo, add_border
+from src.type_utils import ObjsInfo, LayeredBlitSequence, LayerSequence
+from src.consts import WHITE, BG_LAYER
 
 
 class LockedCheckBox(Clickable):
     """
-    class to create a checkbox, when hovered changes image and displays text,
+    Class to create a checkbox, when hovered changes image and displays text,
     when ticked on it will display the hovering image, cannot be ticked off
     """
 
@@ -26,8 +26,9 @@ class LockedCheckBox(Clickable):
             base_layer: int = BG_LAYER
     ) -> None:
         """
-        creates the checkbox and text
-        takes position, two images, hover text and base layer (default = BG_LAYER)
+        Creates the checkbox
+        Args:
+            position, two images, hover text, base layer (default = BG_LAYER)
         """
 
         super().__init__(pos, imgs, hover_text, base_layer)
@@ -36,18 +37,19 @@ class LockedCheckBox(Clickable):
 
     def blit(self) -> LayeredBlitSequence:
         """
-        returns two sequences to add in the main blit sequence,
+        Returns:
+            sequence to add in the main blit sequence
         """
 
         img_i: int = 1 if self.ticked_on else int(self._hovering)
-        sequence: LayeredBlitSequence = self._base_blit(img_i)
 
-        return sequence
+        return self._base_blit(img_i)
 
     def set_info(self, imgs: tuple[pg.SurfaceType, pg.SurfaceType], text: str) -> None:
         """
-        sets images and text
-        takes images and text
+        Sets images and text
+        Args:
+            two images, text
         """
 
         self._imgs = imgs
@@ -62,9 +64,11 @@ class LockedCheckBox(Clickable):
 
     def upt(self, hover_obj: Any, mouse_info: MouseInfo) -> bool:
         """
-        updates the checkbox image if the mouse is hovering it and ticks it on if clicked
-        takes hovered object (can be None) and mouse info
-        returns True if the checkbox was ticked on
+        Changes the checkbox image if the mouse is hovering it and ticks it on if clicked
+        Args:
+            hovered object (can be None), mouse info
+        Returns:
+            True if the checkbox was ticked on else False
         """
 
         if self != hover_obj:
@@ -88,12 +92,12 @@ class LockedCheckBox(Clickable):
 
 class CheckBoxGrid:
     """
-    class to create a grid of checkboxes with n rows (images must be of the same size)
+    Class to create a grid of checkboxes with n columns (images must be of the same size)
     """
 
     __slots__ = (
-        'init_pos', 'current_x', 'current_y', '_cols', '_increment', '_inverted_axes',
-        'check_boxes', 'clicked_i', '_rect', '_layer'
+        'init_pos', 'current_x', 'current_y', '_cols', '_increment', '_layer',
+        'check_boxes', 'clicked_i', '_rect', 'sub_objs'
     )
 
     def __init__(
@@ -101,12 +105,13 @@ class CheckBoxGrid:
             inverted_axes: tuple[bool, bool], base_layer: int = BG_LAYER
     ) -> None:
         """
-        creates all the checkboxes
-        takes position, check boxes info, number of columns, the inverted axes
-        and base layer (default = BG_LAYER)
+        Creates all the checkboxes
+        Args:
+            position, checkboxes image and text, columns, inverted axes,
+            base layer (default = BG_LAYER)
         """
 
-        #  current_x and current_y don't change during resize
+        #  Current x and y don't change during window resize
         self.init_pos: RectPos = pos
         self.current_x: float = self.init_pos.x
         self.current_y: float = self.init_pos.y
@@ -114,11 +119,12 @@ class CheckBoxGrid:
         self._cols: int = cols
 
         self._increment: Size = Size(info[0][0].get_width() + 10, info[0][0].get_height() + 10)
-        self._inverted_axes: tuple[bool, bool] = inverted_axes
-        if self._inverted_axes[0]:
+        if inverted_axes[0]:
             self._increment.w *= -1
-        if self._inverted_axes[1]:
+        if inverted_axes[1]:
             self._increment.h *= -1
+
+        self._layer: int = base_layer
 
         self.check_boxes: list[LockedCheckBox] = []
         for i, element in enumerate(info):
@@ -140,56 +146,27 @@ class CheckBoxGrid:
         h: float = max(rect.bottom for rect in rects) - top
         self._rect: pg.FRect = pg.FRect(left, top, w, h)
 
-        self._layer: int = base_layer
+        self.sub_objs: ObjsInfo = [
+            (f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
+        ]
 
         self.tick_on(self.clicked_i)
 
-    def blit(self) -> LayeredBlitSequence:
-        """
-        returns a sequence to add in the main blit sequence
-        """
-
-        sequence: LayeredBlitSequence = []
-        for check_box in self.check_boxes:
-            sequence += check_box.blit()
-
-        return sequence
-
     def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
-        '''
-        checks if the mouse is hovering any interactable part of the object
-        takes mouse position
-        returns the object that's being hovered (can be None) and the layer
-        '''
-
-        hover_obj: Any = None
-        hover_layer: int = 0
-        if self._rect.collidepoint(mouse_pos):
-            hover_obj = self
-            hover_layer = self._layer
-
-        hover_obj, hover_layer = check_nested_hover(
-            mouse_pos, self.check_boxes, hover_obj, hover_layer
-        )
-
-        return hover_obj, hover_layer
-
-    def leave(self) -> None:
         """
-        clears relevant data when a state is leaved
+        Checks if the mouse is hovering any interactable part of the object
+        Args:
+            mouse position
+        Returns:
+            hovered object (can be None), hovered object's layer
         """
 
-        for check_box in self.check_boxes:
-            check_box.leave()
+        return self if self._rect.collidepoint(mouse_pos) else None, self._layer
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+    def post_resize(self) -> None:
         """
-        resizes objects
-        takes window size ratio
+        Handles post resizing behavior
         """
-
-        for check_box in self.check_boxes:
-            check_box.handle_resize(win_ratio_w, win_ratio_h)
 
         rects: tuple[pg.FRect, ...] = tuple(check_box.rect for check_box in self.check_boxes)
         left: float = min(rect.left for rect in rects)
@@ -198,27 +175,26 @@ class CheckBoxGrid:
         h: float = max(rect.bottom for rect in rects) - top
         self._rect = pg.FRect(left, top, w, h)
 
-    def print_layers(self, name: str, counter: int) -> LayerSequence:
+    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
         """
-        prints the layers of everything the object has
-        takes name and nesting counter
-        returns a sequence to add in the main layer sequence
+        Args:
+            name, depth counter
+        Returns:
+            sequence to add in the main layer sequence
         """
 
-        layer_sequence: LayerSequence = [(name, self._layer, counter)]
-        for check_box in self.check_boxes:
-            layer_sequence += check_box.print_layers('checkbox', counter + 1)
+        return [(name, self._layer, depth_counter)]
 
-        return layer_sequence
-
-    def tick_on(self, index: int) -> None:
+    def tick_on(self, clicked_i: int) -> None:
         """
-        ticks on a specific checkbox
+        Ticks on a specific checkbox
+        Args:
+            index
         """
 
         if self.clicked_i < len(self.check_boxes):
             self.check_boxes[self.clicked_i].ticked_on = False
-        self.clicked_i = index
+        self.clicked_i = clicked_i
         self.check_boxes[self.clicked_i].ticked_on = True
 
     def insert(
@@ -226,8 +202,9 @@ class CheckBoxGrid:
             win_ratio_w: float, win_ratio_h: float
     ) -> None:
         """
-        inserts a checkbox at an index
-        takes insert index (appends if -1), check box info, window size ratio
+        Inserts a checkbox at an index
+        Args:
+            index (appends if -1), checkbox info, window width ratio, window height ratio
         """
 
         if insert_i != -1:
@@ -253,13 +230,18 @@ class CheckBoxGrid:
         h: float = max(rect.bottom for rect in rects) - top
         self._rect = pg.FRect(left, top, w, h)
 
+        self.sub_objs = [
+            (f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
+        ]
+
     def remove(
             self, remove_i: int, fallback: tuple[pg.SurfaceType, str],
             win_ratio_w: float, win_ratio_h: float
     ) -> None:
         """
-        removes a checkbox from the grid
-        takes remove index, fallback info and window size ratio
+        Removes a checkbox at an index
+        Args:
+            index, fallback image and text, window width ratio, window height ratio
         """
 
         check_box: LockedCheckBox = self.check_boxes.pop(remove_i)
@@ -284,7 +266,7 @@ class CheckBoxGrid:
                 (fallback[0], add_border(fallback[0], WHITE)), fallback[1]
             )
             check_box.handle_resize(win_ratio_w, win_ratio_h)
-            self.check_boxes = [check_box]
+            self.check_boxes.append(check_box)
 
             self.current_x, self.current_y = self.init_pos.x + self._increment.w, self.init_pos.y
 
@@ -301,11 +283,17 @@ class CheckBoxGrid:
         h: float = max(rect.bottom for rect in rects) - top
         self._rect = pg.FRect(left, top, w, h)
 
+        self.sub_objs = [
+            (f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
+        ]
+
     def upt(self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int]) -> int:
         """
-        allows to tick on only one check_box at a time
-        takes hovered object (can be None), mouse info and keys
-        returns the index of the active checkbox
+        Allows ticking on only one check_box at a time
+        Args:
+            hovered object (can be None), mouse info, keys
+        Returns
+            index of the active checkbox
         """
 
         if (self == hover_obj or hover_obj in self.check_boxes) and keys:
@@ -315,11 +303,11 @@ class CheckBoxGrid:
             add_1: int
             sub_cols: int
             add_cols: int
-            if not self._inverted_axes[0]:
+            if self._increment.w > 0:
                 sub_1, add_1 = pg.K_LEFT, pg.K_RIGHT
             else:
                 sub_1, add_1 = pg.K_RIGHT, pg.K_LEFT
-            if not self._inverted_axes[1]:
+            if self._increment.h > 0:
                 sub_cols, add_cols = pg.K_UP, pg.K_DOWN
             else:
                 sub_cols, add_cols = pg.K_DOWN, pg.K_UP

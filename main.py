@@ -1,73 +1,85 @@
 """
-drawing program for pixel art
+Drawing program for pixel art
 """
 
 '''
 INFO:
 
-there are three states, the main interface and 2 extra UI windows
+There are three states, the main interface and 2 extra UI windows
 that can be opened by clicking their respective button
 
-keyboard input:
-    every key that's currently pressed is in a list, accidental spamming is prevented
+Keyboard input:
+    Every key that's currently pressed is in a list, accidental spamming is prevented
     by temporarily clearing this list when a key is held and reverting it back for
     one frame every 100ms
 
-mouse info:
-    mouse info is contained a dataclass that tracks:
-    position, button states and recently released buttons (for clicking elements)
+Mouse info:
+    Mouse info is contained in a dataclass that tracks:
+    x and y position, button states and recently released buttons (for clicking elements)
 
-blitting:
-    every object has a blit method that returns a list with one or more groups of
-    image, position and layer
+Sub objects:
+    Objects may have sub objects, they're retrieved at the start of each frame and
+    automatically used in the methods below
+
+Blitting:
+    The blit method returns a list with one or more groups of image, position and layer
     objects with an higher layer will be blitted on top of objects with a lower one
 
-    there are 4 layer types:
+    There are 4 layer types:
         background: background elements and grid
         element: UI elements that can be interacted with
         text: normal text labels
         top: elements that aren't always present like text on hover or a cursor in an input box
 
-    layers can also be extended into the special group,
+    Layers can also be extended into the special group,
     they will still keep their hierarchy so special top goes on top of special text and so on
     but every special layer goes on top of any normal one,
-    used for stuff like drop down menus that appear on right click,
-    the UI group extends the special group in a similar way,
-    used for the UI windows of the other states
+    it's used for stuff like drop down menus that appear on right click
+    The UI group extends the special group in a similar way,
+    used for the UI windows of other states
 
-hover checking:
-    almost every object has a check_hover method that takes the mouse info and
+Hover checking:
+    The check_hover method takes the mouse info and
     returns the object that it's being hovered and its layer,
     only one object can be hovered at a time,
     if there's more than one it will be chose the one with the highest layer
 
-leaving a state:
-    almost every object has a leave method that get's called when the state changes
-    and clears relevant data, like the selected pixels of the grid or
+Leaving a state:
+    The leave method get's called when the state changes
+    and clears all the relevant data, like the selected pixels of the grid or
     the hovering flag for clickables, responsible for showing hovering text
 
-window resizing:
-    every object is resized manually through its handle_resize method:
+Window resizing:
+    The handle_resize method scales position and image manually because
     blitting everything on a surface, scaling it to match the window size and blitting it
-    removes text anti aliasing and causes 1 pixel offsets on some elements at specific sizes
+    removes text anti aliasing and causes 1 pixel offsets on some elements at specific sizes and
     pygame.SCALED doesn't scale position and images
 
-layer debugging:
-    every object has a print_layer method to print the layer of itself and all its sub objects
-    in a nested hierarchy for debugging purposes, if it doesn't have a layer it will print None
-    it takes the name the object should be printed as and the number of tabs it should have
-    a printed element looks like this:
-    button: 1
-        hover text: 3
-        text: 2
+Layer debugging:
+    The print_layer method returns the object name, its layer and its depth in the hierarchy
+    The name and layer of an object are printed in a nested hierarchy,
+    if an object doesn't have a layer it will print None
 
-interacting with elements:
-    almost every element has an upt method that allows it to be interacted with
+    A printed element looks like this:
+    brush sizes: 0
+        checkbox 0: 1
+                hover text: 3
+        checkbox 1: 1
+                hover text: 3
+        checkbox 2: 1
+                hover text: 3
+        checkbox 3: 1
+                hover text: 3
+        checkbox 4: 1
+                hover text: 3
+
+Interacting with elements:
+    Interaction is possible with the upt method
 '''
 
 '''
 TODO:
-- open GRID_UI when opening file
+- open GRID_RESIZER when opening file
 - save current colors along with the image
 - slider is faster when moving the mouse faster
 - consistent text_i across different NumInputBox
@@ -79,12 +91,12 @@ TODO:
 - COLOR_PICKER:
     - hex_text as NumInputBox
 
-- GRID_UI:
+- GRID_RESIZER:
     - add option to resize in order to fit image
     - option to change visible_area?
     - move image before resizing?
     - change mouse sprite when using a slider?
-    - if check box is on, the current slider text is empty and the opp_slider value is 1
+    - if checkbox is on, the current slider text is empty and the opp_slider value is 1
     the opp_slider text should be empty
 
 - TOOLS_MANAGER:
@@ -103,13 +115,13 @@ optimizations:
     - general:
         - scale large images with Pillow
         - use pygame.surfarray.blit_array instead of nested for loops and fblits
-    - GRID_UI: get_preview
-    - GRID_MANAGER: update_section (precalculate section indicator?)
+    - GRID_RESIZER: get_preview
+    - GRID_MANAGER: update_section (precalculate section_indicator?)
 
 debug:
     - togglable debug mode
     - view next checkbox position in CheckBoxGrid
-    - view grid, minimap and GRID_UI preview info
+    - view grid, minimap and GRID_RESIZER preview info
     - view hover_text for Clickable
     - view text_i for NumInputBox
 '''
@@ -126,10 +138,10 @@ from src.classes.grid_manager import GridManager
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo, ColorType, check_nested_hover
-from src.type_utils import BlitSequence, LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, Size, MouseInfo, ColorType
+from src.type_utils import ObjsInfo, BlitSequence, LayeredBlitSequence, LayerSequence
 
-from src.const import INIT_WIN_SIZE, BLACK
+from src.consts import INIT_WIN_SIZE, BLACK
 
 pg.init()
 
@@ -140,8 +152,8 @@ INIT_WIN: Final[pg.SurfaceType] = pg.display.set_mode(
 pg.display.set_caption('Dixel')
 pg.display.set_icon(pg.image.load(path.join('sprites', 'icon.png')).convert_alpha())
 
-# they load images at the start which require pygame to be already initialized
-from src.classes.grid_ui import GridUI
+# These files load images at the start which require pygame to be already initialized
+from src.classes.grid_ui import GridResizer
 from src.classes.color_ui import ColorPicker
 from src.classes.ui import BUTTON_M_OFF, BUTTON_M_ON
 from src.classes.tools_manager import ToolsManager
@@ -202,28 +214,33 @@ COLOR_PICKER: Final[ColorPicker] = ColorPicker(
     RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'), PALETTE_MANAGER.values[0]
 )
 
-GRID_UI: Final[GridUI] = GridUI(
+GRID_RESIZER: Final[GridResizer] = GridResizer(
     RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'), GRID_MANAGER.grid.grid_size
 )
 
-GLOBAL_OBJS: Final[tuple[Any, ...]] = (
-    ADD_COLOR, MODIFY_GRID, SAVE_AS, OPEN, CLOSE, GRID_MANAGER, BRUSH_SIZES, PALETTE_MANAGER,
-    TOOLS_MANAGER, FPS_TEXT
+OBJS_INFO: Final[tuple[ObjsInfo, ...]] = (  # Grouped by state
+    [
+        ('add color', ADD_COLOR),
+        ('modify grid', MODIFY_GRID),
+        ('save as', SAVE_AS),
+        ('open', OPEN),
+        ('close', CLOSE),
+        ('grid manager', GRID_MANAGER),
+        ('brush sizes', BRUSH_SIZES),
+        ('palette manager', PALETTE_MANAGER),
+        ('tools manager', TOOLS_MANAGER),
+        ('fps text', FPS_TEXT)
+    ],
+    [
+        ('color ui', COLOR_PICKER),
+    ],
+    [
+        ('grid ui', GRID_RESIZER),
+    ]
 )
-ALL_OBJS: Final[dict[str, Any]] = {  # mainly for debug
-    'button add color': ADD_COLOR,
-    'button modify grid': MODIFY_GRID,
-    'button save': SAVE_AS,
-    'button open': OPEN,
-    'button close': CLOSE,
-    'grid manager': GRID_MANAGER,
-    'checkbox_grid brush sizes': BRUSH_SIZES,
-    'palette manager': PALETTE_MANAGER,
-    'tools manager': TOOLS_MANAGER,
-    'ui pick color': COLOR_PICKER,
-    'ui modify grid': GRID_UI,
-    'text fps': FPS_TEXT
-}
+OBJS: Final[tuple[tuple[Any, ...], ...]] = tuple(
+    tuple(obj for _, obj in state) for state in OBJS_INFO
+)
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
 pg.time.set_timer(FPS_UPT, 1_000)
@@ -232,17 +249,18 @@ CLOCK: Final[pg.Clock] = pg.time.Clock()
 
 class Dixel:
     """
-    drawing program for pixel art
+    Drawing program for pixel art
     """
 
     __slots__ = (
         '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win', '_mouse_info',
-        '_saved_keys', '_keys', '_last_k_input', '_ctrl', '_hover_obj', '_state', '_file_path'
+        '_saved_keys', '_keys', '_last_k_input', '_ctrl', '_hover_obj', '_state', '_objs',
+        '_file_path',
     )
 
     def __init__(self) -> None:
         """
-        initializes the window
+        Initializes the window
         """
 
         self._win_size: Size = Size(INIT_WIN_SIZE.w, INIT_WIN_SIZE.h)
@@ -263,7 +281,15 @@ class Dixel:
         self._ctrl: int = 0
 
         self._hover_obj: Any = None
-        self._state: str = 'main_interface'
+
+        '''
+        0 = main interface
+        1 = color ui
+        2 = grid ui
+        '''
+        self._state: int = 0
+
+        self._objs: list[list[Any]] = []
 
         self._file_path: str = ''
         if path.exists('data.txt'):
@@ -273,58 +299,71 @@ class Dixel:
             if path.exists(file_path):
                 self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
-                PALETTE_MANAGER.load_path(GRID_MANAGER.grid.pixels)
+                PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
 
     def _draw(self) -> None:
         """
-        draws objects on the screen
+        Draws objects on the screen
         """
 
         self._win.fill(BLACK)
 
         layered_blit_sequence: LayeredBlitSequence = []
 
-        for obj in GLOBAL_OBJS:
-            layered_blit_sequence += obj.blit()
+        objs: list[Any] = self._objs[0].copy()
+        if self._state:
+            objs += self._objs[self._state]
 
-        match self._state:
-            case 'color_ui':
-                layered_blit_sequence += COLOR_PICKER.blit()
-            case 'grid_ui':
-                layered_blit_sequence += GRID_UI.blit()
+        for obj in objs:
+            if hasattr(obj, 'blit'):
+                layered_blit_sequence += obj.blit()
 
         layer_i: int = 2
         layered_blit_sequence.sort(key=lambda info: info[layer_i])  # type: ignore
-        blit_sequence: BlitSequence = [(pair[0], pair[1]) for pair in layered_blit_sequence]
+        blit_sequence: BlitSequence = [(surf, pos) for surf, pos, _ in layered_blit_sequence]
 
         self._win.fblits(blit_sequence)
         pg.display.flip()
 
-    def _leave(self) -> None:
+    def _leave(self, state: int) -> None:
         """
-        clears everything that needs to be cleared when leaving state 0
+        Clears all the relevant data when leaving a state
+        Args:
+            state
         """
 
-        for obj in GLOBAL_OBJS:
+        for obj in self._objs[state]:
             if hasattr(obj, 'leave'):
                 obj.leave()
+
         pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
     def _handle_resize(self) -> None:
         """
-        resizes objects
+        Resizes objects
         """
 
         win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
         win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
-        for obj in ALL_OBJS.values():
-            obj.handle_resize(win_ratio_w, win_ratio_h)
+
+        post_resizes: list[Any] = []
+        for state in self._objs:
+            for obj in state:
+                if hasattr(obj, 'handle_resize'):
+                    obj.handle_resize(win_ratio_w, win_ratio_h)
+                if hasattr(obj, 'post_resize'):
+                    post_resizes.append(obj)
+
+        for obj in post_resizes:
+            obj.post_resize()
 
     def _handle_keys(self, k: int) -> None:
         """
-        handles keyboard inputs
-        takes k
-        raises KeyboardInterrupt when esc is pressed
+        Handles keyboard inputs
+        Args:
+            key
+        Raises:
+            KeyboardInterrupt when esc is pressed
         """
 
         self._saved_keys.append(k)
@@ -345,7 +384,11 @@ class Dixel:
             self._full_screen = not self._full_screen
 
             if not self._full_screen:
-                # exiting full screen triggers VIDEORESIZE so self._handle_resize is not necessary
+                '''
+                Exiting full screen triggers the VIDEORESIZE event
+                so the handle_resize method is not necessary
+                '''
+
                 self._win_size.w, self._win_size.h = self._prev_win_size
                 self._flag = pg.RESIZABLE
                 self._win = pg.display.set_mode(self._win_size.wh, self._flag | ADD_FLAGS)
@@ -358,8 +401,9 @@ class Dixel:
 
     def _handle_events(self) -> None:
         """
-        handles events,
-        raises KeyboardInterrupt when window is closed
+        Handles events
+        Raises:
+            KeyboardInterrupt when window is closed
         """
 
         zoom_amount: int = 0
@@ -408,46 +452,66 @@ class Dixel:
 
     def _handle_debugging(self) -> None:
         """
-        handles everything related to debugging
+        Handles everything related to debugging
         """
 
         if pg.key.get_mods() & pg.KMOD_ALT:
             if pg.K_l in self._keys:
-                layer_sequence: LayerSequence = []
-                for name, obj in ALL_OBJS.items():
-                    layer_sequence += obj.print_layers(name, 0)
+                sequence: LayerSequence = []
+                info: list[tuple[str, Any, int]] = [
+                    (name, obj, 0) for state in OBJS_INFO for name, obj in state
+                ]
+                info = info[::-1]  # Info is added to the sequence from last to first
 
-                for name, layer, counter in layer_sequence:
+                while info:
+                    name: str
+                    obj: Any
+                    depth_counter: int
+                    name, obj, depth_counter = info.pop()
+
+                    if hasattr(obj, 'print_layer'):
+                        sequence += obj.print_layer(name, depth_counter)
+                    if hasattr(obj, 'sub_objs'):
+                        sub_info: list[tuple[str, Any, int]] = [
+                            (name, sub_obj, depth_counter + 1) for name, sub_obj in obj.sub_objs
+                        ]
+                        info += sub_info[::-1]
+
+                for name, layer, depth_counter in sequence:
                     string_layer: str = str(layer) if layer != -1 else 'None'
-                    print(f'{'\t' * counter}{name}: {string_layer}')
+                    print(f'{'\t' * depth_counter}{name}: {string_layer}')
                 print('-' * 50)
 
     def _handle_open_ui_buttons(self) -> None:
         """
-        handles the buttons that open uis
+        Handles the buttons that open uis
         """
 
         ctrl_a: bool = bool(self._ctrl and pg.K_a in self._keys)
         if ADD_COLOR.upt(self._hover_obj, self._mouse_info) or ctrl_a:
-            self._state = 'color_ui'
+            self._state = 1
             COLOR_PICKER.set_color(BLACK)
 
         ctrl_m: bool = bool(self._ctrl and pg.K_m in self._keys)
         if MODIFY_GRID.upt(self._hover_obj, self._mouse_info) or ctrl_m:
-            self._state = 'grid_ui'
-            GRID_UI.set_size(GRID_MANAGER.grid.grid_size, GRID_MANAGER.grid.pixels)
+            self._state = 2
+            GRID_RESIZER.set_size(GRID_MANAGER.grid.grid_size, GRID_MANAGER.grid.pixels)
 
     def _handle_file_buttons(self) -> None:
         """
-        handles the save as, open and close buttons
+        Handles the save as, open and close buttons
         """
 
         root: Tk
         file_path: str
         img: Image.Image
         if SAVE_AS.upt(self._hover_obj, self._mouse_info) or (self._ctrl and pg.K_s in self._keys):
-            self._leave()
-            self._draw()  # applies self._leave changes immediately since root stops the execution
+            self._leave(self._state)
+            '''
+            Applies the leave method changes immediately
+            because the tkinter window stops the execution
+            '''
+            self._draw()
 
             root = Tk()
             root.withdraw()
@@ -468,8 +532,13 @@ class Dixel:
             if self._file_path:
                 img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
                 img.save(self._file_path)
-            self._leave()
-            self._draw()  # applies self._leave changes immediately since root stops the execution
+
+            self._leave(self._state)
+            '''
+            Applies the leave method changes immediately
+            because the tkinter window stops the execution
+            '''
+            self._draw()
 
             root = Tk()
             root.withdraw()
@@ -482,36 +551,39 @@ class Dixel:
             root.destroy()
 
             if file_path:
-                self._leave()
+                self._leave(self._state)
                 self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
-                PALETTE_MANAGER.load_path(GRID_MANAGER.grid.pixels)
+                PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
 
         ctrl_q: bool = bool(self._ctrl and pg.K_q in self._keys)
         if (CLOSE.upt(self._hover_obj, self._mouse_info) or ctrl_q) and self._file_path:
             img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
             img.save(self._file_path)
-            self._leave()
+            self._leave(self._state)
 
             self._file_path = ''
             GRID_MANAGER.load_path(self._file_path)
-            PALETTE_MANAGER.load_path(GRID_MANAGER.grid.pixels)
+            PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
 
     def run(self) -> None:
         """
-        game loop
+        Game loop
         """
 
         img: Image.Image
         try:
             while True:
-                CLOCK.tick(60)
+                CLOCK.tick(6000)  # TODO: put back at 60
 
                 self._handle_events()
                 if not self._focused:
                     continue
 
-                # when mouse is off the window it's position is (0, 0), it can cause wrong hovering
+                '''
+                When the mouse is off the window it's x and y positions are 0,
+                it can cause wrong hovering
+                '''
                 mouse_pos: tuple[int, int] = (
                     pg.mouse.get_pos() if pg.mouse.get_focused() else (-1, -1)
                 )
@@ -519,23 +591,30 @@ class Dixel:
                     *mouse_pos, pg.mouse.get_pressed(), pg.mouse.get_just_released()
                 )
 
-                self._handle_debugging()
+                self._objs = []
+                for state in OBJS:
+                    state_objs = list(state)
+                    for obj in state_objs:
+                        if hasattr(obj, 'sub_objs'):
+                            state_objs += [obj for _, obj in obj.sub_objs]
+
+                    self._objs.append(state_objs)
+
+                self._hover_obj = None
+                hover_layer: int = 0
+                for obj in self._objs[self._state]:
+                    if hasattr(obj, 'check_hover'):
+                        current_hover_obj: Any
+                        current_hover_layer: int
+                        current_hover_obj, current_hover_layer = obj.check_hover(mouse_pos)
+                        if current_hover_obj and current_hover_layer >= hover_layer:
+                            self._hover_obj = current_hover_obj
+                            hover_layer = current_hover_layer
 
                 closed: bool
+                prev_state: int = self._state
                 match self._state:
-                    case 'main_interface':
-                        prev_state: str = self._state
-
-                        self._hover_obj = None
-                        hover_layer: int = 0
-                        objs: tuple[Any, ...] = tuple(
-                            obj for obj in GLOBAL_OBJS if hasattr(obj, 'check_hover')
-                        )
-
-                        self._hover_obj, hover_layer = check_nested_hover(
-                            mouse_pos, objs, self._hover_obj, hover_layer
-                        )
-
+                    case 0:
                         brush_size: int = BRUSH_SIZES.upt(
                             self._hover_obj, self._mouse_info, self._keys
                         ) + 1
@@ -546,7 +625,7 @@ class Dixel:
                             self._hover_obj, self._mouse_info, self._keys, self._ctrl
                         )
                         if color_to_edit:
-                            self._state = 'color_ui'
+                            self._state = 1
                             COLOR_PICKER.set_color(color_to_edit)
 
                         tool_info: tuple[str, dict[str, Any]] = TOOLS_MANAGER.upt(
@@ -561,31 +640,33 @@ class Dixel:
                         self._handle_open_ui_buttons()
                         self._handle_file_buttons()
 
-                        if self._ctrl:  # independent shortcuts
-                            # check if keys 1 trough max brush size are pressed
+                        if self._ctrl:  # Independent shortcuts
+                            # Check if keys from 1 to max brush size are pressed
                             for i in range(len(BRUSH_SIZES.check_boxes)):
                                 if pg.K_1 + i in self._keys:
                                     BRUSH_SIZES.tick_on(i)
-
-                        if self._state != prev_state:
-                            self._leave()
-                    case 'color_ui':
+                    case 1:
                         chose_color: Optional[ColorType]
                         closed, chose_color = COLOR_PICKER.upt(
-                            self._mouse_info, self._keys, self._ctrl
+                            self._hover_obj, self._mouse_info, self._keys, self._ctrl
                         )
                         if closed:
                             PALETTE_MANAGER.add(chose_color)
-                            self._state = 'main_interface'
-                    case 'grid_ui':
+                            self._state = 0
+                    case 2:
                         size: Optional[Size]
-                        closed, size = GRID_UI.upt(self._mouse_info, self._keys, self._ctrl)
+                        closed, size = GRID_RESIZER.upt(
+                            self._hover_obj, self._mouse_info, self._keys, self._ctrl
+                        )
                         if closed:
                             GRID_MANAGER.resize(size)
-                            self._state = 'main_interface'
+                            self._state = 0
+
+                if self._state != prev_state:
+                    self._leave(prev_state)
+                self._handle_debugging()
 
                 self._draw()
-
         except KeyboardInterrupt:
             if self._file_path:
                 img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
@@ -595,11 +676,11 @@ class Dixel:
 
         except Exception:  # pylint: disable=broad-exception-caught
             if not self._file_path:
-                counter: int = 0
+                duplicate_counter: int = 0
                 name: str = 'new_file.png'
                 while path.exists(name):
-                    counter += 1
-                    name = f'new_file_{counter}.png'
+                    duplicate_counter += 1
+                    name = f'new_file_{duplicate_counter}.png'
                 self._file_path = name
 
             img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')

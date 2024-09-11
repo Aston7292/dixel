@@ -1,5 +1,5 @@
 """
-interface to modify the grid's size
+Interface to modify the grid's size
 """
 
 import pygame as pg
@@ -11,27 +11,29 @@ from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, CHECK_BOX_1, CHECK_BOX_2, INPUT_BOX
 from src.classes.clickable import CheckBox
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo, ColorType, check_nested_hover
-from src.type_utils import BlitSequence, LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, Size, MouseInfo, ColorType
+from src.type_utils import ObjsInfo, BlitSequence, LayeredBlitSequence, LayerSequence
 
-from src.const import EMPTY_1, EMPTY_2, BG_LAYER, ELEMENT_LAYER
+from src.consts import EMPTY_1, EMPTY_2, BG_LAYER, ELEMENT_LAYER
 
 MAX_SIZE: Final[int] = 256
 
 
 class NumSlider:
     """
-    class that allows the user to pick a number in a predefined range either by sliding or typing
+    Class that allows picking a number in a predefined range either by sliding or typing
     """
 
     __slots__ = (
-        'value', 'value_input_box', 'rect', '_traveled_x', '_sliding', '_prev_mouse_x', '_add_text'
+        'value', 'value_input_box', 'rect', '_traveled_x', '_sliding', '_prev_mouse_x',
+        '_add_text', 'sub_objs'
     )
 
     def __init__(self, pos: RectPos, value: int, text: str, base_layer: int = BG_LAYER) -> None:
         """
-        creates the slider and text
-        takes position, starting value, text and base layer (default = BG_LAYER)
+        Creates the slider and text
+        Args:
+            position, value, text, base layer (default = BG_LAYER)
         """
 
         self.value: int = value
@@ -39,7 +41,7 @@ class NumSlider:
             pos, INPUT_BOX, str(self.value), base_layer
         )
 
-        self.rect: pg.FRect = self.value_input_box.box_rect
+        self.rect: pg.FRect = self.value_input_box.box_rect  # Shortcut
 
         self._traveled_x: int = 0
         self._sliding: bool = False
@@ -50,80 +52,49 @@ class NumSlider:
             RectPos(self.rect.x - 10.0, self.rect.centery, 'midright'), text, base_layer
         )
 
-    def blit(self) -> LayeredBlitSequence:
-        """
-        returns a sequence to add in the main blit sequence
-        """
-
-        sequence: LayeredBlitSequence = self.value_input_box.blit()
-        sequence += self._add_text.blit()
-
-        return sequence
-
-    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
-        '''
-        checks if the mouse is hovering any interactable part of the object
-        takes mouse position
-        returns the object that's being hovered (can be None) and the layer
-        '''
-
-        hover_obj: Any
-        hover_layer: int
-        hover_obj, hover_layer = self.value_input_box.check_hover(mouse_pos)
-
-        return hover_obj, hover_layer
+        self.sub_objs: ObjsInfo = [
+            ('input box', self.value_input_box),
+            ('additional text', self._add_text)
+        ]
 
     def leave(self) -> None:
         """
-        clears relevant data when a state is leaved
+        Clears all the relevant data when a state is leaved
         """
 
         self._sliding = False
         self._traveled_x = 0
-        self.value_input_box.leave()
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
         """
-        resizes objects
-        takes window size ratio
-        """
-
-        self.value_input_box.handle_resize(win_ratio_w, win_ratio_h)
-        self._add_text.handle_resize(win_ratio_w, win_ratio_h)
-
-    def print_layers(self, name: str, counter: int) -> LayerSequence:
-        """
-        prints the layers of everything the object has
-        takes name and nesting counter
-        returns a sequence to add in the main layer sequence
+        Args:
+            name, depth counter
+        Returns:
+            sequence to add in the main layer sequence
         """
 
-        layer_sequence: LayerSequence = [('slider', -1, counter)]
-        layer_sequence += self.value_input_box.print_layers('input box', counter + 1)
-        layer_sequence += self._add_text.print_layers('text', counter + 1)
-
-        return layer_sequence
+        return [('slider', -1, depth_counter)]
 
     def set_value(self, value: int) -> None:
         """
-        sets the slider on a specific value
-        takes value
+        Sets the slider on a specific value
+        Args:
+            value
         """
 
         self._traveled_x = 0
         self.value = value
-        self.value_input_box.text.set_text(str(self.value))
-        self.value_input_box.text_i = 0
-
-        self.value_input_box.get_cursor_pos()
+        self.value_input_box.set_text(str(self.value), 0)
 
     def upt(
             self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], selection: 'NumSlider'
     ) -> bool:
         """
-        allows to select a color either by scrolling or typing
-        takes hovered object (can be None), mouse info, keys and selection
-        returns whatever the slider was clicked or not
+        Allows to select a color either by sliding or typing
+        Args:
+            hovered object (can be None), mouse info, keys, selection
+        Returns:
+            True if the slider was clicked else False
         """
 
         prev_text: str = self.value_input_box.text.text
@@ -159,17 +130,16 @@ class NumSlider:
 
         if text != prev_text:
             self.value = int(text) if text else 1
-            self.value_input_box.text.set_text(text)
-            self.value_input_box.get_cursor_pos()
+            self.value_input_box.set_text(text)
 
         self._prev_mouse_x = mouse_info.x
 
         return False
 
 
-class GridUI(UI):
+class GridResizer(UI):
     """
-    class to create an interface that allows the user to modify the grid's size trough 2 sliders,
+    Class to create an interface that allows modifying the grid's size with 2 sliders,
     includes preview
     """
 
@@ -181,16 +151,19 @@ class GridUI(UI):
 
     def __init__(self, pos: RectPos, grid_size: Size) -> None:
         """
-        initializes the interface
-        takes position and starting grid size
+        Initializes the interface
+        Args:
+            position, grid size
         """
 
-        #  preview pixel_dim is a float to represent the full size more accurately when resizing
+        '''
+        Preview pixel dimension is a float to represent the full size more accurately when resizing
+        '''
 
         super().__init__(pos, 'MODIFY GRID')
 
         self._preview_init_pos: RectPos = RectPos(
-            self._ui_rect.centerx, self._ui_rect.centery + 40.0, 'center'
+            self._rect.centerx, self._rect.centery + 40.0, 'center'
         )
         self._preview_pos: tuple[float, float] = self._preview_init_pos.xy
 
@@ -225,9 +198,14 @@ class GridUI(UI):
             (CHECK_BOX_1, CHECK_BOX_2), 'keep ratio', '(CTRL+K)', self._base_layer
         )
 
-        self._min_win_ratio: float = 1.0  # keeps the pixels as squares
+        self._min_win_ratio: float = 1.0  # Keeps the pixels as squares
+        self.sub_objs += [
+            ('width slider', self._w_slider),
+            ('height slider', self._h_slider),
+            ('checkbox', self._check_box)
+        ]
 
-        # having a version where 1 grid pixel = 1 pixel is better for scaling
+        # Having a version where 1 grid pixel = 1 pixel is better for scaling
         self._small_preview_img: pg.SurfaceType = pg.Surface(
             (self._w_slider.value * 2, self._h_slider.value * 2)
         )
@@ -235,21 +213,27 @@ class GridUI(UI):
 
     def blit(self) -> LayeredBlitSequence:
         """
-        returns a sequence to add in the main blit sequence
+        Returns:
+            sequence to add in the main blit sequence
         """
 
         sequence: LayeredBlitSequence = super().blit()
-        sequence += self._w_slider.blit()
-        sequence += self._h_slider.blit()
-        sequence += self._check_box.blit()
-        sequence += [(self._preview_img, self._preview_rect.topleft, self._preview_layer)]
+        sequence.append((self._preview_img, self._preview_rect.topleft, self._preview_layer))
 
         return sequence
 
+    def leave(self) -> None:
+        """
+        Clears all the relevant data when a state is leaved
+        """
+
+        self._selection_i = 0
+
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        resizes objects
-        takes window size
+        Resizes objects
+        Args:
+            window width ratio, window height ratio
         """
 
         self._min_win_ratio = min(win_ratio_w, win_ratio_h)
@@ -274,29 +258,24 @@ class GridUI(UI):
             **{self._preview_init_pos.coord: self._preview_pos}
         )
 
-        self._w_slider.handle_resize(win_ratio_w, win_ratio_h)
-        self._h_slider.handle_resize(win_ratio_w, win_ratio_h)
-        self._check_box.handle_resize(win_ratio_w, win_ratio_h)
-
-    def print_layers(self, name: str, counter: int) -> LayerSequence:
+    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
         """
-        prints the layers of everything the object has
-        takes name and nesting counter
-        returns a sequence to add in the main layer sequence
+        Args:
+            name, depth counter
+        Returns:
+            sequence to add in the main layer sequence
         """
 
-        layer_sequence: LayerSequence = super().print_layers(name, counter)
-        layer_sequence += self._w_slider.print_layers('slider', counter + 1)
-        layer_sequence += self._h_slider.print_layers('slider', counter + 1)
-        layer_sequence += self._check_box.print_layers('checkbox', counter + 1)
-        layer_sequence += [('preview', self._preview_layer, counter + 1)]
+        sequence: LayerSequence = super().print_layer(name, depth_counter)
+        sequence.append(('preview', self._preview_layer, depth_counter + 1))
 
-        return layer_sequence
+        return sequence
 
     def set_size(self, size: Size, pixels: NDArray[np.uint8]) -> None:
         """
-        sets the ui on a specific size
-        takes size and grid pixels
+        Sets the ui on a specific size
+        Args:
+            size, grid pixels
         """
 
         self._w_slider.set_value(size.w)
@@ -308,8 +287,9 @@ class GridUI(UI):
 
     def _get_preview(self, grid_size: Size) -> None:
         """
-        draws a preview of the grid
-        takes grid size
+        Draws a preview of the grid
+        Args:
+            grid size
         """
 
         self._small_preview_img = pg.Surface((grid_size.w * 2, grid_size.h * 2))
@@ -360,22 +340,15 @@ class GridUI(UI):
         )
 
     def upt(
-            self, mouse_info: MouseInfo, keys: list[int], ctrl: int
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], ctrl: int
     ) -> tuple[bool, Optional[Size]]:
         """
-        allows to select a grid size through 2 sliders and view it's preview
-        takes mouse info, keys and ctrl
-        returns whatever the interface was closed or not and the size (can be None)
+        Allows selecting a grid size with 2 sliders and view it's preview
+        Args:
+            hovered object (can be None), mouse info, keys, ctrl
+        Returns:
+            True if the interface was closed else False, size (can be None)
         """
-
-        hover_obj: Any = None
-        hover_layer: int = 0
-        objs: tuple[Any, ...] = (self._w_slider, self._h_slider, self._check_box)
-        hover_obj, hover_layer = super().check_hover(mouse_info.xy)
-
-        hover_obj, hover_layer = check_nested_hover(
-            mouse_info.xy, objs, hover_obj, hover_layer
-        )
 
         if keys:
             if pg.K_UP in keys:
@@ -404,12 +377,7 @@ class GridUI(UI):
                     opp_slider = self._w_slider
 
                 opp_slider.value = value
-                opp_slider.value_input_box.text.set_text(str(opp_slider.value))
-                opp_slider.value_input_box.text_i = min(
-                    opp_slider.value_input_box.text_i, len(opp_slider.value_input_box.text.text)
-                )
-
-                opp_slider.value_input_box.get_cursor_pos()
+                opp_slider.value_input_box.set_text(str(opp_slider.value))
                 grid_size.w, grid_size.h = self._w_slider.value, self._h_slider.value
 
             self._get_preview(grid_size)
@@ -420,11 +388,5 @@ class GridUI(UI):
         confirmed: bool
         exited: bool
         confirmed, exited = self._base_upt(hover_obj, mouse_info, keys, ctrl)
-
-        if confirmed or exited:
-            self._selection_i = 0
-            for slider in (self._w_slider, self._h_slider):
-                slider.leave()
-            self._check_box.leave()
 
         return confirmed or exited, grid_size if confirmed else None

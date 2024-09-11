@@ -1,5 +1,5 @@
 """
-constants shared between files
+Constants shared between files
 """
 
 from typing import Final
@@ -18,5 +18,5 @@ BG_LAYER: Final[int] = 0
 ELEMENT_LAYER: Final[int] = 1
 TEXT_LAYER: Final[int] = 2
 TOP_LAYER: Final[int] = 3
-SPECIAL_LAYER: Final[int] = 4  # base for special layers
-UI_LAYER: Final[int] = SPECIAL_LAYER * 2  # base for ui layers
+SPECIAL_LAYER: Final[int] = 4  # Base for the special layers
+UI_LAYER: Final[int] = SPECIAL_LAYER * 2  # Base for the ui layers

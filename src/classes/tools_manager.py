@@ -1,5 +1,5 @@
 """
-class to manage drawing tools
+Class to manage drawing tools
 """
 
 import pygame as pg
@@ -9,8 +9,9 @@ from typing import Final, Any
 from src.classes.ui import CHECK_BOX_1, CHECK_BOX_2
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import CheckBox
-from src.utils import RectPos, MouseInfo, check_nested_hover
-from src.type_utils import LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, MouseInfo
+from src.type_utils import ObjsInfo, LayerSequence
+from src.consts import SPECIAL_LAYER
 
 PENCIL: Final[pg.SurfaceType] = pg.image.load(
     path.join('sprites', 'pencil_tool.png')
@@ -18,7 +19,7 @@ PENCIL: Final[pg.SurfaceType] = pg.image.load(
 BUCKET: Final[pg.SurfaceType] = PENCIL.copy()
 
 '''
-all tools have:
+All tools have:
 - name
 - base info (image and text)
 - info for extra ui elements with:
@@ -27,8 +28,11 @@ all tools have:
     - arguments to pass in the upt method
     - format to send it to the grid
 
-extra ui elements need:
-    blit(), check_hover(mouse info), leave(), handle_resize(window size ratio), upt(), rect
+Extra ui elements need:
+    - a position argument as first in the constructor
+    - a base_layer argument in the constructor
+    - an upt method
+    - a rect attribute
 '''
 
 TOOLS_INFO: dict[str, dict[str, Any]] = {
@@ -63,17 +67,18 @@ TOOLS_INFO: dict[str, dict[str, Any]] = {
 
 class ToolsManager:
     """
-    class to manage drawing tools
+    Class to manage drawing tools
     """
 
     __slots__ = (
-        '_names', '_tools', '_extra_info'
+        '_names', '_tools', '_extra_info', '_init_sub_objs', 'sub_objs'
     )
 
     def __init__(self, pos: RectPos) -> None:
         """
-        creates a grid of options and sub options
-        takes position
+        Creates the grid of options and sub options
+        Args:
+            position
         """
 
         self._names: tuple[str, ...] = tuple(TOOLS_INFO.keys())
@@ -100,7 +105,8 @@ class ToolsManager:
                 obj_info: dict[str, Any] = tool_info[i]
 
                 obj: Any = obj_info['type'](
-                    RectPos(current_x, current_y, 'bottomleft'), *obj_info['init_args']
+                    RectPos(current_x, current_y, 'bottomleft'), *obj_info['init_args'],
+                    base_layer=SPECIAL_LAYER
                 )
                 current_x += obj.rect.w + 20.0
                 obj_info['obj'] = obj
@@ -109,78 +115,31 @@ class ToolsManager:
                 objs_info.append(obj_info)
             self._extra_info.append(objs_info)
 
-    def blit(self) -> LayeredBlitSequence:
+        self._init_sub_objs: ObjsInfo = [
+            ('tools', self._tools)
+        ]
+        # Sub options are only added when visible
+        self.sub_objs: ObjsInfo = self._init_sub_objs.copy()
+
+    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
         """
-        returns a sequence to add in the main blit sequence
-        """
-
-        sequence: LayeredBlitSequence = self._tools.blit()
-        for info in self._extra_info[self._tools.clicked_i]:
-            sequence += info['obj'].blit()
-
-        return sequence
-
-    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
-        '''
-        checks if the mouse is hovering any interactable part of the object
-        takes mouse position
-        returns the object that's being hovered (can be None) and the layer
-        '''
-
-        hover_obj: Any
-        hover_layer: int
-        hover_obj, hover_layer = self._tools.check_hover(mouse_pos)
-
-        extra_info = self._extra_info[self._tools.clicked_i]
-        hover_obj, hover_layer = check_nested_hover(
-            mouse_pos, (info['obj'] for info in extra_info), hover_obj, hover_layer
-        )
-
-        return hover_obj, hover_layer
-
-    def leave(self) -> None:
-        """
-        clears relevant data when a state is leaved
+        Args:
+            name, depth counter
+        Returns:
+            sequence to add in the main layer sequence
         """
 
-        self._tools.leave()
-        for info in self._extra_info[self._tools.clicked_i]:
-            info['obj'].leave()
-
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
-        """
-        resizes objects
-        takes window size ratio
-        """
-
-        self._tools.handle_resize(win_ratio_w, win_ratio_h)
-        for tool_info in self._extra_info:
-            for info in tool_info:
-                info['obj'].handle_resize(win_ratio_w, win_ratio_h)
-
-    def print_layers(self, name: str, counter: int) -> LayerSequence:
-        """
-        prints the layers of everything the object has
-        takes name and nesting counter
-        returns a sequence to add in the main layer sequence
-        """
-
-        layer_sequence: LayerSequence = [(name, -1, counter)]
-        layer_sequence += self._tools.print_layers('tools', counter + 1)
-        layer_sequence += [('extra options', -1, counter + 1)]
-        for tool_info in self._extra_info:
-            for info in tool_info:
-                layer_sequence += info['obj'].print_layers('option', counter + 2)
-
-        return layer_sequence
+        return [(name, -1, depth_counter)]
 
     def upt(
             self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int]
     ) -> tuple[str, dict[str, Any]]:
         """
-        allows to select a tool and it's extra options
-        takes hovered object (can be None), mouse info and keys
-        returns the tool name and sub options state
+        Allows selecting a tool and it's extra options
+        Args:
+            hovered object (can be None), mouse info, keys
+        Returns:
+            tool name, sub options state
         """
 
         self._tools.upt(hover_obj, mouse_info, keys)
@@ -195,5 +154,11 @@ class ToolsManager:
             for key in obj_output_dict:
                 obj_output_dict[key] = getattr(info['obj'], obj_output_dict[key])
             output_dict.update(obj_output_dict)
+
+        self.sub_objs = self._init_sub_objs.copy()
+        self.sub_objs += [
+            (f'option {i}', info['obj'])
+            for i, info in enumerate(self._extra_info[self._tools.clicked_i])
+        ]
 
         return self._names[self._tools.clicked_i], output_dict

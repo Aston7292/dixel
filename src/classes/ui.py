@@ -1,5 +1,5 @@
 """
-abstract class to create a default ui with a title, a confirm and an exit buttons
+Abstract class to create a default ui with a title, confirm and exit buttons
 """
 
 import pygame as pg
@@ -9,9 +9,9 @@ from typing import Final, Any
 
 from src.classes.clickable import Button
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo, check_nested_hover
-from src.type_utils import LayeredBlitSequence, LayerSequence
-from src.const import UI_LAYER
+from src.utils import RectPos, Size, MouseInfo
+from src.type_utils import ObjsInfo, LayeredBlitSequence, LayerSequence
+from src.consts import UI_LAYER
 
 INTERFACE: Final[pg.SurfaceType] = pg.Surface((500, 700))
 INTERFACE.fill((60, 60, 60))
@@ -41,140 +41,122 @@ INPUT_BOX: Final[pg.Surface] = pg.Surface((60, 40))
 
 class UI(ABC):
     """
-    abstract class to create a default ui with a title, a confirm and exit buttons
+    Abstract class to create a default ui with a title, confirm and exit buttons
 
-    includes:
+    Includes:
         blit() -> PriorityBlitSequence
-        check_hover(mouse_position) -> tuple[object, layer]
-        handle_resize(window size ratio) -> None,
+        handle_resize(window width ratio, window height ratio) -> None,
         base_upt(mouse, keys, ctrl) -> tuple[confirmed, exited]
 
-    children should include:
-        upt(mouse info, keys, ctrl) -> tuple[bool, Any]
+    Children should include:
+        upt(hovered object, mouse info, keys, ctrl) -> tuple[closed, extra info]
     """
 
     __slots__ = (
-        '_ui_init_pos', '_ui_img', '_ui_rect', '_ui_init_size', '_base_layer', '_title',
-        '_confirm', '_exit'
+        '_init_pos', '_img', '_rect', '_init_size', '_base_layer', '_title', '_exit', '_confirm',
+        'sub_objs'
     )
 
     def __init__(self, pos: RectPos, title: str) -> None:
         """
-        initializes the interface
-        takes position and title
+        Initializes the interface
+        Args:
+            position and title
         """
 
-        self._ui_init_pos: RectPos = pos
+        self._init_pos: RectPos = pos
 
-        self._ui_img: pg.SurfaceType = INTERFACE
-        self._ui_rect: pg.FRect = self._ui_img.get_frect(
-            **{self._ui_init_pos.coord: self._ui_init_pos.xy}
+        self._img: pg.SurfaceType = INTERFACE
+        self._rect: pg.FRect = self._img.get_frect(
+            **{self._init_pos.coord: self._init_pos.xy}
         )
 
-        self._ui_init_size: Size = Size(int(self._ui_rect.w), int(self._ui_rect.h))
+        self._init_size: Size = Size(int(self._rect.w), int(self._rect.h))
 
         self._base_layer: int = UI_LAYER
 
         self._title: Text = Text(
-            RectPos(self._ui_rect.centerx, self._ui_rect.top + 10.0, 'midtop'), title,
+            RectPos(self._rect.centerx, self._rect.top + 10.0, 'midtop'), title,
             self._base_layer, 32
         )
 
-        self._confirm: Button = Button(
-            RectPos(self._ui_rect.right - 10.0, self._ui_rect.bottom - 10.0, 'bottomright'),
-            (BUTTON_M_OFF, BUTTON_M_ON), 'confirm', '(CTRL+ENTER)', self._base_layer
-        )
         self._exit: Button = Button(
-            RectPos(self._ui_rect.right - 10.0, self._ui_rect.y + 10.0, 'topright'),
+            RectPos(self._rect.right - 10.0, self._rect.y + 10.0, 'topright'),
             (CLOSE_1, CLOSE_2), '', '(CTRL+BACKSPACE)', self._base_layer
         )
+        self._confirm: Button = Button(
+            RectPos(self._rect.right - 10.0, self._rect.bottom - 10.0, 'bottomright'),
+            (BUTTON_M_OFF, BUTTON_M_ON), 'confirm', '(CTRL+ENTER)', self._base_layer
+        )
+
+        self.sub_objs: ObjsInfo = [
+            ('title', self._title),
+            ('exit', self._exit),
+            ('confirm', self._confirm)
+        ]
 
     def blit(self) -> LayeredBlitSequence:
         """
-        returns a sequence to add in the main blit sequence
+        Returns:
+            sequence to add in the main blit sequence
         """
 
-        sequence: LayeredBlitSequence = [(self._ui_img, self._ui_rect.topleft, self._base_layer)]
-        sequence += self._title.blit()
-        sequence += self._confirm.blit()
-        sequence += self._exit.blit()
-
-        return sequence
-
-    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
-        '''
-        checks if the mouse is hovering any interactable part of the object
-        takes mouse position
-        returns the object that's being hovered (can be None) and the layer
-        '''
-
-        hover_obj: Any = None
-        hover_layer: int = 0
-        hover_obj, hover_layer = check_nested_hover(
-            mouse_pos, (self._confirm, self._exit), hover_obj, hover_layer
-        )
-
-        return hover_obj, hover_layer
+        return [(self._img, self._rect.topleft, self._base_layer)]
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        resizes objects
-        takes window size ratio
+        Resizes objects
+        Args:
+            window width ratio, window height ratio
         """
 
         size: tuple[int, int] = (
-            int(self._ui_init_size.w * win_ratio_w), int(self._ui_init_size.h * win_ratio_h)
+            int(self._init_size.w * win_ratio_w), int(self._init_size.h * win_ratio_h)
         )
         pos: tuple[float, float] = (
-            self._ui_init_pos.x * win_ratio_w, self._ui_init_pos.y * win_ratio_h
+            self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h
         )
 
-        self._ui_img = pg.transform.scale(self._ui_img, size)
-        self._ui_rect = self._ui_img.get_frect(**{self._ui_init_pos.coord: pos})
+        self._img = pg.transform.scale(self._img, size)
+        self._rect = self._img.get_frect(**{self._init_pos.coord: pos})
 
-        self._title.handle_resize(win_ratio_w, win_ratio_h)
-        self._confirm.handle_resize(win_ratio_w, win_ratio_h)
-        self._exit.handle_resize(win_ratio_w, win_ratio_h)
-
-    def print_layers(self, name: str, counter: int) -> LayerSequence:
+    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
         """
-        prints the layers of everything the object has
-        takes name and nesting counter
-        returns a sequence to add in the main layer sequence
+        Args:
+            name, depth counter
+        Returns:
+            sequence to add in the main layer sequence
         """
 
-        layer_sequence: LayerSequence = [(name, self._base_layer, counter)]
-        layer_sequence += self._exit.print_layers('button exit', counter + 1)
-        layer_sequence += self._confirm.print_layers('button confirm', counter + 1)
-        layer_sequence += self._title.print_layers('text title', counter + 1)
-
-        return layer_sequence
+        return [(name, self._base_layer, depth_counter)]
 
     def _base_upt(
             self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], ctrl: int
     ) -> tuple[bool, bool]:
         """
-        handles the base behavior
-        takes hovered object, mouse info, keys and ctrl
-        returns the buttons that were clicked
+        Handles the base behavior
+        Args:
+            hovered object, mouse info, keys, ctrl
+        Returns:
+            buttons states
         """
-
-        ctrl_enter: bool = bool(ctrl and pg.K_RETURN in keys)
-        confirmed: bool = self._confirm.upt(hover_obj, mouse_info) or ctrl_enter
 
         ctrl_backspace: bool = bool(ctrl and pg.K_BACKSPACE in keys)
         exited: bool = self._exit.upt(hover_obj, mouse_info) or ctrl_backspace
 
-        if confirmed or exited:
-            self._confirm.leave()
-            self._exit.leave()
+        ctrl_enter: bool = bool(ctrl and pg.K_RETURN in keys)
+        confirmed: bool = self._confirm.upt(hover_obj, mouse_info) or ctrl_enter
 
         return confirmed, exited
 
     @abstractmethod
-    def upt(self, mouse_info: MouseInfo, keys: list[int], ctrl: int) -> tuple[bool, Any]:
+    def upt(
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], ctrl: int
+    ) -> tuple[bool, Any]:
         """
-        should implement a way to make the object interactable
-        takes mouse info, keys and ctrl
-        returns whatever the interface was closed or not and the extra info
+        Should implement a way to make the object interactable
+        Args:
+            hovered object (can be None), mouse info, keys, ctrl
+        Returns:
+            True if the interface was closed else False, extra info
         """

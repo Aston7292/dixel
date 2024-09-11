@@ -1,6 +1,5 @@
 """
-class to simplify text rendering
-renderers are cached
+Class to simplify text rendering, renderers are cached
 """
 
 import pygame as pg
@@ -8,14 +7,14 @@ from typing import Final
 
 from src.utils import RectPos
 from src.type_utils import LayeredBlitSequence, LayerSequence
-from src.const import WHITE, BG_LAYER, TEXT_LAYER
+from src.consts import WHITE, BG_LAYER, TEXT_LAYER
 
 RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
 
 
 class Text:
     """
-    class to simplify text rendering
+    Class to simplify text rendering
     """
 
     __slots__ = (
@@ -25,8 +24,9 @@ class Text:
 
     def __init__(self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 24) -> None:
         """
-        creates the text
-        takes position, text, base_layer (default = BG_LAYER) and height (default = 24)
+        Creates the text images
+        Args:
+            position, text, base_layer (default = BG_LAYER), height (default = 24)
         """
 
         self._init_pos: RectPos = pos
@@ -53,19 +53,17 @@ class Text:
 
     def blit(self) -> LayeredBlitSequence:
         """
-        returns a sequence to add in the main blit sequence
+        Returns:
+            sequence to add in the main blit sequence
         """
 
-        sequence: LayeredBlitSequence = [
-            (img, rect.topleft, self._layer) for img, rect in zip(self._imgs, self.rects)
-        ]
-
-        return sequence
+        return [(img, rect.topleft, self._layer) for img, rect in zip(self._imgs, self.rects)]
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        resizes objects
-        takes window size ratio
+        Resizes objects
+        Args:
+            window width ratio, window height ratio
         """
 
         h: int = int(self._init_h * win_ratio_h)
@@ -78,20 +76,19 @@ class Text:
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
         self._get_rects()
 
-    def print_layers(self, name: str, counter: int) -> LayerSequence:
+    def print_layer(self, name: str, counter: int) -> LayerSequence:
         """
-        prints the layers of everything the object has
-        takes name and nesting counter
-        returns a sequence to add in the main layer sequence
+        Args:
+            name, depth counter
+        Returns:
+            sequence to add in the main layer sequence
         """
 
-        layer_sequence: LayerSequence = [(name, self._layer, counter)]
-
-        return layer_sequence
+        return [(name, self._layer, counter)]
 
     def _get_rects(self) -> None:
         """
-        calculates the rects and rect depending on the position's coordinate
+        Calculates the rects and rect depending on the position's coordinate
         """
 
         self.rects = []
@@ -112,10 +109,11 @@ class Text:
         rect_w: float = max(rect.w for rect in self.rects)
         self.rect = pg.FRect(rect_x, rect_y, rect_w, rect_h)
 
-    def move_rects(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
+    def move_rect(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        moves the rects and rect to a specific coordinate
-        takes x, y and window size ratio
+        Moves the rects and rect to a specific coordinate
+        Args:
+            x, y, window width ratio, window height ratio
         """
 
         self._init_pos.x, self._init_pos.y = x / win_ratio_w, y / win_ratio_h
@@ -124,8 +122,9 @@ class Text:
 
     def set_text(self, text: str) -> None:
         """
-        sets the text and adjusts position
-        takes text
+        Sets the text and adjusts its position
+        Args:
+            text
         """
 
         self.text = text
@@ -134,23 +133,29 @@ class Text:
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
         self._get_rects()
 
-    def get_pos_at(self, i: int) -> float:
+    def get_pos_at(self, pos_i: int) -> float:
         """
-        gets the x position of the character at a given index (only for single line text)
-        returns the x pos of the char at i
+        Gets the x position of the character at a given index (only for single line text)
+        Args:
+            index
+        Returns:
+            x
         """
 
         x: float = (
-            self.rects[0].x + self._renderer.render(self._lines[0][:i], False, WHITE).get_width()
+            self.rects[0].x +
+            self._renderer.render(self._lines[0][:pos_i], False, WHITE).get_width()
         )
 
         return x
 
     def get_closest_to(self, x: int) -> int:
         """
-        calculates the index of the closest character to a given x (only for single line text)
-        takes x position
-        returns index of closest character (0 - len(text))
+        Calculates the index of the closest character to a given x (only for single line text)
+        Args:
+            x
+        Returns:
+            index (0 - len(text))
         """
 
         current_x: int = int(self.rects[0].x)

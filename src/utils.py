@@ -1,39 +1,20 @@
 """
-collections of shared functions, dataclasses and types
+Functions and dataclasses shared between files
 """
 
 import pygame as pg
 from dataclasses import dataclass
-from typing import Iterable, Any
 
 from src.type_utils import ColorType
 
 
-def check_nested_hover(
-        mouse_pos: tuple[int, int], objs: Iterable[Any], hover_obj: Any, hover_layer: int
-) -> tuple[Any, int]:
+def add_border(img: pg.SurfaceType, border_color: ColorType) -> pg.SurfaceType:
     """
-    checks if the mouse is hovering any object in a list
-    takes mouse position, objects, hovered object (can be None) and its layer
-    returns the hovered object (can be None) and its layer
-    """
-
-    for obj in objs:
-        current_hover_obj: Any
-        current_hover_layer: int
-        current_hover_obj, current_hover_layer = obj.check_hover(mouse_pos)
-        if current_hover_obj and current_hover_layer > hover_layer:
-            hover_obj = current_hover_obj
-            hover_layer = current_hover_layer
-
-    return hover_obj, hover_layer
-
-
-def add_border(img: pg.SurfaceType, color: ColorType) -> pg.SurfaceType:
-    """
-    adds a colored border to an image
-    takes image and color
-    returns image
+    Adds a border to an image
+    Args:
+        image, border color
+    Returns:
+        modified image
     """
 
     img_copy: pg.SurfaceType = img.copy()
@@ -43,19 +24,20 @@ def add_border(img: pg.SurfaceType, color: ColorType) -> pg.SurfaceType:
     w, h = img.get_size()
     dim: int = min(w, h) // 10
 
-    pg.draw.rect(img_copy, color, (0, 0, w, dim))
-    pg.draw.rect(img_copy, color, (w - dim, 0, dim, h))
-    pg.draw.rect(img_copy, color, (0, h - dim, w, dim))
-    pg.draw.rect(img_copy, color, (0, 0, dim, h))
+    pg.draw.rect(img_copy, border_color, (0, 0, w, dim))
+    pg.draw.rect(img_copy, border_color, (w - dim, 0, dim, h))
+    pg.draw.rect(img_copy, border_color, (0, h - dim, w, dim))
+    pg.draw.rect(img_copy, border_color, (0, 0, dim, h))
 
     return img_copy
 
 
-@dataclass
+@dataclass(slots=True)
 class Point:
     """
-    dataclass for representing the coordinates of a point
-    takes x and y
+    Dataclass for representing a point
+    Args:
+        x, y
     """
 
     x: int
@@ -64,17 +46,19 @@ class Point:
     @property
     def xy(self) -> tuple[int, int]:
         """
-        returns x and y
+        Returns:
+            x, y
         """
 
         return self.x, self.y
 
 
-@dataclass
+@dataclass(slots=True)
 class RectPos:
     """
-    dataclass for representing the position of a rect
-    takes x, y and the coordinate they represent (e.g. topleft)
+    Dataclass for representing a rect's position
+    Args:
+        x, y, coordinate (e.g. topleft)
     """
 
     x: float
@@ -84,17 +68,19 @@ class RectPos:
     @property
     def xy(self) -> tuple[float, float]:
         """
-        returns x and y
+        Returns:
+            x, y
         """
 
         return self.x, self.y
 
 
-@dataclass
+@dataclass(slots=True)
 class Size:
     """
-    dataclass for representing the size of an object
-    takes width and height
+    Dataclass for representing a size
+    Args:
+        width, height
     """
 
     w: int
@@ -103,16 +89,19 @@ class Size:
     @property
     def wh(self) -> tuple[int, int]:
         """
-        returns width and height
+        Returns:
+            width, height
         """
 
         return self.w, self.h
 
 
-@dataclass
+@dataclass(slots=True)
 class MouseInfo:
     """
-    dataclass for storing all info needed about the mouse
+    Dataclass for storing mouse information
+    Args:
+        x, y, buttons state, recently released buttons
     """
 
     x: int
@@ -123,7 +112,8 @@ class MouseInfo:
     @property
     def xy(self) -> tuple[int, int]:
         """
-        returns x and y
+        Returns:
+            x, y
         """
 
         return self.x, self.y

@@ -11,7 +11,7 @@ Requires pygame-ce, numpy and Pillow
 - **Brush Size**: Select the brush size using checkboxes.
 - **Palette Options**: Edit or delete a color from the palette with a dropdown menu
 - **Zooming**: Zoom in/out towards the mouse
-- **Minimap**: See the current position on the grid through a minimap
+- **Minimap**: See the current position on the grid with a minimap
 - **Color Picker**: Select colors with a colorful and intuitive UI.
 - **Resizable Grid**: Change the grid size and have a preview of how it will look.
 - **Auto Save**: If you're editing an existing image it will be saved
@@ -43,7 +43,7 @@ Requires pygame-ce, numpy and Pillow
 - **CTRL Del**: delete selected color
 
 - **CTRL left/right**: switch between scrollbar and input box in color picking ui
-- **CTRL K**: toggle check box in grid ui
+- **CTRL K**: toggle checkbox in grid ui
 
 - **ALT L**: print debug information about layers
 

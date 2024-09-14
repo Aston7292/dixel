@@ -6,8 +6,8 @@ import pygame as pg
 from typing import Any
 
 from src.classes.text import Text
-from src.utils import MouseInfo, RectPos, Size
-from src.type_utils import ObjsInfo, LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, Size, ObjInfo, MouseInfo
+from src.type_utils import LayeredBlitSequence, LayerSequence
 from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
 
@@ -19,11 +19,11 @@ class NumInputBox:
     __slots__ = (
         '_box_init_pos', '_box_img', 'box_rect', '_box_init_size', 'hovering', '_selected',
         '_layer', '_hoovering_layer', 'text', '_text_i', '_cursor_img', '_cursor_rect',
-        '_cursor_init_size', 'sub_objs'
+        '_cursor_init_size', 'objs_info'
     )
 
     def __init__(
-            self, pos: RectPos, img: pg.SurfaceType, text: str, base_layer: int = BG_LAYER
+            self, pos: RectPos, img: pg.Surface, text: str, base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the input box and text
@@ -33,7 +33,7 @@ class NumInputBox:
 
         self._box_init_pos: RectPos = pos
 
-        self._box_img: pg.SurfaceType = img
+        self._box_img: pg.Surface = img
         self.box_rect: pg.FRect = self._box_img.get_frect(
             **{pos.coord: pos.xy}
         )
@@ -49,7 +49,7 @@ class NumInputBox:
         self.text = Text(RectPos(*self.box_rect.center, 'center'), text, base_layer)
         self._text_i: int = 0
 
-        self._cursor_img: pg.SurfaceType = pg.Surface((1, int(self.text.rect.h)))
+        self._cursor_img: pg.Surface = pg.Surface((1, int(self.text.rect.h)))
         self._cursor_img.fill(WHITE)
         self._cursor_rect: pg.FRect = self._cursor_img.get_frect(
             topleft=(self.text.get_pos_at(self._text_i), self.text.rect.y)
@@ -57,9 +57,7 @@ class NumInputBox:
 
         self._cursor_init_size: Size = Size(int(self._cursor_rect.w), int(self._cursor_rect.h))
 
-        self.sub_objs: ObjsInfo = [
-            ('text', self.text)
-        ]
+        self.objs_info: list[ObjInfo] = [ObjInfo('text', self.text)]
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -94,7 +92,7 @@ class NumInputBox:
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        Resizes objects
+        Resizes the object
         Args:
             window width ratio, window height ratio
         """
@@ -159,8 +157,8 @@ class NumInputBox:
         self.get_cursor_pos()
 
     def upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], limits: tuple[int, int],
-            selected: bool
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...],
+            limits: tuple[int, int], selected: bool
     ) -> tuple[bool, str]:
         """
         Allows typing numbers, moving the cursor and deleting a specific character

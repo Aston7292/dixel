@@ -9,8 +9,8 @@ There are three states, the main interface and 2 extra UI windows
 that can be opened by clicking their respective button
 
 Keyboard input:
-    Every key that's currently pressed is in a list, accidental spamming is prevented
-    by temporarily clearing this list when a key is held and reverting it back for
+    Every key that's currently pressed is in a tuple, accidental spamming is prevented
+    by temporarily clearing this tuple when a key is held and reverting it back for
     one frame every 100ms
 
 Mouse info:
@@ -18,8 +18,8 @@ Mouse info:
     x and y position, button states and recently released buttons (for clicking elements)
 
 Sub objects:
-    Objects may have sub objects, they're retrieved at the start of each frame and
-    automatically used in the methods below
+    Objects may have objects info with for sub objects,
+    they're retrieved at the start of each frame and automatically used in the methods below
 
 Blitting:
     The blit method returns a list with one or more groups of image, position and layer
@@ -80,13 +80,14 @@ Interacting with elements:
 '''
 TODO:
 - open GRID_RESIZER when opening file
+- terminal arguments
 - save current colors along with the image
 - slider is faster when moving the mouse faster
 - consistent text_i across different NumInputBox
 - option to change the palette to match the current colors/multiple palettes
 - CTRL Z/Y (store without alpha channel, ui to view history)
 - option to make drawing only affect the visible_area?
-- better mouse sprite handling
+- better mouse sprite handling (if switching objects between frame it won't always be right)
 
 - COLOR_PICKER:
     - hex_text as NumInputBox
@@ -129,7 +130,7 @@ debug:
 import pygame as pg
 from tkinter import Tk, filedialog
 from PIL import Image
-from os import path
+from pathlib import Path
 from traceback import print_exc
 from typing import Final, Optional, Any
 
@@ -138,19 +139,19 @@ from src.classes.grid_manager import GridManager
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo, ColorType
-from src.type_utils import ObjsInfo, BlitSequence, LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, Size, ObjInfo, MouseInfo, load_img
+from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSequence
 
 from src.consts import INIT_WIN_SIZE, BLACK
 
 pg.init()
 
 ADD_FLAGS: Final[int] = pg.DOUBLEBUF | pg.HWSURFACE
-INIT_WIN: Final[pg.SurfaceType] = pg.display.set_mode(
+INIT_WIN: Final[pg.Surface] = pg.display.set_mode(
     (INIT_WIN_SIZE.w, INIT_WIN_SIZE.h), pg.RESIZABLE | ADD_FLAGS
 )
 pg.display.set_caption('Dixel')
-pg.display.set_icon(pg.image.load(path.join('sprites', 'icon.png')).convert_alpha())
+pg.display.set_icon(load_img('sprites', 'icon.png'))
 
 # These files load images at the start which require pygame to be already initialized
 from src.classes.grid_ui import GridResizer
@@ -158,8 +159,8 @@ from src.classes.color_ui import ColorPicker
 from src.classes.ui import BUTTON_M_OFF, BUTTON_M_ON
 from src.classes.tools_manager import ToolsManager
 
-BUTTON_S_OFF: Final[pg.SurfaceType] = pg.transform.scale(BUTTON_M_OFF, (64, 32))
-BUTTON_S_ON: Final[pg.SurfaceType] = pg.transform.scale(BUTTON_M_ON, (64, 32))
+BUTTON_S_OFF: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF, (64, 32))
+BUTTON_S_ON: Final[pg.Surface] = pg.transform.scale(BUTTON_M_ON, (64, 32))
 
 ADD_COLOR: Final[Button] = Button(
     RectPos(INIT_WIN_SIZE.w - 25.0, INIT_WIN_SIZE.h - 25.0, 'bottomright'),
@@ -188,12 +189,9 @@ GRID_MANAGER: Final[GridManager] = GridManager(
     RectPos(INIT_WIN_SIZE.w - 10.0, 10.0, 'topright')
 )
 
-BRUSH_SIZES_INFO: list[tuple[pg.SurfaceType, str]] = [
-    (
-        pg.image.load(path.join('sprites', f'size_{n}_off.png')).convert_alpha(),
-        f'{n}px\n(CTRL+{n})'
-    ) for n in range(1, 6)
-]
+BRUSH_SIZES_INFO: tuple[tuple[pg.Surface, str], ...] = tuple(
+    (load_img('sprites', f'size_{n}_off.png'), f'{n}px\n(CTRL+{n})') for n in range(1, 6)
+)
 BRUSH_SIZES: Final[CheckBoxGrid] = CheckBoxGrid(
     RectPos(10.0, SAVE_AS.rect.bottom + 10.0, 'topleft'), BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO),
     (False, False)
@@ -218,28 +216,25 @@ GRID_RESIZER: Final[GridResizer] = GridResizer(
     RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'), GRID_MANAGER.grid.grid_size
 )
 
-OBJS_INFO: Final[tuple[ObjsInfo, ...]] = (  # Grouped by state
+OBJS_INFO: Final[tuple[list[ObjInfo], ...]] = (  # Grouped by state
     [
-        ('add color', ADD_COLOR),
-        ('modify grid', MODIFY_GRID),
-        ('save as', SAVE_AS),
-        ('open', OPEN),
-        ('close', CLOSE),
-        ('grid manager', GRID_MANAGER),
-        ('brush sizes', BRUSH_SIZES),
-        ('palette manager', PALETTE_MANAGER),
-        ('tools manager', TOOLS_MANAGER),
-        ('fps text', FPS_TEXT)
+        ObjInfo('add color', ADD_COLOR),
+        ObjInfo('modify grid', MODIFY_GRID),
+        ObjInfo('save as', SAVE_AS),
+        ObjInfo('open', OPEN),
+        ObjInfo('close', CLOSE),
+        ObjInfo('grid manager', GRID_MANAGER),
+        ObjInfo('brush sizes', BRUSH_SIZES),
+        ObjInfo('palette manager', PALETTE_MANAGER),
+        ObjInfo('tools manager', TOOLS_MANAGER),
+        ObjInfo('fps text', FPS_TEXT)
     ],
     [
-        ('color ui', COLOR_PICKER),
+        ObjInfo('color ui', COLOR_PICKER),
     ],
     [
-        ('grid ui', GRID_RESIZER),
+        ObjInfo('grid ui', GRID_RESIZER),
     ]
-)
-OBJS: Final[tuple[tuple[Any, ...], ...]] = tuple(
-    tuple(obj for _, obj in state) for state in OBJS_INFO
 )
 
 FPS_UPT: Final[int] = pg.USEREVENT + 1
@@ -254,8 +249,8 @@ class Dixel:
 
     __slots__ = (
         '_win_size', '_prev_win_size', '_flag', '_full_screen', '_focused', '_win', '_mouse_info',
-        '_saved_keys', '_keys', '_last_k_input', '_ctrl', '_hover_obj', '_state', '_objs',
-        '_file_path',
+        '_saved_keys', '_keys', '_last_k_input', '_ctrl', '_hover_obj', '_state',
+        '_active_objs', '_inactive_objs', '_file_path',
     )
 
     def __init__(self) -> None:
@@ -269,14 +264,14 @@ class Dixel:
         self._full_screen: bool = False
         self._focused: bool = True
 
-        self._win: pg.SurfaceType = INIT_WIN
+        self._win: pg.Surface = INIT_WIN
 
         self._mouse_info: MouseInfo = MouseInfo(
             *pg.mouse.get_pos(), pg.mouse.get_pressed(), pg.mouse.get_just_released()
         )
 
         self._saved_keys: list[int] = []
-        self._keys: list[int] = self._saved_keys
+        self._keys: tuple[int, ...] = tuple(self._saved_keys)
         self._last_k_input: int = pg.time.get_ticks()
         self._ctrl: int = 0
 
@@ -289,14 +284,15 @@ class Dixel:
         '''
         self._state: int = 0
 
-        self._objs: list[list[Any]] = []
+        self._active_objs: list[list[Any]] = []
+        self._inactive_objs: list[list[Any]] = []
 
         self._file_path: str = ''
-        if path.exists('data.txt'):
-            with open('data.txt', encoding='utf-8') as f:
+        if Path('data.txt').is_file():
+            with Path('data.txt').open(encoding='utf-8') as f:
                 file_path: str = f.read()
 
-            if path.exists(file_path):
+            if Path(file_path).is_file():
                 self._file_path = file_path
                 GRID_MANAGER.load_path(self._file_path)
                 PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
@@ -310,16 +306,16 @@ class Dixel:
 
         layered_blit_sequence: LayeredBlitSequence = []
 
-        objs: list[Any] = self._objs[0].copy()
+        active_objs: list[Any] = self._active_objs[0].copy()
         if self._state:
-            objs += self._objs[self._state]
+            active_objs.extend(self._active_objs[self._state])
 
-        for obj in objs:
+        for obj in active_objs:
             if hasattr(obj, 'blit'):
-                layered_blit_sequence += obj.blit()
+                layered_blit_sequence.extend(obj.blit())
 
         layer_i: int = 2
-        layered_blit_sequence.sort(key=lambda info: info[layer_i])  # type: ignore
+        layered_blit_sequence.sort(key=lambda sequence: sequence[layer_i])  # type: ignore
         blit_sequence: BlitSequence = [(surf, pos) for surf, pos, _ in layered_blit_sequence]
 
         self._win.fblits(blit_sequence)
@@ -332,7 +328,7 @@ class Dixel:
             state
         """
 
-        for obj in self._objs[state]:
+        for obj in self._active_objs[state] + self._inactive_objs[state]:
             if hasattr(obj, 'leave'):
                 obj.leave()
 
@@ -340,14 +336,14 @@ class Dixel:
 
     def _handle_resize(self) -> None:
         """
-        Resizes objects
+        Resizes the object
         """
 
         win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
         win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
 
         post_resizes: list[Any] = []
-        for state in self._objs:
+        for state in self._active_objs + self._inactive_objs:
             for obj in state:
                 if hasattr(obj, 'handle_resize'):
                     obj.handle_resize(win_ratio_w, win_ratio_h)
@@ -432,9 +428,9 @@ class Dixel:
                 FPS_TEXT.set_text('FPS: ' + str(int(CLOCK.get_fps())))
 
         if pg.time.get_ticks() - self._last_k_input < 100:
-            self._keys = []
+            self._keys = ()
         else:
-            self._keys = self._saved_keys
+            self._keys = tuple(self._saved_keys)
             self._last_k_input = pg.time.get_ticks()
 
         if self._ctrl:
@@ -457,27 +453,28 @@ class Dixel:
 
         if pg.key.get_mods() & pg.KMOD_ALT:
             if pg.K_l in self._keys:
-                sequence: LayerSequence = []
-                info: list[tuple[str, Any, int]] = [
-                    (name, obj, 0) for state in OBJS_INFO for name, obj in state
+                layer_sequence: LayerSequence = []
+                layer_info: list[tuple[str, Any, int]] = [
+                    (info.name, info.obj, 0) for state_info in OBJS_INFO for info in state_info
                 ]
-                info = info[::-1]  # Info is added to the sequence from last to first
+                # Layer info is added to the sequence from last to first
+                layer_info = layer_info[::-1]
 
-                while info:
+                while layer_info:
                     name: str
                     obj: Any
                     depth_counter: int
-                    name, obj, depth_counter = info.pop()
+                    name, obj, depth_counter = layer_info.pop()
 
                     if hasattr(obj, 'print_layer'):
-                        sequence += obj.print_layer(name, depth_counter)
-                    if hasattr(obj, 'sub_objs'):
-                        sub_info: list[tuple[str, Any, int]] = [
-                            (name, sub_obj, depth_counter + 1) for name, sub_obj in obj.sub_objs
-                        ]
-                        info += sub_info[::-1]
+                        layer_sequence.extend(obj.print_layer(name, depth_counter))
+                    if hasattr(obj, 'objs_info'):
+                        obj_info: tuple[tuple[str, Any, int], ...] = tuple(
+                            (info.name, info.obj, depth_counter + 1) for info in obj.objs_info
+                        )
+                        layer_info.extend(obj_info[::-1])
 
-                for name, layer, depth_counter in sequence:
+                for name, layer, depth_counter in layer_sequence:
                     string_layer: str = str(layer) if layer != -1 else 'None'
                     print(f'{'\t' * depth_counter}{name}: {string_layer}')
                 print('-' * 50)
@@ -591,18 +588,26 @@ class Dixel:
                     *mouse_pos, pg.mouse.get_pressed(), pg.mouse.get_just_released()
                 )
 
-                self._objs = []
-                for state in OBJS:
-                    state_objs = list(state)
-                    for obj in state_objs:
-                        if hasattr(obj, 'sub_objs'):
-                            state_objs += [obj for _, obj in obj.sub_objs]
+                objs_info: list[list[ObjInfo]] = []
+                for state_info in OBJS_INFO:
+                    state_list: list[ObjInfo] = state_info.copy()
+                    for info in state_list:
+                        if hasattr(info.obj, 'objs_info'):
+                            state_list.extend(info.obj.objs_info)
+                    objs_info.append(state_list)
 
-                    self._objs.append(state_objs)
+                self._active_objs = [
+                    [info.obj for info in state_info if info.active]
+                    for state_info in objs_info
+                ]
+                self._inactive_objs = [
+                    [info.obj for info in state_info if not info.active]
+                    for state_info in objs_info
+                ]
 
                 self._hover_obj = None
                 hover_layer: int = 0
-                for obj in self._objs[self._state]:
+                for obj in self._active_objs[self._state]:
                     if hasattr(obj, 'check_hover'):
                         current_hover_obj: Any
                         current_hover_layer: int
@@ -671,21 +676,21 @@ class Dixel:
             if self._file_path:
                 img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
                 img.save(self._file_path)
-            with open('data.txt', 'w', encoding='utf-8') as f:
+            with Path('data.txt').open('w', encoding='utf-8') as f:
                 f.write(self._file_path)
 
         except Exception:  # pylint: disable=broad-exception-caught
             if not self._file_path:
                 duplicate_counter: int = 0
                 name: str = 'new_file.png'
-                while path.exists(name):
+                while Path(name).exists():
                     duplicate_counter += 1
                     name = f'new_file_{duplicate_counter}.png'
                 self._file_path = name
 
             img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
             img.save(self._file_path)
-            with open('data.txt', 'w', encoding='utf-8') as f:
+            with Path('data.txt').open('w', encoding='utf-8') as f:
                 f.write(self._file_path)
 
             print_exc()

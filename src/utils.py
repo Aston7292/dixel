@@ -3,12 +3,28 @@ Functions and dataclasses shared between files
 """
 
 import pygame as pg
-from dataclasses import dataclass
+from pathlib import Path
+from dataclasses import dataclass, field
+from typing import Any
 
 from src.type_utils import ColorType
 
 
-def add_border(img: pg.SurfaceType, border_color: ColorType) -> pg.SurfaceType:
+def load_img(*path_sections: str) -> pg.Surface:
+    """
+    Creates a surface from an image
+    Args:
+        path sections
+    Returns:
+        image
+    """
+
+    constructed_path: str = str(Path(*path_sections))
+
+    return pg.image.load(constructed_path).convert_alpha()
+
+
+def add_border(img: pg.Surface, border_color: ColorType) -> pg.Surface:
     """
     Adds a border to an image
     Args:
@@ -17,11 +33,11 @@ def add_border(img: pg.SurfaceType, border_color: ColorType) -> pg.SurfaceType:
         modified image
     """
 
-    img_copy: pg.SurfaceType = img.copy()
+    img_copy: pg.Surface = img.copy()
 
     w: int
     h: int
-    w, h = img.get_size()
+    w, h = img_copy.get_size()
     dim: int = min(w, h) // 10
 
     pg.draw.rect(img_copy, border_color, (0, 0, w, dim))
@@ -97,11 +113,39 @@ class Size:
 
 
 @dataclass(slots=True)
+class ObjInfo:
+    """
+    Dataclass for storing a name, object and active boolean
+    Args:
+        name, object
+    """
+
+    name: str
+    obj: Any
+    active: bool = field(default=True, init=False)
+
+    def set_active(self, active: bool) -> None:
+        """
+        Sets the active flag for the object and it's sub objects
+        Args:
+            active boolean
+        """
+
+        objs_info: list[ObjInfo] = [self]
+        while objs_info:
+            info: ObjInfo = objs_info.pop()
+            info.active = active
+
+            if hasattr(info.obj, 'objs_info'):
+                objs_info.extend(info.obj.objs_info)
+
+
+@dataclass(frozen=True, slots=True)
 class MouseInfo:
     """
     Dataclass for storing mouse information
     Args:
-        x, y, buttons state, recently released buttons
+        x, y, buttons states, recently released buttons
     """
 
     x: int

@@ -7,8 +7,8 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import Final, Optional, Any
 
-from src.utils import Point, Size, RectPos, MouseInfo, ColorType
-from src.type_utils import ObjsInfo, BlitSequence, LayeredBlitSequence, LayerSequence
+from src.utils import Point, Size, RectPos, ObjInfo, MouseInfo, load_img
+from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSequence
 
 from src.consts import WHITE, EMPTY_1, EMPTY_2, BG_LAYER
 
@@ -22,7 +22,7 @@ class Grid:
 
     __slots__ = (
         'grid_size', '_grid_init_visible_area', 'grid_visible_area', '_grid_init_pos', '_grid_pos',
-        'grid_pixel_dim', '_grid_init_dim', '_grid_img', 'grid_rect', 'pixels', '_pixel_surf',
+        'grid_pixel_dim', '_grid_init_dim', '_grid_img', 'grid_rect', 'pixels',
         '_empty_pixel', 'transparent_pixel', '_minimap_init_pos', '_minimap_pos',
         '_minimap_init_dim', '_minimap_img', '_minimap_rect', '_min_win_ratio',
         '_small_minimap_img_1', '_small_minimap_img_2', '_small_grid_img', '_layer'
@@ -49,7 +49,7 @@ class Grid:
         self.grid_pixel_dim: float = 18.0
         self._grid_init_dim: int = int(self.grid_visible_area.w * self.grid_pixel_dim)
 
-        self._grid_img: pg.SurfaceType = pg.Surface(
+        self._grid_img: pg.Surface = pg.Surface(
             (self._grid_init_dim, self._grid_init_dim)
         )
         self.grid_rect: pg.FRect = self._grid_img.get_frect(
@@ -59,17 +59,14 @@ class Grid:
         self.pixels: NDArray[np.uint8] = np.zeros(
             (self.grid_size.h, self.grid_size.w, 4), np.uint8
         )
-        self._pixel_surf: pg.SurfaceType = pg.Surface((2, 2))
 
-        self._empty_pixel: pg.SurfaceType = pg.Surface((2, 2))
+        self._empty_pixel: pg.Surface = pg.Surface((2, 2))
         for y in range(2):
             for x in range(2):
                 pixel_color: ColorType = EMPTY_1 if (x + y) % 2 == 0 else EMPTY_2
                 self._empty_pixel.set_at((x, y), pixel_color)
 
-        self.transparent_pixel: pg.SurfaceType = pg.Surface(
-            (2, 2), pg.SRCALPHA
-        )
+        self.transparent_pixel: pg.Surface = pg.Surface((2, 2), pg.SRCALPHA)
         self.transparent_pixel.fill(TRANSPARENT)
 
         self._minimap_init_pos: RectPos = minimap_pos
@@ -77,7 +74,7 @@ class Grid:
 
         self._minimap_init_dim: int = 256
 
-        self._minimap_img: pg.SurfaceType = pg.Surface(
+        self._minimap_img: pg.Surface = pg.Surface(
             (self._minimap_init_dim, self._minimap_init_dim)
         )
         self._minimap_rect: pg.FRect = self._minimap_img.get_frect(
@@ -87,12 +84,12 @@ class Grid:
         self._min_win_ratio: float = 1.0  # Keeps the pixels as squares
 
         # Having a version where 1 grid pixel = 1 pixel is better for scaling
-        self._small_minimap_img_1: pg.SurfaceType = pg.Surface(
+        self._small_minimap_img_1: pg.Surface = pg.Surface(
             (self.grid_size.w * 2, self.grid_size.h * 2)
         )
         # Adds section indicator
-        self._small_minimap_img_2: pg.SurfaceType = self._small_minimap_img_1.copy()
-        self._small_grid_img: pg.SurfaceType = self._small_minimap_img_1.subsurface(
+        self._small_minimap_img_2: pg.Surface = self._small_minimap_img_1.copy()
+        self._small_grid_img: pg.Surface = self._small_minimap_img_1.subsurface(
             (0, 0, self.grid_visible_area.w * 2, self.grid_visible_area.h * 2)
         ).copy()
 
@@ -124,7 +121,7 @@ class Grid:
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        Resizes objects
+        Resizes the object
         Args:
             window width ratio, window height ratio
         """
@@ -140,9 +137,7 @@ class Grid:
             int(self.grid_visible_area.w * self.grid_pixel_dim),
             int(self.grid_visible_area.h * self.grid_pixel_dim)
         )
-        self._grid_pos = (
-            self._grid_init_pos.x * win_ratio_w, self._grid_init_pos.y * win_ratio_h
-        )
+        self._grid_pos = (self._grid_init_pos.x * win_ratio_w, self._grid_init_pos.y * win_ratio_h)
 
         self._grid_img = pg.transform.scale(self._small_grid_img, grid_img_size)
         self.grid_rect = self._grid_img.get_frect(**{self._grid_init_pos.coord: self._grid_pos})
@@ -172,10 +167,7 @@ class Grid:
             sequence to add in the main layer sequence
         """
 
-        return [
-            (name, self._layer, depth_counter),
-            ('minimap', self._layer, depth_counter)
-        ]
+        return [(name, self._layer, depth_counter), ('minimap', self._layer, depth_counter)]
 
     def get_section_indicator(self, offset: Point) -> None:
         """
@@ -257,8 +249,8 @@ class Grid:
         visible_area: Size = self.grid_visible_area
         pixels: NDArray[np.uint8] = self.pixels
 
-        empty_pixel: pg.SurfaceType = self._empty_pixel
-        pixel_surf: pg.SurfaceType = self._pixel_surf
+        empty_pixel: pg.Surface = self._empty_pixel
+        pixel_surf: pg.Surface = pg.Surface((2, 2))
         for y in range(grid_h):
             row: NDArray[np.uint8] = pixels[y]
             for x in range(grid_w):
@@ -313,8 +305,8 @@ class Grid:
         sequence: BlitSequence = []
 
         pixels: NDArray[np.uint8] = self.pixels
-        empty_pixel: pg.SurfaceType = self._empty_pixel
-        pixel_surf: pg.SurfaceType = self._pixel_surf
+        empty_pixel: pg.Surface = self._empty_pixel
+        pixel_surf: pg.Surface = pg.Surface((2, 2))
         for x, y in changed_pixels:
             if not pixels[y, x, -1]:
                 sequence.append((empty_pixel, (x * 2, y * 2)))
@@ -327,7 +319,7 @@ class Grid:
         self.get_grid(offset, selected_pixels)
 
     def load_img(
-            self, img: Optional[pg.SurfaceType], offset: Point, selected_pixels: list[Point]
+            self, img: Optional[pg.Surface], offset: Point, selected_pixels: list[Point]
     ) -> None:
         """
         Loads a surface's rgba values into a 3D array
@@ -400,7 +392,7 @@ class Grid:
 
     def zoom(self, amount: int, reach_limit: list[bool]) -> None:
         """
-        Changes pixel dimension and visible area
+        Changes pixels dimension and visible area
         Args:
             amount, reach limit flags
         """
@@ -425,7 +417,7 @@ class Grid:
                         visible_area.h = max(visible_area.h - amount, 1)
                         visible_area.w = min(visible_area.wh)
                 else:
-                    #  Zooming out increases the smallest side only if it can be increased
+                    #  Zooming out increases the smallest side if it can be increased
                     increase_w: bool = (
                         (visible_area.w < visible_area.h or visible_area.h == self.grid_size.h) and
                         visible_area.w != self.grid_size.w
@@ -466,7 +458,7 @@ class GridManager:
 
     __slots__ = (
         'grid', '_offset', '_selected_pixels', '_hovering',
-        '_prev_mouse_pos', '_traveled_dist', 'sub_objs'
+        '_prev_mouse_pos', '_traveled_dist', 'objs_info'
     )
 
     def __init__(self, grid_pos: RectPos, minimap_pos: RectPos) -> None:
@@ -479,15 +471,13 @@ class GridManager:
         self.grid: Grid = Grid(grid_pos, minimap_pos)
         self._offset: Point = Point(0, 0)
 
-        self._selected_pixels: list[Point] = []
+        self._selected_pixels: list[Point] = []  # Absolute coordinates
         self._hovering: bool = False
 
         self._prev_mouse_pos: Point = Point(*pg.mouse.get_pos())
         self._traveled_dist: Point = Point(0, 0)
 
-        self.sub_objs: ObjsInfo = [
-            ('grid', self.grid)
-        ]
+        self.objs_info: list[ObjInfo] = [ObjInfo('grid', self.grid)]
 
     def leave(self) -> None:
         """
@@ -519,12 +509,10 @@ class GridManager:
 
         self._offset.x = self._offset.y = 0
 
-        img: Optional[pg.SurfaceType] = (
-            pg.image.load(file_path).convert_alpha() if file_path else None
-        )
+        img: Optional[pg.Surface] = load_img(file_path) if file_path else None
         self.grid.load_img(img, self._offset, self._selected_pixels)
 
-    def _handle_keys(self, keys: list[int], mouse_pixel: Point, brush_size: int) -> None:
+    def _handle_keys(self, keys: tuple[int, ...], mouse_pixel: Point, brush_size: int) -> None:
         """
         Handles grid movement with arrows
         Args:
@@ -533,6 +521,9 @@ class GridManager:
 
         if not any(key in keys for key in (pg.K_LEFT, pg.K_RIGHT, pg.K_UP, pg.K_DOWN)):
             return
+
+        mouse_x: int = mouse_pixel.x
+        mouse_y: int = mouse_pixel.y
 
         k_mods: int = pg.key.get_mods()
         ctrl: int = k_mods & pg.KMOD_CTRL
@@ -550,57 +541,53 @@ class GridManager:
         extra: int
         if pg.K_LEFT in keys:
             if ctrl:
-                mouse_pixel.x = 0
+                mouse_x = 0
                 self._offset.x = 0
             else:
-                mouse_pixel.x -= value
-                if mouse_pixel.x < 0:
-                    extra = mouse_pixel.x
+                mouse_x -= value
+                if mouse_x < 0:
+                    extra = mouse_x
                     self._offset.x = max(self._offset.x + extra, 0)
-                    mouse_pixel.x = 0
+                    mouse_x = 0
         if pg.K_RIGHT in keys:
             if ctrl:
-                mouse_pixel.x = visible_area.w - 1
+                mouse_x = visible_area.w - 1
                 self._offset.x = size.w - visible_area.w
             else:
-                mouse_pixel.x += value
-                if mouse_pixel.x + 1 > visible_area.w:
-                    extra = mouse_pixel.x + 1 - visible_area.w
-                    self._offset.x = min(
-                        self._offset.x + extra, size.w - visible_area.w
-                    )
-                    mouse_pixel.x = visible_area.w - 1
+                mouse_x += value
+                if mouse_x + 1 > visible_area.w:
+                    extra = mouse_x + 1 - visible_area.w
+                    self._offset.x = min(self._offset.x + extra, size.w - visible_area.w)
+                    mouse_x = visible_area.w - 1
         if pg.K_UP in keys:
             if ctrl:
-                mouse_pixel.y = 0
+                mouse_y = 0
                 self._offset.y = 0
             else:
-                mouse_pixel.y -= value
-                if mouse_pixel.y < 0:
-                    extra = mouse_pixel.y
+                mouse_y -= value
+                if mouse_y < 0:
+                    extra = mouse_y
                     self._offset.y = max(self._offset.y + extra, 0)
-                    mouse_pixel.y = 0
+                    mouse_y = 0
         if pg.K_DOWN in keys:
             if ctrl:
-                mouse_pixel.y = visible_area.h - 1
+                mouse_y = visible_area.h - 1
                 self._offset.y = size.h - visible_area.h
             else:
-                mouse_pixel.y += value
-                if mouse_pixel.y + 1 > visible_area.h:
-                    extra = mouse_pixel.y + 1 - visible_area.h
-                    self._offset.y = min(
-                        self._offset.y + extra, size.h - visible_area.h
-                    )
-                    mouse_pixel.y = visible_area.h - 1
+                mouse_y += value
+                if mouse_y + 1 > visible_area.h:
+                    extra = mouse_y + 1 - visible_area.h
+                    self._offset.y = min(self._offset.y + extra, size.h - visible_area.h)
+                    mouse_y = visible_area.h - 1
 
         self.grid.get_section_indicator(self._offset)
         pg.mouse.set_pos((
-            int(self.grid.grid_rect.x + mouse_pixel.x * pixel_dim + pixel_dim / 2.0),
-            int(self.grid.grid_rect.y + mouse_pixel.y * pixel_dim + pixel_dim / 2.0)
+            int(self.grid.grid_rect.x + mouse_x * pixel_dim + pixel_dim / 2.0),
+            int(self.grid.grid_rect.y + mouse_y * pixel_dim + pixel_dim / 2.0)
         ))
 
     def _get_pixel_info(
-            self, mouse_info: MouseInfo, keys: list[int], brush_size: int
+            self, mouse_info: MouseInfo, keys: tuple[int, ...], brush_size: int
     ) -> tuple[Point, Point]:
         """
         Calculates previous and current mouse pixel and handles arrow movement
@@ -619,12 +606,12 @@ class GridManager:
             int((mouse_info.y - self.grid.grid_rect.y) / self.grid.grid_pixel_dim)
         )
 
-        prev_grid_offset: Point = Point(self._offset.x, self._offset.y)
-        # Can change offset, can't be in the move method
+        prev_offset: Point = Point(self._offset.x, self._offset.y)
+        # Can change offset so it can't be in the move method
         self._handle_keys(keys, mouse_pixel, brush_size)
 
-        prev_mouse_pixel.x += prev_grid_offset.x - brush_size // 2
-        prev_mouse_pixel.y += prev_grid_offset.y - brush_size // 2
+        prev_mouse_pixel.x += prev_offset.x - brush_size // 2
+        prev_mouse_pixel.y += prev_offset.y - brush_size // 2
         mouse_pixel.x += self._offset.x - brush_size // 2
         mouse_pixel.y += self._offset.y - brush_size // 2
 
@@ -695,16 +682,16 @@ class GridManager:
 
         changed_pixels: list[tuple[int, int]] = []
         for x, y in single_pixels:
-            changed_pixels += [
+            changed_pixels.extend(
                 (x_pos, y_pos)
                 for x_pos in range(max(x, 0), min(x + brush_size, grid_size.w))
                 for y_pos in range(max(y, 0), min(y + brush_size, grid_size.h))
-            ]
+            )
 
         return changed_pixels
 
     def _draw(
-            self, mouse_info: MouseInfo, keys: list[int], color: ColorType, brush_size: int,
+            self, mouse_info: MouseInfo, keys: tuple[int, ...], color: ColorType, brush_size: int,
             tool_info: tuple[str, dict[str, Any]]
     ) -> None:
         """
@@ -713,8 +700,8 @@ class GridManager:
             mouse_info, keys, color, brush size, tool info
         """
 
-        prev_mouse_pixel: Point  # Absolute coordinate
-        mouse_pixel: Point  # Absolute coordinate
+        prev_mouse_pixel: Point  # Absolute coordinates
+        mouse_pixel: Point  # Absolute coordinates
         prev_mouse_pixel, mouse_pixel = self._get_pixel_info(mouse_info, keys, brush_size)
 
         if self.grid.transparent_pixel.get_width() != brush_size * 2:
@@ -734,19 +721,19 @@ class GridManager:
         changed_pixels: list[tuple[int, int]] = []
         match tool_info[0]:
             case 'brush':
-                changed_pixels += self._brush(
-                    prev_mouse_pixel, mouse_pixel, drawing, brush_size, tool_info[1]
+                changed_pixels.extend(
+                    self._brush(prev_mouse_pixel, mouse_pixel, drawing, brush_size, tool_info[1])
                 )
 
         prev_grid_pixels: NDArray[np.uint8] = np.copy(self.grid.pixels)
         if changed_pixels:
-            full_color: ColorType = (0, 0, 0, 0)
+            rgba_color: list[int] = [0, 0, 0, 0]
             if mouse_info.buttons[0] or pg.K_RETURN in keys:
-                full_color = color + (255,)
+                rgba_color = list(color) + [255]
 
             changed_pixels = list(set(changed_pixels))
             for x, y in changed_pixels:
-                self.grid.pixels[y, x] = full_color
+                self.grid.pixels[y, x] = rgba_color
 
         if not np.array_equal(self.grid.pixels, prev_grid_pixels):
             self.grid.update_section(self._offset, self._selected_pixels, changed_pixels)
@@ -808,12 +795,8 @@ class GridManager:
         self._traveled_dist.x, self._traveled_dist.y = 0, 0
 
         self.grid.resize(size)
-        self._offset.x = min(
-            self._offset.x, self.grid.grid_size.w - self.grid.grid_visible_area.w
-        )
-        self._offset.y = min(
-            self._offset.y, self.grid.grid_size.h - self.grid.grid_visible_area.h
-        )
+        self._offset.x = min(self._offset.x, self.grid.grid_size.w - self.grid.grid_visible_area.w)
+        self._offset.y = min(self._offset.y, self.grid.grid_size.h - self.grid.grid_visible_area.h)
 
         self.grid.update_full(self._offset, self._selected_pixels)
 
@@ -866,7 +849,7 @@ class GridManager:
         self.grid.get_section_indicator(self._offset)
 
     def upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], color: ColorType,
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], color: ColorType,
             brush_size: int, tool_info: tuple[str, dict[str, Any]]
     ) -> None:
         """
@@ -879,10 +862,9 @@ class GridManager:
             if self._hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
                 self._hovering = False
-        else:
-            if not self._hovering:
-                pg.mouse.set_cursor(pg.SYSTEM_CURSOR_CROSSHAIR)
-                self._hovering = True
+        elif not self._hovering:
+            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_CROSSHAIR)
+            self._hovering = True
 
         # Makes drawing possible even 1 frame after the grid was left
         if self.grid == hover_obj or self.grid.check_hover(self._prev_mouse_pos.xy)[0]:

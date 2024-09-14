@@ -3,13 +3,12 @@ Class to simplify text rendering, renderers are cached
 """
 
 import pygame as pg
-from typing import Final
 
 from src.utils import RectPos
 from src.type_utils import LayeredBlitSequence, LayerSequence
 from src.consts import WHITE, BG_LAYER, TEXT_LAYER
 
-RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
+renderers_cache: dict[int, pg.Font] = {}
 
 
 class Text:
@@ -22,7 +21,9 @@ class Text:
         '_imgs', 'rects', 'rect', '_layer'
     )
 
-    def __init__(self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 24) -> None:
+    def __init__(
+        self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 24
+    ) -> None:
         """
         Creates the text images
         Args:
@@ -34,18 +35,18 @@ class Text:
         self._y: float = self._init_pos.y
 
         self._init_h: int = h
-        if self._init_h not in RENDERERS_CACHE:
-            RENDERERS_CACHE[self._init_h] = pg.font.SysFont('helvetica', self._init_h)
-        self._renderer: pg.Font = RENDERERS_CACHE[self._init_h]
+        if self._init_h not in renderers_cache:
+            renderers_cache[self._init_h] = pg.font.SysFont('helvetica', self._init_h)
+        self._renderer: pg.Font = renderers_cache[self._init_h]
 
         self.text: str = text
-        self._lines: list[str] = self.text.split('\n')
+        self._lines: tuple[str, ...] = tuple(self.text.split('\n'))
 
-        self._imgs: tuple[pg.SurfaceType, ...] = tuple(
+        self._imgs: tuple[pg.Surface, ...] = tuple(
             self._renderer.render(line, True, WHITE) for line in self._lines
         )
         self.rects: list[pg.FRect] = []
-        self.rect: pg.FRect = pg.FRect(0, 0, 0, 0)
+        self.rect: pg.FRect = pg.FRect(0.0, 0.0, 0.0, 0.0)
 
         self._layer: int = base_layer + TEXT_LAYER
 
@@ -61,7 +62,7 @@ class Text:
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        Resizes objects
+        Resizes the object
         Args:
             window width ratio, window height ratio
         """
@@ -69,9 +70,9 @@ class Text:
         h: int = int(self._init_h * win_ratio_h)
         self._x, self._y = self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h
 
-        if h not in RENDERERS_CACHE:
-            RENDERERS_CACHE[h] = pg.font.SysFont('helvetica', h)
-        self._renderer = RENDERERS_CACHE[h]
+        if h not in renderers_cache:
+            renderers_cache[h] = pg.font.SysFont('helvetica', h)
+        self._renderer = renderers_cache[h]
 
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
         self._get_rects()
@@ -128,7 +129,7 @@ class Text:
         """
 
         self.text = text
-        self._lines = self.text.split('\n')
+        self._lines = tuple(self.text.split('\n'))
 
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
         self._get_rects()
@@ -142,12 +143,9 @@ class Text:
             x
         """
 
-        x: float = (
-            self.rects[0].x +
-            self._renderer.render(self._lines[0][:pos_i], False, WHITE).get_width()
-        )
+        w: int = self._renderer.render(self._lines[0][:pos_i], False, WHITE).get_width()
 
-        return x
+        return self.rects[0].x + w
 
     def get_closest_to(self, x: int) -> int:
         """
@@ -162,9 +160,7 @@ class Text:
         for i, char in enumerate(self._lines[0]):
             next_x: int = current_x + self._renderer.render(char, False, WHITE).get_width()
             if x < next_x:
-                if x - current_x < next_x - x:
-                    return i
-                return i + 1
+                return i if abs(x - current_x) < abs(x - next_x) else i + 1
 
             current_x = next_x
 

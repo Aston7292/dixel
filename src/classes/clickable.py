@@ -7,8 +7,8 @@ from abc import ABC, abstractmethod
 from typing import Optional, Any
 
 from src.classes.text import Text
-from src.utils import Point, RectPos, Size, MouseInfo
-from src.type_utils import ObjsInfo, LayeredBlitSequence, LayerSequence
+from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo
+from src.type_utils import LayeredBlitSequence, LayerSequence
 from src.consts import BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
 
@@ -35,7 +35,7 @@ class Clickable(ABC):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: tuple[pg.SurfaceType, pg.SurfaceType], hover_text: str,
+            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], hover_text: str,
             base_layer: int
     ) -> None:
         """
@@ -46,7 +46,7 @@ class Clickable(ABC):
 
         self.init_pos: RectPos = pos
 
-        self._imgs: tuple[pg.SurfaceType, ...] = imgs
+        self._imgs: tuple[pg.Surface, ...] = imgs
         self.rect: pg.FRect = self._imgs[0].get_frect(**{self.init_pos.coord: self.init_pos.xy})
 
         self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
@@ -57,13 +57,12 @@ class Clickable(ABC):
         self._hoovering_layer: int = base_layer + TOP_LAYER
 
         self._hover_text: Optional[Text] = None
-        self._hover_text_surfaces: tuple[pg.SurfaceType, ...] = ()
+        self._hover_text_surfaces: tuple[pg.Surface, ...] = ()
         if hover_text:
             '''
             Blitting the hover text on these surfaces
             saves having to change the text x, y and init position every blit method call.
-            It can't be done with other images
-            because blitting something would permanently change them
+            It can't be done with other images because blitting something would change them
             and it would be noticeable when the window is resized
             but these surfaces get recalculated every resize
             '''
@@ -116,7 +115,7 @@ class Clickable(ABC):
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        Resizes objects
+        Resizes the object
         Args:
             window width ratio, window height ratio
         """
@@ -176,11 +175,11 @@ class CheckBox(Clickable):
     """
 
     __slots__ = (
-        'ticked_on', 'sub_objs'
+        'ticked_on', 'objs_info'
     )
 
     def __init__(
-            self, pos: RectPos, imgs: tuple[pg.SurfaceType, pg.SurfaceType], text: str,
+            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], text: str,
             hover_text: str = '', base_layer: int = BG_LAYER
     ) -> None:
         """
@@ -196,9 +195,7 @@ class CheckBox(Clickable):
         text_obj: Text = Text(
             RectPos(self.rect.centerx, self.rect.y - 5.0, 'midbottom'), text, base_layer, 16
         )
-        self.sub_objs: ObjsInfo = [
-            ('text', text_obj)
-        ]
+        self.objs_info: list[ObjInfo] = [ObjInfo('text', text_obj)]
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -247,11 +244,11 @@ class Button(Clickable):
     """
 
     __slots__ = (
-        'sub_objs',
+        'objs_info',
     )
 
     def __init__(
-            self, pos: RectPos, imgs: tuple[pg.SurfaceType, pg.SurfaceType], text: str,
+            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], text: str,
             hover_text: str = '', base_layer: int = BG_LAYER, text_h: int = 24
     ) -> None:
         """
@@ -263,10 +260,10 @@ class Button(Clickable):
 
         super().__init__(pos, imgs, hover_text, base_layer)
 
-        self.sub_objs: ObjsInfo = []
+        self.objs_info: list[ObjInfo] = []
         if text:
             text_obj: Text = Text(RectPos(*self.rect.center, 'center'), text, base_layer, text_h)
-            self.sub_objs.append(('text', text_obj))
+            self.objs_info.append(ObjInfo('text', text_obj))
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -285,8 +282,8 @@ class Button(Clickable):
 
         self.init_pos.x, self.init_pos.y = x / win_ratio_w, y / win_ratio_h
         setattr(self.rect, self.init_pos.coord, (x, y))
-        for _, obj in self.sub_objs:
-            obj.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
+        for info in self.objs_info:
+            info.obj.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
 
     def upt(self, hover_obj: Any, mouse_info: MouseInfo) -> bool:
         """

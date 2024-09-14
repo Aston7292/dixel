@@ -6,8 +6,8 @@ import pygame as pg
 from typing import Any
 
 from src.classes.clickable import Clickable
-from src.utils import RectPos, Size, MouseInfo, add_border
-from src.type_utils import ObjsInfo, LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, Size, ObjInfo, MouseInfo, add_border
+from src.type_utils import LayeredBlitSequence, LayerSequence
 from src.consts import WHITE, BG_LAYER
 
 
@@ -22,7 +22,7 @@ class LockedCheckBox(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: tuple[pg.SurfaceType, pg.SurfaceType], hover_text: str,
+            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], hover_text: str,
             base_layer: int = BG_LAYER
     ) -> None:
         """
@@ -45,7 +45,7 @@ class LockedCheckBox(Clickable):
 
         return self._base_blit(img_i)
 
-    def set_info(self, imgs: tuple[pg.SurfaceType, pg.SurfaceType], text: str) -> None:
+    def set_info(self, imgs: tuple[pg.Surface, pg.Surface], text: str) -> None:
         """
         Sets images and text
         Args:
@@ -96,29 +96,31 @@ class CheckBoxGrid:
     """
 
     __slots__ = (
-        'init_pos', 'current_x', 'current_y', '_cols', '_increment', '_layer',
-        'check_boxes', 'clicked_i', '_rect', 'sub_objs'
+        '_init_pos', '_current_x', '_current_y', '_cols', '_increment', '_layer',
+        'check_boxes', 'clicked_i', '_rect', 'objs_info'
     )
 
     def __init__(
-            self, pos: RectPos, info: list[tuple[pg.SurfaceType, str]], cols: int,
+            self, pos: RectPos, check_boxes_info: tuple[tuple[pg.Surface, str], ...], cols: int,
             inverted_axes: tuple[bool, bool], base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates all the checkboxes
         Args:
-            position, checkboxes image and text, columns, inverted axes,
+            position, checkboxes images and texts, columns, inverted axes,
             base layer (default = BG_LAYER)
         """
 
         #  Current x and y don't change during window resize
-        self.init_pos: RectPos = pos
-        self.current_x: float = self.init_pos.x
-        self.current_y: float = self.init_pos.y
+        self._init_pos: RectPos = pos
+        self._current_x: float = self._init_pos.x
+        self._current_y: float = self._init_pos.y
 
         self._cols: int = cols
 
-        self._increment: Size = Size(info[0][0].get_width() + 10, info[0][0].get_height() + 10)
+        self._increment: Size = Size(
+            check_boxes_info[0][0].get_width() + 10, check_boxes_info[0][0].get_height() + 10
+        )
         if inverted_axes[0]:
             self._increment.w *= -1
         if inverted_axes[1]:
@@ -127,30 +129,14 @@ class CheckBoxGrid:
         self._layer: int = base_layer
 
         self.check_boxes: list[LockedCheckBox] = []
-        for i, element in enumerate(info):
-            self.check_boxes.append(LockedCheckBox(
-                RectPos(self.current_x, self.current_y, self.init_pos.coord),
-                (element[0], add_border(element[0], WHITE)), element[1], base_layer
-            ))
-
-            self.current_x += self._increment.w
-            if (i + 1) % self._cols == 0:
-                self.current_x = self.init_pos.x
-                self.current_y += self._increment.h
         self.clicked_i: int = 0
+        self._rect: pg.FRect = pg.FRect(0.0, 0.0, 0.0, 0.0)
 
-        rects: tuple[pg.FRect, ...] = tuple(check_box.rect for check_box in self.check_boxes)
-        left: float = min(rect.left for rect in rects)
-        top: float = min(rect.top for rect in rects)
-        w: float = max(rect.right for rect in rects) - left
-        h: float = max(rect.bottom for rect in rects) - top
-        self._rect: pg.FRect = pg.FRect(left, top, w, h)
-
-        self.sub_objs: ObjsInfo = [
-            (f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
+        self.objs_info: list[ObjInfo] = [
+            ObjInfo(f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
         ]
 
-        self.tick_on(self.clicked_i)
+        self.change_grid(check_boxes_info, 1.0, 1.0)
 
     def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
         """
@@ -197,31 +183,31 @@ class CheckBoxGrid:
         self.clicked_i = clicked_i
         self.check_boxes[self.clicked_i].ticked_on = True
 
-    def insert(
-            self, insert_i: int, info: tuple[pg.SurfaceType, str],
+    def change_grid(
+            self, check_boxes_info: tuple[tuple[pg.Surface, str], ...],
             win_ratio_w: float, win_ratio_h: float
     ) -> None:
         """
-        Inserts a checkbox at an index
+        Clears the grid and creates a new one
         Args:
-            index (appends if -1), checkbox info, window width ratio, window height ratio
+            checkboxes images and texts, window width ratio, window height ratio
         """
 
-        if insert_i != -1:
-            self.check_boxes[insert_i].set_info((info[0], add_border(info[0], WHITE)), info[1])
-            self.check_boxes[insert_i].handle_resize(win_ratio_w, win_ratio_h)
-        else:
+        self._current_x, self._current_y = self._init_pos.xy
+        self.check_boxes = []
+        for i, info in enumerate(check_boxes_info):
+            imgs: tuple[pg.Surface, pg.Surface] = (info[0], add_border(info[0], WHITE))
             check_box: LockedCheckBox = LockedCheckBox(
-                RectPos(self.current_x, self.current_y, self.init_pos.coord),
-                (info[0], add_border(info[0], WHITE)), info[1]
+                RectPos(self._current_x, self._current_y, self._init_pos.coord), imgs,
+                info[1], self._layer
             )
             check_box.handle_resize(win_ratio_w, win_ratio_h)
             self.check_boxes.append(check_box)
 
-            self.current_x += self._increment.w
-            if len(self.check_boxes) % self._cols == 0:
-                self.current_x = self.init_pos.x
-                self.current_y += self._increment.h
+            self._current_x += self._increment.w
+            if (i + 1) % self._cols == 0:
+                self._current_x = self._init_pos.x
+                self._current_y += self._increment.h
 
         rects: tuple[pg.FRect, ...] = tuple(check_box.rect for check_box in self.check_boxes)
         left: float = min(rect.left for rect in rects)
@@ -230,12 +216,55 @@ class CheckBoxGrid:
         h: float = max(rect.bottom for rect in rects) - top
         self._rect = pg.FRect(left, top, w, h)
 
-        self.sub_objs = [
-            (f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
+        self.objs_info = [
+            ObjInfo(f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
+        ]
+
+        self.tick_on(0)
+
+    def insert(
+            self, insert_i: int, check_box_info: tuple[pg.Surface, str],
+            win_ratio_w: float, win_ratio_h: float
+    ) -> None:
+        """
+        Inserts a checkbox at an index
+        Args:
+            index (appends if -1), checkbox info, window width ratio, window height ratio
+        """
+
+        imgs: tuple[pg.Surface, pg.Surface] = (
+            check_box_info[0], add_border(check_box_info[0], WHITE)
+        )
+
+        if insert_i != -1:
+            self.check_boxes[insert_i].set_info(imgs, check_box_info[1])
+            self.check_boxes[insert_i].handle_resize(win_ratio_w, win_ratio_h)
+        else:
+            check_box: LockedCheckBox = LockedCheckBox(
+                RectPos(self._current_x, self._current_y, self._init_pos.coord), imgs,
+                check_box_info[1], self._layer
+            )
+            check_box.handle_resize(win_ratio_w, win_ratio_h)
+            self.check_boxes.append(check_box)
+
+            self._current_x += self._increment.w
+            if len(self.check_boxes) % self._cols == 0:
+                self._current_x = self._init_pos.x
+                self._current_y += self._increment.h
+
+        rects: tuple[pg.FRect, ...] = tuple(check_box.rect for check_box in self.check_boxes)
+        left: float = min(rect.left for rect in rects)
+        top: float = min(rect.top for rect in rects)
+        w: float = max(rect.right for rect in rects) - left
+        h: float = max(rect.bottom for rect in rects) - top
+        self._rect = pg.FRect(left, top, w, h)
+
+        self.objs_info = [
+            ObjInfo(f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
         ]
 
     def remove(
-            self, remove_i: int, fallback: tuple[pg.SurfaceType, str],
+            self, remove_i: int, fallback: tuple[pg.Surface, str],
             win_ratio_w: float, win_ratio_h: float
     ) -> None:
         """
@@ -245,30 +274,32 @@ class CheckBoxGrid:
         """
 
         check_box: LockedCheckBox = self.check_boxes.pop(remove_i)
-        self.current_x = getattr(check_box.rect, self.init_pos.coord)[0] / win_ratio_w
-        self.current_y = getattr(check_box.rect, self.init_pos.coord)[1] / win_ratio_h
+        self._current_x = getattr(check_box.rect, self._init_pos.coord)[0] / win_ratio_w
+        self._current_y = getattr(check_box.rect, self._init_pos.coord)[1] / win_ratio_h
         for i in range(remove_i, len(self.check_boxes)):
-            self.check_boxes[i].init_pos.x = self.current_x
-            self.check_boxes[i].init_pos.y = self.current_y
-            setattr(
-                self.check_boxes[i].rect, self.init_pos.coord,
-                (self.current_x * win_ratio_w, self.current_y * win_ratio_h)
+            self.check_boxes[i].init_pos.x = self._current_x
+            self.check_boxes[i].init_pos.y = self._current_y
+            pos: tuple[float, float] = (
+                self._current_x * win_ratio_w, self._current_y * win_ratio_h
             )
+            setattr(self.check_boxes[i].rect, self._init_pos.coord, pos)
 
-            self.current_x += self._increment.w
+            self._current_x += self._increment.w
             if (i + 1) % self._cols == 0:
-                self.current_x = self.init_pos.x
-                self.current_y += self._increment.h
+                self._current_x = self._init_pos.x
+                self._current_y += self._increment.h
 
         if not self.check_boxes:
+            imgs: tuple[pg.Surface, pg.Surface] = (fallback[0], add_border(fallback[0], WHITE))
             check_box = LockedCheckBox(
-                RectPos(self.current_x, self.current_y, self.init_pos.coord),
-                (fallback[0], add_border(fallback[0], WHITE)), fallback[1]
+                RectPos(self._current_x, self._current_y, self._init_pos.coord), imgs,
+                fallback[1], self._layer
             )
             check_box.handle_resize(win_ratio_w, win_ratio_h)
             self.check_boxes.append(check_box)
 
-            self.current_x, self.current_y = self.init_pos.x + self._increment.w, self.init_pos.y
+            self._current_x = self._init_pos.x + self._increment.w
+            self._current_y = self._init_pos.y
 
         if self.clicked_i > remove_i:
             self.tick_on(self.clicked_i - 1)
@@ -283,11 +314,11 @@ class CheckBoxGrid:
         h: float = max(rect.bottom for rect in rects) - top
         self._rect = pg.FRect(left, top, w, h)
 
-        self.sub_objs = [
-            (f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
+        self.objs_info = [
+            ObjInfo(f'checkbox {i}', check_box) for i, check_box in enumerate(self.check_boxes)
         ]
 
-    def upt(self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int]) -> int:
+    def upt(self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...]) -> int:
         """
         Allows ticking on only one check_box at a time
         Args:
@@ -316,12 +347,10 @@ class CheckBoxGrid:
                 clicked_i = max(clicked_i - 1, 0)
             if add_1 in keys:
                 clicked_i = min(clicked_i + 1, len(self.check_boxes) - 1)
-            if sub_cols in keys:
-                if clicked_i - self._cols >= 0:
-                    clicked_i -= self._cols
-            if add_cols in keys:
-                if clicked_i + self._cols <= len(self.check_boxes) - 1:
-                    clicked_i += self._cols
+            if sub_cols in keys and clicked_i - self._cols >= 0:
+                clicked_i -= self._cols
+            if add_cols in keys and clicked_i + self._cols <= len(self.check_boxes) - 1:
+                clicked_i += self._cols
 
             if self.clicked_i != clicked_i:
                 self.tick_on(clicked_i)

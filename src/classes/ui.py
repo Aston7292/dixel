@@ -4,38 +4,24 @@ Abstract class to create a default ui with a title, confirm and exit buttons
 
 import pygame as pg
 from abc import ABC, abstractmethod
-from os import path
 from typing import Final, Any
 
 from src.classes.clickable import Button
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo
-from src.type_utils import ObjsInfo, LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, Size, ObjInfo, MouseInfo, load_img
+from src.type_utils import LayeredBlitSequence, LayerSequence
 from src.consts import UI_LAYER
 
-INTERFACE: Final[pg.SurfaceType] = pg.Surface((500, 700))
+INTERFACE: Final[pg.Surface] = pg.Surface((500, 700))
 INTERFACE.fill((60, 60, 60))
 
-BUTTON_M_OFF: Final[pg.SurfaceType] = pg.image.load(
-    path.join('sprites', 'button_m_off.png')
-).convert_alpha()
-BUTTON_M_ON: Final[pg.SurfaceType] = pg.image.load(
-    path.join('sprites', 'button_m_on.png')
-).convert_alpha()
+BUTTON_M_OFF: Final[pg.Surface] = load_img('sprites', 'button_m_off.png')
+BUTTON_M_ON: Final[pg.Surface] = load_img('sprites', 'button_m_on.png')
+CLOSE_1: Final[pg.Surface] = load_img('sprites', 'close_button_off.png')
+CLOSE_2: Final[pg.Surface] = load_img('sprites', 'close_button_on.png')
 
-CLOSE_1: Final[pg.SurfaceType] = pg.image.load(
-    path.join('sprites', 'close_button_off.png')
-).convert_alpha()
-CLOSE_2: Final[pg.SurfaceType] = pg.image.load(
-    path.join('sprites', 'close_button_on.png')
-).convert_alpha()
-
-CHECK_BOX_1: Final[pg.SurfaceType] = pg.image.load(
-    path.join('sprites', 'check_box_off.png')
-).convert_alpha()
-CHECK_BOX_2: Final[pg.SurfaceType] = pg.image.load(
-    path.join('sprites', 'check_box_on.png')
-).convert_alpha()
+CHECK_BOX_1: Final[pg.Surface] = load_img('sprites', 'check_box_off.png')
+CHECK_BOX_2: Final[pg.Surface] = load_img('sprites', 'check_box_on.png')
 INPUT_BOX: Final[pg.Surface] = pg.Surface((60, 40))
 
 
@@ -53,8 +39,7 @@ class UI(ABC):
     """
 
     __slots__ = (
-        '_init_pos', '_img', '_rect', '_init_size', '_base_layer', '_title', '_exit', '_confirm',
-        'sub_objs'
+        '_init_pos', '_img', '_rect', '_init_size', '_base_layer', '_exit', '_confirm', 'objs_info'
     )
 
     def __init__(self, pos: RectPos, title: str) -> None:
@@ -66,16 +51,14 @@ class UI(ABC):
 
         self._init_pos: RectPos = pos
 
-        self._img: pg.SurfaceType = INTERFACE
-        self._rect: pg.FRect = self._img.get_frect(
-            **{self._init_pos.coord: self._init_pos.xy}
-        )
+        self._img: pg.Surface = INTERFACE
+        self._rect: pg.FRect = self._img.get_frect(**{self._init_pos.coord: self._init_pos.xy})
 
         self._init_size: Size = Size(int(self._rect.w), int(self._rect.h))
 
         self._base_layer: int = UI_LAYER
 
-        self._title: Text = Text(
+        title_obj: Text = Text(
             RectPos(self._rect.centerx, self._rect.top + 10.0, 'midtop'), title,
             self._base_layer, 32
         )
@@ -89,10 +72,9 @@ class UI(ABC):
             (BUTTON_M_OFF, BUTTON_M_ON), 'confirm', '(CTRL+ENTER)', self._base_layer
         )
 
-        self.sub_objs: ObjsInfo = [
-            ('title', self._title),
-            ('exit', self._exit),
-            ('confirm', self._confirm)
+        self.objs_info: list[ObjInfo] = [
+            ObjInfo('title', title_obj),
+            ObjInfo('exit', self._exit), ObjInfo('confirm', self._confirm)
         ]
 
     def blit(self) -> LayeredBlitSequence:
@@ -105,7 +87,7 @@ class UI(ABC):
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        Resizes objects
+        Resizes the object
         Args:
             window width ratio, window height ratio
         """
@@ -113,9 +95,7 @@ class UI(ABC):
         size: tuple[int, int] = (
             int(self._init_size.w * win_ratio_w), int(self._init_size.h * win_ratio_h)
         )
-        pos: tuple[float, float] = (
-            self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h
-        )
+        pos: tuple[float, float] = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
 
         self._img = pg.transform.scale(self._img, size)
         self._rect = self._img.get_frect(**{self._init_pos.coord: pos})
@@ -131,7 +111,7 @@ class UI(ABC):
         return [(name, self._base_layer, depth_counter)]
 
     def _base_upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], ctrl: int
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int
     ) -> tuple[bool, bool]:
         """
         Handles the base behavior
@@ -151,7 +131,7 @@ class UI(ABC):
 
     @abstractmethod
     def upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], ctrl: int
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int
     ) -> tuple[bool, Any]:
         """
         Should implement a way to make the object interactable

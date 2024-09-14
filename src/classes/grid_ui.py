@@ -11,8 +11,8 @@ from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, CHECK_BOX_1, CHECK_BOX_2, INPUT_BOX
 from src.classes.clickable import CheckBox
 from src.classes.text import Text
-from src.utils import RectPos, Size, MouseInfo, ColorType
-from src.type_utils import ObjsInfo, BlitSequence, LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, Size, ObjInfo, MouseInfo
+from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSequence
 
 from src.consts import EMPTY_1, EMPTY_2, BG_LAYER, ELEMENT_LAYER
 
@@ -25,8 +25,8 @@ class NumSlider:
     """
 
     __slots__ = (
-        'value', 'value_input_box', 'rect', '_traveled_x', '_sliding', '_prev_mouse_x',
-        '_add_text', 'sub_objs'
+        'value', 'value_input_box', '_traveled_x', '_sliding', '_prev_mouse_x', '_add_text',
+        'objs_info'
     )
 
     def __init__(self, pos: RectPos, value: int, text: str, base_layer: int = BG_LAYER) -> None:
@@ -41,20 +41,21 @@ class NumSlider:
             pos, INPUT_BOX, str(self.value), base_layer
         )
 
-        self.rect: pg.FRect = self.value_input_box.box_rect  # Shortcut
-
         self._traveled_x: int = 0
         self._sliding: bool = False
 
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
 
         self._add_text: Text = Text(
-            RectPos(self.rect.x - 10.0, self.rect.centery, 'midright'), text, base_layer
+            RectPos(
+                self.value_input_box.box_rect.x - 10.0, self.value_input_box.box_rect.centery,
+                'midright'
+            ),
+            text, base_layer
         )
 
-        self.sub_objs: ObjsInfo = [
-            ('input box', self.value_input_box),
-            ('additional text', self._add_text)
+        self.objs_info: list[ObjInfo] = [
+            ObjInfo('input box', self.value_input_box), ObjInfo('additional text', self._add_text)
         ]
 
     def leave(self) -> None:
@@ -73,7 +74,7 @@ class NumSlider:
             sequence to add in the main layer sequence
         """
 
-        return [('slider', -1, depth_counter)]
+        return [(name, -1, depth_counter)]
 
     def set_value(self, value: int) -> None:
         """
@@ -87,7 +88,8 @@ class NumSlider:
         self.value_input_box.set_text(str(self.value), 0)
 
     def upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], selection: 'NumSlider'
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...],
+            selection: 'NumSlider'
     ) -> bool:
         """
         Allows to select a color either by sliding or typing
@@ -157,7 +159,8 @@ class GridResizer(UI):
         """
 
         '''
-        Preview pixel dimension is a float to represent the full size more accurately when resizing
+        Preview pixels dimension is a float
+        to represent the full size more accurately when resizing
         '''
 
         super().__init__(pos, 'MODIFY GRID')
@@ -169,7 +172,7 @@ class GridResizer(UI):
 
         self._preview_init_dim: int = 300
 
-        self._preview_img: pg.SurfaceType = pg.Surface(
+        self._preview_img: pg.Surface = pg.Surface(
             (self._preview_init_dim, self._preview_init_dim)
         )
         self._preview_rect: pg.FRect = self._preview_img.get_frect(
@@ -183,7 +186,10 @@ class GridResizer(UI):
             grid_size.h, 'height', self._base_layer
         )
         self._w_slider: NumSlider = NumSlider(
-            RectPos(self._preview_rect.x + 20.0, self._h_slider.rect.y - 25.0, 'bottomleft'),
+            RectPos(
+                self._preview_rect.x + 20.0, self._h_slider.value_input_box.box_rect.y - 25.0,
+                'bottomleft'
+            ),
             grid_size.w, 'width', self._base_layer
         )
         self._values_ratio: tuple[float, float] = (1.0, 1.0)
@@ -194,19 +200,22 @@ class GridResizer(UI):
         self._selection_i: int = 0
 
         self._check_box: CheckBox = CheckBox(
-            RectPos(self._preview_rect.right - 20.0, self._h_slider.rect.centery, 'midright'),
+            RectPos(
+                self._preview_rect.right - 20.0, self._h_slider.value_input_box.box_rect.centery,
+                'midright'
+            ),
             (CHECK_BOX_1, CHECK_BOX_2), 'keep ratio', '(CTRL+K)', self._base_layer
         )
 
         self._min_win_ratio: float = 1.0  # Keeps the pixels as squares
-        self.sub_objs += [
-            ('width slider', self._w_slider),
-            ('height slider', self._h_slider),
-            ('checkbox', self._check_box)
-        ]
+        self.objs_info.extend((
+            ObjInfo('width slider', self._w_slider),
+            ObjInfo('height slider', self._h_slider),
+            ObjInfo('checkbox', self._check_box)
+        ))
 
         # Having a version where 1 grid pixel = 1 pixel is better for scaling
-        self._small_preview_img: pg.SurfaceType = pg.Surface(
+        self._small_preview_img: pg.Surface = pg.Surface(
             (self._w_slider.value * 2, self._h_slider.value * 2)
         )
         self._get_preview(Size(self._w_slider.value, self._h_slider.value))
@@ -231,7 +240,7 @@ class GridResizer(UI):
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
-        Resizes objects
+        Resizes the object
         Args:
             window width ratio, window height ratio
         """
@@ -245,8 +254,7 @@ class GridResizer(UI):
             self._preview_init_dim / self._h_slider.value * self._min_win_ratio
         )
         size: tuple[int, int] = (
-            int(self._w_slider.value * pixel_dim),
-            int(self._h_slider.value * pixel_dim)
+            int(self._w_slider.value * pixel_dim), int(self._h_slider.value * pixel_dim)
         )
 
         self._preview_pos = (
@@ -307,14 +315,14 @@ class GridResizer(UI):
         elif add_cols > 0:
             pixels = np.pad(pixels, ((0, 0), (0, add_cols), (0, 0)), constant_values=0)
 
-        empty_pixel: pg.SurfaceType = pg.Surface((2, 2))
+        empty_pixel: pg.Surface = pg.Surface((2, 2))
         for y in range(2):
             for x in range(2):
                 color: ColorType = EMPTY_1 if (x + y) % 2 == 0 else EMPTY_2
                 empty_pixel.set_at((x, y), color)
 
         sequence: BlitSequence = []
-        pixel_surf: pg.SurfaceType = pg.Surface((2, 2))
+        pixel_surf: pg.Surface = pg.Surface((2, 2))
         for y in range(grid_size.h):
             row: NDArray[np.uint8] = pixels[y]
             for x in range(grid_size.w):
@@ -329,10 +337,7 @@ class GridResizer(UI):
             self._preview_init_dim / grid_size.w * self._min_win_ratio,
             self._preview_init_dim / grid_size.h * self._min_win_ratio
         )
-        size: tuple[int, int] = (
-            int(grid_size.w * pixel_dim),
-            int(grid_size.h * pixel_dim)
-        )
+        size: tuple[int, int] = (int(grid_size.w * pixel_dim), int(grid_size.h * pixel_dim))
 
         self._preview_img = pg.transform.scale(self._small_preview_img, size)
         self._preview_rect = self._preview_img.get_frect(
@@ -340,7 +345,7 @@ class GridResizer(UI):
         )
 
     def upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: list[int], ctrl: int
+            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int
     ) -> tuple[bool, Optional[Size]]:
         """
         Allows selecting a grid size with 2 sliders and view it's preview

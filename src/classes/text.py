@@ -96,13 +96,13 @@ class Text:
 
         current_y: float = self._y
         rect_h: float = sum(img.get_height() for img in self._imgs)
-        if 'bottom' in self._init_pos.coord:
+        if 'bottom' in self._init_pos.coord_type:
             current_y -= rect_h - self._imgs[-1].get_height()
-        elif self._init_pos.coord in ('midright', 'center', 'midleft'):
+        elif self._init_pos.coord_type in ('midright', 'center', 'midleft'):
             current_y -= (rect_h - self._imgs[-1].get_height()) / 2.0
 
         for img in self._imgs:
-            self.rects.append(img.get_frect(**{self._init_pos.coord: (self._x, current_y)}))
+            self.rects.append(img.get_frect(**{self._init_pos.coord_type: (self._x, current_y)}))
             current_y += self.rects[-1].h
 
         rect_x: float = min(rect.x for rect in self.rects)

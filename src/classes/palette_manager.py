@@ -11,7 +11,7 @@ from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import Button
 from src.utils import RectPos, ObjInfo, MouseInfo, add_border
 from src.type_utils import ColorType, LayerSequence
-from src.consts import BLACK, EMPTY_1, SPECIAL_LAYER
+from src.consts import BLACK, LIGHT_GRAY, SPECIAL_LAYER
 
 OPTIONS: Final[tuple[tuple[str, str], ...]] = (
     ('edit', '(CTRL+E)'),
@@ -30,11 +30,11 @@ def get_color_info(color: ColorType) -> tuple[pg.Surface, str]:
 
     surf: pg.Surface = pg.Surface((32, 32))
     surf.fill(color)
-    surf = add_border(surf, EMPTY_1)
+    surf = add_border(surf, LIGHT_GRAY)
 
-    rgb_string: str = f'({color[0]}, {color[1]}, {color[2]})'
-    hex_string: str = f'(#{''.join(f'{channel:02x}' for channel in color)})'
-    text: str = f'{rgb_string}\n{hex_string}'
+    rgb_text: str = f'({color[0]}, {color[1]}, {color[2]})'
+    hex_text: str = f'(#{''.join(f'{channel:02x}' for channel in color)})'
+    text: str = f'{rgb_text}\n{hex_text}'
 
     return surf, text
 
@@ -90,6 +90,9 @@ class PaletteManager:
 
         self._drop_down_i = 0
         self._view_drop_down = False
+
+        for i in range(self._drop_down_info_start, self._drop_down_info_end):
+            self.objs_info[i].set_active(self._view_drop_down)
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -153,7 +156,7 @@ class PaletteManager:
 
     def load_from_arr(self, pixels: NDArray[np.uint8]) -> None:
         """
-        Creates a palette out of all unique colors in a pixels array
+        Creates a palette out of every unique colors in a pixels array
         Args:
             pixels
         """
@@ -181,7 +184,7 @@ class PaletteManager:
         prev_drop_down_state: bool = self._view_drop_down
 
         if mouse_info.released[2]:
-            for i, check_box in enumerate(self._colors.check_boxes):
+            for i, check_box in enumerate(self._colors.checkboxes):
                 if check_box.rect.collidepoint(mouse_info.xy):
                     self._view_drop_down = (
                         not self._view_drop_down if self._drop_down_i == i else True
@@ -240,15 +243,24 @@ class PaletteManager:
         if prev_drop_down_state == self._view_drop_down:
             self._colors.upt(hover_obj, mouse_info, keys)
         else:
-            for i in range(self._drop_down_info_start, self._drop_down_info_end):
-                self.objs_info[i].set_active(self._view_drop_down)
+            drop_down_objs_info: list[ObjInfo] = self.objs_info[
+                self._drop_down_info_start:self._drop_down_info_end
+            ]
+            for info in drop_down_objs_info:
+                info.set_active(self._view_drop_down)
 
-        color: ColorType = self.values[self._colors.clicked_i]
+            if not self._view_drop_down:
+                drop_down_objs: list[Any] = [info.obj for info in drop_down_objs_info]
+                while drop_down_objs:
+                    obj: Any = drop_down_objs.pop()
+
+                    if hasattr(obj, 'leave'):
+                        obj.leave()
+                    if hasattr(obj, 'objs_info'):
+                        drop_down_objs.extend(obj.objs_info)
+
         color_to_edit: Optional[ColorType] = None
-
         if self._changing_color:
             color_to_edit = self.values[self._drop_down_i]
-            for check_box in self._colors.check_boxes:
-                check_box._hovering = False
 
-        return color, color_to_edit
+        return self.values[self._colors.clicked_i], color_to_edit

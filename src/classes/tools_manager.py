@@ -19,13 +19,13 @@ BUCKET: Final[pg.Surface] = PENCIL.copy()
 All tools have:
 - name
 - base info (image and text)
-- info for extra ui elements with:
+- info for extra UI elements with:
     - type
     - arguments to create it (excluding position)
     - arguments to pass in the upt method
     - format to send it to the grid
 
-Extra ui elements need:
+Extra UI elements need:
     - a position argument as first in the constructor
     - a base_layer argument in the constructor
     - an upt method
@@ -40,13 +40,13 @@ TOOLS_INFO: Final[dict[str, dict[str, Any]]] = {
                 'type': CheckBox,
                 'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'x mirror'],
                 'upt_args': ['hover_obj', 'mouse_info'],
-                'output_format': {'x_mirror': 'ticked_on'}
+                'output_format': {'x_mirror': 'is_ticked'}
             },
             {
                 'type': CheckBox,
                 'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'y mirror'],
                 'upt_args': ['hover_obj', 'mouse_info'],
-                'output_format': {'y_mirror': 'ticked_on'}
+                'output_format': {'y_mirror': 'is_ticked'}
             }
         )
     },
@@ -57,7 +57,7 @@ TOOLS_INFO: Final[dict[str, dict[str, Any]]] = {
                 'type': CheckBox,
                 'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'edit pixels of\nthe same color'],
                 'upt_args': ['hover_obj', 'mouse_info'],
-                'output_format': {'same_color': 'ticked_on'}
+                'output_format': {'same_color': 'is_ticked'}
             },
         )
     }
@@ -79,7 +79,7 @@ class ToolsManager:
         Args:
             position
         Raises:
-            ValueError if an extra ui element is missing a required attribute
+            ValueError if an extra UI element is missing a required attribute
         """
 
         self._check_extra_info()
@@ -98,7 +98,7 @@ class ToolsManager:
         self._extra_info: list[list[dict[str, Any]]] = []
         for tool_info in extra_info:
             check_boxes_rects: tuple[pg.FRect, ...] = tuple(
-                check_box.rect for check_box in self._tools.check_boxes
+                check_box.rect for check_box in self._tools.checkboxes
             )
             current_x: float = min(rect.x for rect in check_boxes_rects) + 20.0
             current_y: float = min(rect.y for rect in check_boxes_rects) - 20.0
@@ -146,7 +146,7 @@ class ToolsManager:
 
     def _check_extra_info(self) -> None:  # Could go unnoticed
         """
-        Makes sure extra ui elements have all required attributes and methods
+        Makes sure extra UI elements have every required attributes and methods
         Raises:
             ValueError if a missing required attribute/method is found
         """
@@ -158,7 +158,7 @@ class ToolsManager:
         missing_attrs: set[tuple[str, str]] = set()
         for tool_info in extra_info:
             for info in tool_info:
-                obj: Any = info['type'](RectPos(0, 0, 'topleft'), *info['init_args'])
+                obj: Any = info['type'](RectPos(0.0, 0.0, 'topleft'), *info['init_args'])
 
                 required_attrs: list[str] = ['rect', 'upt'] + list(info['output_format'].values())
                 for attr in required_attrs:
@@ -188,8 +188,20 @@ class ToolsManager:
 
         if self._tools.clicked_i != prev_clicked_i:
             prev_active_range: tuple[int, int] = self._dynamic_info_ranges[prev_clicked_i]
-            for i in range(prev_active_range[0], prev_active_range[1]):
-                self.objs_info[i].set_active(False)
+            prev_objs_info: list[ObjInfo] = self.objs_info[
+                prev_active_range[0]:prev_active_range[1]
+            ]
+            for info in prev_objs_info:
+                info.set_active(False)
+
+            prev_objs: list[Any] = [info.obj for info in prev_objs_info]
+            while prev_objs:
+                obj: Any = prev_objs.pop()
+
+                if hasattr(obj, 'leave'):
+                    obj.leave()
+                if hasattr(obj, 'objs_info'):
+                    prev_objs.extend(obj.objs_info)
 
             active_range: tuple[int, int] = self._dynamic_info_ranges[self._tools.clicked_i]
             for i in range(active_range[0], active_range[1]):
@@ -197,13 +209,13 @@ class ToolsManager:
 
         local_vars: dict[str, Any] = locals()
         output_dict: dict[str, Any] = {}
-        for info in self._extra_info[self._tools.clicked_i]:
-            upt_args: tuple[Any, ...] = tuple(local_vars[arg] for arg in info['upt_args'])
-            info['obj'].upt(*upt_args)
+        for obj_info in self._extra_info[self._tools.clicked_i]:
+            upt_args: tuple[Any, ...] = tuple(local_vars[arg] for arg in obj_info['upt_args'])
+            obj_info['obj'].upt(*upt_args)
 
-            obj_output_dict: dict[str, Any] = info['output_format'].copy()
+            obj_output_dict: dict[str, Any] = obj_info['output_format'].copy()
             for key in obj_output_dict:
-                obj_output_dict[key] = getattr(info['obj'], obj_output_dict[key])
+                obj_output_dict[key] = getattr(obj_info['obj'], obj_output_dict[key])
             output_dict.update(obj_output_dict)
 
         return self._names[self._tools.clicked_i], output_dict

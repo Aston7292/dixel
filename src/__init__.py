@@ -1,3 +1,3 @@
 """
-Makes the src folder a package
+Marks the src folder as package
 """

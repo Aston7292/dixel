@@ -14,10 +14,10 @@ from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSe
 
 from src.consts import BG_LAYER, ELEMENT_LAYER
 
-SLIDER_1: Final[pg.Surface] = pg.Surface((10, 35))
-SLIDER_1.fill((40, 40, 40))
-SLIDER_2: Final[pg.Surface] = pg.Surface((10, 35))
-SLIDER_2.fill((10, 10, 10))
+SLIDER_1_IMG: Final[pg.Surface] = pg.Surface((10, 35))
+SLIDER_1_IMG.fill((40, 40, 40))
+SLIDER_2_IMG: Final[pg.Surface] = pg.Surface((10, 35))
+SLIDER_2_IMG.fill((10, 10, 10))
 
 
 class ScrollBar:
@@ -28,7 +28,7 @@ class ScrollBar:
     __slots__ = (
         '_bar_init_pos', '_channel', '_unit_w', '_bar_img', 'bar_rect', '_bar_init_size',
         'value', '_slider_init_pos', '_slider_imgs', '_slider_rect', '_slider_init_size',
-        '_slider_img_i', '_hovering', '_scrolling', '_layer', 'value_input_box', 'objs_info'
+        '_slider_img_i', '_is_hovering', '_is_scrolling', '_layer', 'input_box', 'objs_info'
     )
 
     def __init__(
@@ -45,9 +45,9 @@ class ScrollBar:
         self._channel: int = channel
         self._unit_w: float = 1.0
 
-        self._bar_img = pg.Surface((int(255 * self._unit_w), 25))
+        self._bar_img = pg.Surface((int(255.0 * self._unit_w), 25))
         self.bar_rect: pg.FRect = self._bar_img.get_frect(
-            **{self._bar_init_pos.coord: self._bar_init_pos.xy}
+            **{self._bar_init_pos.coord_type: self._bar_init_pos.xy}
         )
 
         self._bar_init_size: Size = Size(int(self.bar_rect.w), int(self.bar_rect.h))
@@ -56,31 +56,32 @@ class ScrollBar:
         self._slider_init_pos: RectPos = RectPos(*self.bar_rect.midleft, 'midleft')
 
         slider_x: float = self._slider_init_pos.x + self._unit_w * self.value
-        self._slider_imgs: tuple[pg.Surface, ...] = (SLIDER_1, SLIDER_2)
+        self._slider_imgs: tuple[pg.Surface, ...] = (SLIDER_1_IMG, SLIDER_2_IMG)
         self._slider_rect: pg.FRect = self._slider_imgs[0].get_frect(
-            **{self._slider_init_pos.coord: (slider_x, self._slider_init_pos.y)}
+            **{self._slider_init_pos.coord_type: (slider_x, self._slider_init_pos.y)}
         )
 
         self._slider_init_size: Size = Size(int(self._slider_rect.w), int(self._slider_rect.h))
 
         self._slider_img_i: int = 0
-        self._hovering: bool = False
-        self._scrolling: bool = False
+        self._is_hovering: bool = False
+        self._is_scrolling: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
 
-        channel_text: Text = Text(
+        channel_text_label: Text = Text(
             RectPos(*self.bar_rect.midleft, 'midright'), ('r', 'g', 'b')[self._channel], base_layer
         )
-        self.value_input_box: NumInputBox = NumInputBox(
+        self.input_box: NumInputBox = NumInputBox(
             RectPos(
                 self.bar_rect.right + self._slider_rect.w + 10.0, self.bar_rect.centery, 'midleft'
-            ), INPUT_BOX, str(self.value), base_layer
+            ),
+            INPUT_BOX, str(self.value), base_layer
         )
 
         self.objs_info: list[ObjInfo] = [
-            ObjInfo('text', channel_text),
-            ObjInfo('input box', self.value_input_box)
+            ObjInfo('text', channel_text_label),
+            ObjInfo('input box', self.input_box)
         ]
 
         self.get_bar(color)
@@ -105,11 +106,11 @@ class ScrollBar:
             hovered object (can be None), hovered object's layer
         """
 
-        hovering: bool = (
+        is_hovering: bool = (
             self.bar_rect.collidepoint(mouse_pos) or self._slider_rect.collidepoint(mouse_pos)
         )
 
-        return self if hovering else None, self._layer
+        return self if is_hovering else None, self._layer
 
     def leave(self) -> None:
         """
@@ -117,7 +118,7 @@ class ScrollBar:
         """
 
         self._slider_img_i = 0
-        self._hovering = self._scrolling = False
+        self._is_hovering = self._is_scrolling = False
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -150,7 +151,7 @@ class ScrollBar:
             pg.transform.scale(img, slider_size) for img in self._slider_imgs
         )
         self._slider_rect = self._slider_imgs[0].get_frect(
-            **{self._slider_init_pos.coord: slider_pos}
+            **{self._slider_init_pos.coord_type: slider_pos}
         )
 
     def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
@@ -178,13 +179,13 @@ class ScrollBar:
         original_size: tuple[int, int] = self._bar_img.get_size()
         #  Drawing on the normal-sized bar is inaccurate
         self._bar_img = pg.Surface((255, self._bar_init_size.h))
-        sect_surf: pg.Surface = pg.Surface((1, self._bar_init_size.h))
+        unit_surf: pg.Surface = pg.Surface((1, self._bar_init_size.h))
 
-        current_color: list[int] = list(color)
+        unit_color: list[int] = list(color)
         for i in range(256):
-            current_color[self._channel] = i
-            sect_surf.fill(current_color)
-            sequence.append((sect_surf.copy(), (i, 0)))
+            unit_color[self._channel] = i
+            unit_surf.fill(unit_color)
+            sequence.append((unit_surf.copy(), (i, 0)))
         self._bar_img.fblits(sequence)
 
         self._bar_img = pg.transform.scale(self._bar_img, original_size)
@@ -198,12 +199,12 @@ class ScrollBar:
 
         self.value = color[self._channel]
         self._slider_rect.x = self.bar_rect.x + self._unit_w * self.value
-        self.value_input_box.set_text(str(self.value), 0)
+        self.input_box.set_text(str(self.value), 0)
 
         self.get_bar(color)
 
     def upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], selection: Any
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], selection: Any
     ) -> int:
         """
         Allows to pick a value for a channel in a color either with a scroll bar or an input box
@@ -213,37 +214,37 @@ class ScrollBar:
             licked object (-1 = nothing, 0 = scroll bar, 1 = input box)
         """
 
-        if self == hover_obj and mouse_info.released[0]:
+        if self == hovered_obj and mouse_info.released[0]:
             return 0
 
-        clicked: bool
+        is_clicked: bool
         text: str
-        clicked, text = self.value_input_box.upt(
-            hover_obj, mouse_info, keys, (0, 255), selection == self.value_input_box
+        is_clicked, text = self.input_box.upt(
+            hovered_obj, mouse_info, keys, (0, 255), selection == self.input_box
         )
 
-        if clicked:
+        if is_clicked:
             return 1
 
-        if self != hover_obj:
-            if self._hovering:
+        if self != hovered_obj:
+            if self._is_hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self._hovering = False
+                self._is_hovering = False
 
-            if not mouse_info.buttons[0]:
-                self._scrolling = False
+            if not mouse_info.pressed[0]:
+                self._is_scrolling = False
         else:
-            if not self._hovering:
+            if not self._is_hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
-                self._hovering = True
+                self._is_hovering = True
 
-            self._scrolling = bool(mouse_info.buttons[0])
+            self._is_scrolling = bool(mouse_info.pressed[0])
 
         self._slider_img_i = 0
-        prev_text: str = self.value_input_box.text.text
+        prev_text: str = self.input_box.text.text
 
         value: int
-        if self._scrolling:
+        if self._is_scrolling:
             value = ceil((mouse_info.x - self.bar_rect.x) / self._unit_w)
             value = max(min(value, 255), 0)
             text = str(value)
@@ -271,7 +272,7 @@ class ScrollBar:
             self.value = int(text) if text else 0
             self._slider_rect.x = self.bar_rect.x + self._unit_w * self.value
 
-            self.value_input_box.set_text(text)
+            self.input_box.set_text(text)
 
         return -1
 
@@ -284,7 +285,7 @@ class ColorPicker(UI):
 
     __slots__ = (
         '_color', '_preview_init_pos', '_preview_img', '_preview_rect', '_preview_init_size',
-        '_preview_layer', '_channels', '_objs', '_selection_i', '_hex_text'
+        '_preview_layer', '_channels', '_objs', '_selection_i', '_hex_text_label'
     )
 
     def __init__(self, pos: RectPos, color: ColorType) -> None:
@@ -303,41 +304,41 @@ class ColorPicker(UI):
         self._preview_img: pg.Surface = pg.Surface((100, 100))
         self._preview_img.fill(self._color)
         self._preview_rect: pg.FRect = self._preview_img.get_frect(
-            **{self._preview_init_pos.coord: self._preview_init_pos.xy}
+            **{self._preview_init_pos.coord_type: self._preview_init_pos.xy}
         )
 
         self._preview_init_size: Size = Size(int(self._preview_rect.w), int(self._preview_rect.h))
 
         self._preview_layer: int = self._base_layer + ELEMENT_LAYER
 
-        b: ScrollBar = ScrollBar(
+        b_bar: ScrollBar = ScrollBar(
             RectPos(self._rect.centerx, self._preview_rect.top - 50.0, 'center'), 2,
             self._color, self._base_layer
         )
-        g: ScrollBar = ScrollBar(
-            RectPos(self._rect.centerx, b.bar_rect.top - 50.0, 'center'), 1,
+        g_bar: ScrollBar = ScrollBar(
+            RectPos(self._rect.centerx, b_bar.bar_rect.top - 50.0, 'center'), 1,
             self._color, self._base_layer
         )
-        r: ScrollBar = ScrollBar(
-            RectPos(self._rect.centerx, g.bar_rect.top - 50.0, 'center'), 0,
+        r_bar: ScrollBar = ScrollBar(
+            RectPos(self._rect.centerx, g_bar.bar_rect.top - 50.0, 'center'), 0,
             self._color, self._base_layer
         )
 
-        self._channels: tuple[ScrollBar, ...] = (r, g, b)
+        self._channels: tuple[ScrollBar, ...] = (r_bar, g_bar, b_bar)
         self._objs: tuple[tuple[Any, ...], ...] = (
-            (r, r.value_input_box), (g, g.value_input_box), (b, b.value_input_box)
+            (r_bar, r_bar.input_box), (g_bar, g_bar.input_box), (b_bar, b_bar.input_box)
         )
         self._selection_i: Point = Point(0, 0)
 
-        hex_string: str = '#' + ''.join(f'{channel:02x}' for channel in self._color)
-        self._hex_text: Text = Text(
-            RectPos(*self._preview_rect.midtop, 'midbottom'), hex_string, self._base_layer
+        hex_text: str = '#' + ''.join(f'{channel:02x}' for channel in self._color)
+        self._hex_text_label: Text = Text(
+            RectPos(*self._preview_rect.midtop, 'midbottom'), hex_text, self._base_layer
         )
 
         self.objs_info.extend(
             ObjInfo(f'scroll bar {i}', channel) for i, channel in enumerate(self._channels)
         )
-        self.objs_info.append(ObjInfo('hex text', self._hex_text))
+        self.objs_info.append(ObjInfo('hex text', self._hex_text_label))
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -376,7 +377,7 @@ class ColorPicker(UI):
 
         self._preview_img = pg.transform.scale(self._preview_img, preview_size)
         self._preview_rect = self._preview_img.get_frect(
-            **{self._preview_init_pos.coord: preview_pos}
+            **{self._preview_init_pos.coord_type: preview_pos}
         )
 
     def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
@@ -394,7 +395,7 @@ class ColorPicker(UI):
 
     def set_color(self, color: ColorType) -> None:
         """
-        Sets the ui on a specific color
+        Sets the UI on a specific color
         Args:
             color
         """
@@ -405,11 +406,11 @@ class ColorPicker(UI):
         for channel in self._channels:
             channel.set_value(self._color)
 
-        hex_string: str = '#' + ''.join(f'{channel:02x}' for channel in self._color)
-        self._hex_text.set_text(hex_string)
+        hex_text: str = '#' + ''.join(f'{channel:02x}' for channel in self._color)
+        self._hex_text_label.set_text(hex_text)
 
     def upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int
+            self, hovering_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int
     ) -> tuple[bool, Optional[ColorType]]:
         """
         Allows to select a color with 3 scroll bars and view it's preview
@@ -419,7 +420,7 @@ class ColorPicker(UI):
             True if interface was closed else False, color (can be None)
         """
 
-        scroll_bar_keys: tuple[int, ...] = keys  # Cleared when switching selection horizontally
+        upt_scroll_bars: bool = True
         if keys:
             if pg.K_UP in keys:
                 self._selection_i.y = max(self._selection_i.y - 1, 0)
@@ -433,27 +434,28 @@ class ColorPicker(UI):
                     self._selection_i.x = min(self._selection_i.x + 1, len(self._objs[0]) - 1)
 
                 if self._selection_i.x != prev_selection_x:
-                    scroll_bar_keys = ()
+                    upt_scroll_bars = False
 
-        prev_color: ColorType = self._color
-        selection: Any = self._objs[self._selection_i.y][self._selection_i.x]
+        if upt_scroll_bars:
+            prev_color: ColorType = self._color
+            selection: Any = self._objs[self._selection_i.y][self._selection_i.x]
 
-        for i, channel in enumerate(self._channels):
-            selection_i: int = channel.upt(hover_obj, mouse_info, scroll_bar_keys, selection)
-            if selection_i != -1:
-                self._selection_i.x, self._selection_i.y = selection_i, i
-        self._color = tuple(channel.value for channel in self._channels)
+            for i, channel in enumerate(self._channels):
+                selection_i: int = channel.upt(hovering_obj, mouse_info, keys, selection)
+                if selection_i != -1:
+                    self._selection_i.x, self._selection_i.y = selection_i, i
+            self._color = tuple(channel.value for channel in self._channels)
 
-        if self._color != prev_color:
-            for channel in self._channels:
-                channel.get_bar(self._color)
-            self._preview_img.fill(self._color)
+            if self._color != prev_color:
+                for channel in self._channels:
+                    channel.get_bar(self._color)
+                self._preview_img.fill(self._color)
 
-            hex_string: str = '#' + ''.join(f'{channel:02x}' for channel in self._color)
-            self._hex_text.set_text(hex_string)
+                hex_text: str = '#' + ''.join(f'{channel:02x}' for channel in self._color)
+                self._hex_text_label.set_text(hex_text)
 
         confirmed: bool
         exited: bool
-        confirmed, exited = self._base_upt(hover_obj, mouse_info, keys, ctrl)
+        confirmed, exited = self._base_upt(hovering_obj, mouse_info, keys, ctrl)
 
         return confirmed or exited, self._color if confirmed else None

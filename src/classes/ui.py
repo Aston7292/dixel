@@ -1,5 +1,5 @@
 """
-Abstract class to create a default ui with a title, confirm and exit buttons
+Abstract class to create a default UI with a title, confirm and exit buttons
 """
 
 import pygame as pg
@@ -27,7 +27,7 @@ INPUT_BOX: Final[pg.Surface] = pg.Surface((60, 40))
 
 class UI(ABC):
     """
-    Abstract class to create a default ui with a title, confirm and exit buttons
+    Abstract class to create a default UI with a title, confirm and exit buttons
 
     Includes:
         blit() -> PriorityBlitSequence
@@ -52,7 +52,9 @@ class UI(ABC):
         self._init_pos: RectPos = pos
 
         self._img: pg.Surface = INTERFACE
-        self._rect: pg.FRect = self._img.get_frect(**{self._init_pos.coord: self._init_pos.xy})
+        self._rect: pg.FRect = self._img.get_frect(
+            **{self._init_pos.coord_type: self._init_pos.xy}
+        )
 
         self._init_size: Size = Size(int(self._rect.w), int(self._rect.h))
 
@@ -98,7 +100,7 @@ class UI(ABC):
         pos: tuple[float, float] = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
 
         self._img = pg.transform.scale(self._img, size)
-        self._rect = self._img.get_frect(**{self._init_pos.coord: pos})
+        self._rect = self._img.get_frect(**{self._init_pos.coord_type: pos})
 
     def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
         """

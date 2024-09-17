@@ -18,7 +18,7 @@ class NumInputBox:
 
     __slots__ = (
         '_box_init_pos', '_box_img', 'box_rect', '_box_init_size', 'hovering', '_selected',
-        '_layer', '_hoovering_layer', 'text', '_text_i', '_cursor_img', '_cursor_rect',
+        '_layer', '_hovering_layer', 'text', '_text_i', '_cursor_img', '_cursor_rect',
         '_cursor_init_size', 'objs_info'
     )
 
@@ -35,7 +35,7 @@ class NumInputBox:
 
         self._box_img: pg.Surface = img
         self.box_rect: pg.FRect = self._box_img.get_frect(
-            **{pos.coord: pos.xy}
+            **{pos.coord_type: pos.xy}
         )
 
         self._box_init_size: Size = Size(int(self.box_rect.w), int(self.box_rect.h))
@@ -44,7 +44,7 @@ class NumInputBox:
         self._selected: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
-        self._hoovering_layer: int = base_layer + TOP_LAYER
+        self._hovering_layer: int = base_layer + TOP_LAYER
 
         self.text = Text(RectPos(*self.box_rect.center, 'center'), text, base_layer)
         self._text_i: int = 0
@@ -67,7 +67,7 @@ class NumInputBox:
 
         sequence: LayeredBlitSequence = [(self._box_img, self.box_rect.topleft, self._layer)]
         if self._selected:
-            sequence.append((self._cursor_img, self._cursor_rect.topleft, self._hoovering_layer))
+            sequence.append((self._cursor_img, self._cursor_rect.topleft, self._hovering_layer))
 
         return sequence
 
@@ -105,7 +105,7 @@ class NumInputBox:
         )
 
         self._box_img = pg.transform.scale(self._box_img, box_size)
-        self.box_rect = self._box_img.get_frect(**{self._box_init_pos.coord: box_pos})
+        self.box_rect = self._box_img.get_frect(**{self._box_init_pos.coord_type: box_pos})
 
         cursor_size: tuple[int, int] = (
             int(self._cursor_init_size.w * win_ratio_w),
@@ -131,7 +131,7 @@ class NumInputBox:
 
         return [
             (name, self._layer, depth_counter),
-            ('cursor', self._hoovering_layer, depth_counter + 1)
+            ('cursor', self._hovering_layer, depth_counter + 1)
         ]
 
     def get_cursor_pos(self) -> None:

@@ -30,22 +30,15 @@ def add_border(img: pg.Surface, border_color: ColorType) -> pg.Surface:
     Args:
         image, border color
     Returns:
-        modified image
+        image with border
     """
 
-    img_copy: pg.Surface = img.copy()
+    img_with_border: pg.Surface = img.copy()
 
-    w: int
-    h: int
-    w, h = img_copy.get_size()
-    dim: int = min(w, h) // 10
+    border_dim: int = min(img_with_border.get_size()) // 10
+    pg.draw.rect(img_with_border, border_color, img_with_border.get_rect(), border_dim)
 
-    pg.draw.rect(img_copy, border_color, (0, 0, w, dim))
-    pg.draw.rect(img_copy, border_color, (w - dim, 0, dim, h))
-    pg.draw.rect(img_copy, border_color, (0, h - dim, w, dim))
-    pg.draw.rect(img_copy, border_color, (0, 0, dim, h))
-
-    return img_copy
+    return img_with_border
 
 
 @dataclass(slots=True)
@@ -74,12 +67,12 @@ class RectPos:
     """
     Dataclass for representing a rect's position
     Args:
-        x, y, coordinate (e.g. topleft)
+        x, y, coordinate type (e.g. topleft)
     """
 
     x: float
     y: float
-    coord: str
+    coord_type: str
 
     @property
     def xy(self) -> tuple[float, float]:
@@ -122,9 +115,9 @@ class ObjInfo:
 
     name: str
     obj: Any
-    active: bool = field(default=True, init=False)
+    is_active: bool = field(default=True, init=False)
 
-    def set_active(self, active: bool) -> None:
+    def set_active(self, is_active: bool) -> None:
         """
         Sets the active flag for the object and it's sub objects
         Args:
@@ -134,7 +127,7 @@ class ObjInfo:
         objs_info: list[ObjInfo] = [self]
         while objs_info:
             info: ObjInfo = objs_info.pop()
-            info.active = active
+            info.is_active = is_active
 
             if hasattr(info.obj, 'objs_info'):
                 objs_info.extend(info.obj.objs_info)
@@ -145,12 +138,12 @@ class MouseInfo:
     """
     Dataclass for storing mouse information
     Args:
-        x, y, buttons states, recently released buttons
+        x, y, pressed buttons, recently released buttons
     """
 
     x: int
     y: int
-    buttons: tuple[bool, ...]
+    pressed: tuple[bool, bool, bool]
     released: tuple[bool, ...]
 
     @property

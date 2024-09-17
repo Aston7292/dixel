@@ -4,11 +4,12 @@ Class to create various clickable objects
 
 import pygame as pg
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from typing import Optional, Any
 
 from src.classes.text import Text
 from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo
-from src.type_utils import LayeredBlitSequence, LayerSequence
+from src.type_utils import LayeredBlitInfo, LayeredBlitSequence, LayerSequence
 from src.consts import BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
 
@@ -30,50 +31,55 @@ class Clickable(ABC):
     """
 
     __slots__ = (
-        'init_pos', '_imgs', 'rect', '_init_size', '_hovering', '_layer', '_hoovering_layer',
-        '_hover_text', '_hover_text_surfaces'
+        'init_pos', '_imgs', 'rect', '_init_size', '_is_hovering', '_layer', '_hovering_layer',
+        '_hovering_text_label', '_hovering_text_surfs'
     )
 
     def __init__(
-            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], hover_text: str,
+            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], hovering_text: str,
             base_layer: int
     ) -> None:
         """
         Creates the object
         Args:
-            position, two images, hover text, layer
+            position, two images, hovering text, base layer
         """
 
         self.init_pos: RectPos = pos
 
         self._imgs: tuple[pg.Surface, ...] = imgs
-        self.rect: pg.FRect = self._imgs[0].get_frect(**{self.init_pos.coord: self.init_pos.xy})
+        self.rect: pg.FRect = self._imgs[0].get_frect(
+            **{self.init_pos.coord_type: self.init_pos.xy}
+        )
 
         self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
 
-        self._hovering: bool = False
+        self._is_hovering: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
-        self._hoovering_layer: int = base_layer + TOP_LAYER
+        self._hovering_layer: int = base_layer + TOP_LAYER
 
-        self._hover_text: Optional[Text] = None
-        self._hover_text_surfaces: tuple[pg.Surface, ...] = ()
-        if hover_text:
+        self._hovering_text_label: Optional[Text] = None
+        self._hovering_text_surfs: tuple[pg.Surface, ...] = ()
+        if hovering_text:
             '''
-            Blitting the hover text on these surfaces
+            Blitting the hovering text on these surfaces
             saves having to change the text x, y and init position every blit method call.
             It can't be done with other images because blitting something would change them
             and it would be noticeable when the window is resized
             but these surfaces get recalculated every resize
             '''
 
-            self._hover_text = Text(RectPos(0.0, 0.0, 'topleft'), hover_text, h=12)
-            self._hover_text_surfaces = tuple(
-                pg.Surface((int(rect.w), int(rect.h))) for rect in self._hover_text.rects
+            self._hovering_text_label = Text(RectPos(0.0, 0.0, 'topleft'), hovering_text, h=12)
+            self._hovering_text_surfs = tuple(
+                pg.Surface((int(rect.w), int(rect.h))) for rect in self._hovering_text_label.rects
             )
 
-            for target, (surf, _, _) in zip(self._hover_text_surfaces, self._hover_text.blit()):
-                target.blit(surf)
+            hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
+                self._hovering_text_surfs, self._hovering_text_label.blit()
+            )
+            for surf, (text_surf, _, _) in hovering_text_info:
+                surf.blit(text_surf)
 
     def _base_blit(self, img_i: int) -> LayeredBlitSequence:
         """
@@ -85,13 +91,11 @@ class Clickable(ABC):
         """
 
         sequence: LayeredBlitSequence = [(self._imgs[img_i], self.rect.topleft, self._layer)]
-        if self._hovering:
-            mouse_pos: Point = Point(*pg.mouse.get_pos())
-            x: int = mouse_pos.x + 15
-            y: int = mouse_pos.y
-            for surf in self._hover_text_surfaces:
-                sequence.append((surf, (x, y), self._hoovering_layer))
-                y += surf.get_height()
+        if self._is_hovering:
+            hovering_text_pos: Point = Point(pg.mouse.get_pos()[0] + 15, pg.mouse.get_pos()[1])
+            for surf in self._hovering_text_surfs:
+                sequence.append((surf, hovering_text_pos.xy, self._hovering_layer))
+                hovering_text_pos.y += surf.get_height()
 
         return sequence
 
@@ -111,7 +115,7 @@ class Clickable(ABC):
         Clears all the relevant data when a state is leaved
         """
 
-        self._hovering = False
+        self._is_hovering = False
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -126,16 +130,19 @@ class Clickable(ABC):
         pos: tuple[float, float] = (self.init_pos.x * win_ratio_w, self.init_pos.y * win_ratio_h)
 
         self._imgs = tuple(pg.transform.scale(img, size) for img in self._imgs)
-        self.rect = self._imgs[0].get_frect(**{self.init_pos.coord: pos})
+        self.rect = self._imgs[0].get_frect(**{self.init_pos.coord_type: pos})
 
-        if self._hover_text:
-            self._hover_text.handle_resize(win_ratio_w, win_ratio_h)
-            self._hover_text_surfaces = tuple(
-                pg.Surface((int(rect.w), int(rect.h))) for rect in self._hover_text.rects
+        if self._hovering_text_label:
+            self._hovering_text_label.handle_resize(win_ratio_w, win_ratio_h)
+            self._hovering_text_surfs = tuple(
+                pg.Surface((int(rect.w), int(rect.h))) for rect in self._hovering_text_label.rects
             )
 
-            for target, (surf, _, _) in zip(self._hover_text_surfaces, self._hover_text.blit()):
-                target.blit(surf)
+            hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
+                self._hovering_text_surfs, self._hovering_text_label.blit()
+            )
+            for surf, (text_surf, _, _) in hovering_text_info:
+                surf.blit(text_surf)
 
     def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
         """
@@ -146,8 +153,8 @@ class Clickable(ABC):
         """
 
         sequence: LayerSequence = [(name, self._layer, depth_counter)]
-        if self._hover_text:
-            sequence.append(('hover text', self._hoovering_layer, depth_counter + 1))
+        if self._hovering_text_label:
+            sequence.append(('hovering text', self._hovering_layer, depth_counter + 1))
 
         return sequence
 
@@ -159,7 +166,7 @@ class Clickable(ABC):
         """
 
     @abstractmethod
-    def upt(self, hover_obj: Any, mouse_info: MouseInfo) -> bool:
+    def upt(self, hovered_obj: Any, mouse_info: MouseInfo) -> bool:
         """
         Should implement a way to make the object interactable
         Args:
@@ -175,12 +182,12 @@ class CheckBox(Clickable):
     """
 
     __slots__ = (
-        'ticked_on', 'objs_info'
+        'is_ticked', 'objs_info'
     )
 
     def __init__(
             self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], text: str,
-            hover_text: str = '', base_layer: int = BG_LAYER
+            hovering_text: str = '', base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the checkbox and text
@@ -188,14 +195,14 @@ class CheckBox(Clickable):
             position, two images, text, hover text (default = ''), base layer (default = BG_LAYER)
         """
 
-        super().__init__(pos, imgs, hover_text, base_layer)
+        super().__init__(pos, imgs, hovering_text, base_layer)
 
-        self.ticked_on: bool = False
+        self.is_ticked: bool = False
 
-        text_obj: Text = Text(
+        text_label: Text = Text(
             RectPos(self.rect.centerx, self.rect.y - 5.0, 'midbottom'), text, base_layer, 16
         )
-        self.objs_info: list[ObjInfo] = [ObjInfo('text', text_obj)]
+        self.objs_info: list[ObjInfo] = [ObjInfo('text', text_label)]
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -203,9 +210,9 @@ class CheckBox(Clickable):
             sequence to add in the main blit sequence
         """
 
-        return self._base_blit(int(self.ticked_on))
+        return self._base_blit(int(self.is_ticked))
 
-    def upt(self, hover_obj: Any, mouse_info: MouseInfo, shortcut: bool = False) -> bool:
+    def upt(self, hovered_obj: Any, mouse_info: MouseInfo, did_shortcut: bool = False) -> bool:
         """
         Changes the checkbox image when clicked
         Args:
@@ -214,26 +221,26 @@ class CheckBox(Clickable):
             True if the checkbox was ticked on else False
         """
 
-        if shortcut:
-            self.ticked_on = not self.ticked_on
+        if did_shortcut:
+            self.is_ticked = not self.is_ticked
 
-            return self.ticked_on
+            return self.is_ticked
 
-        if self != hover_obj:
-            if self._hovering:
+        if self != hovered_obj:
+            if self._is_hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self._hovering = False
+                self._is_hovering = False
 
             return False
 
-        if not self._hovering:
+        if not self._is_hovering:
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
-            self._hovering = True
+            self._is_hovering = True
 
         if mouse_info.released[0]:
-            self.ticked_on = not self.ticked_on
+            self.is_ticked = not self.is_ticked
 
-            return self.ticked_on
+            return self.is_ticked
 
         return False
 
@@ -249,7 +256,7 @@ class Button(Clickable):
 
     def __init__(
             self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], text: str,
-            hover_text: str = '', base_layer: int = BG_LAYER, text_h: int = 24
+            hovering_text: str = '', base_layer: int = BG_LAYER, text_h: int = 24
     ) -> None:
         """
         Creates the button and text
@@ -258,12 +265,12 @@ class Button(Clickable):
             text height (default = 24)
         """
 
-        super().__init__(pos, imgs, hover_text, base_layer)
+        super().__init__(pos, imgs, hovering_text, base_layer)
 
         self.objs_info: list[ObjInfo] = []
         if text:
-            text_obj: Text = Text(RectPos(*self.rect.center, 'center'), text, base_layer, text_h)
-            self.objs_info.append(ObjInfo('text', text_obj))
+            text_label: Text = Text(RectPos(*self.rect.center, 'center'), text, base_layer, text_h)
+            self.objs_info.append(ObjInfo('text', text_label))
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -271,7 +278,7 @@ class Button(Clickable):
             sequence to add in the main blit sequence
         """
 
-        return self._base_blit(int(self._hovering))
+        return self._base_blit(int(self._is_hovering))
 
     def move_rect(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -281,11 +288,11 @@ class Button(Clickable):
         """
 
         self.init_pos.x, self.init_pos.y = x / win_ratio_w, y / win_ratio_h
-        setattr(self.rect, self.init_pos.coord, (x, y))
+        setattr(self.rect, self.init_pos.coord_type, (x, y))
         for info in self.objs_info:
             info.obj.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
 
-    def upt(self, hover_obj: Any, mouse_info: MouseInfo) -> bool:
+    def upt(self, hovering_obj: Any, mouse_info: MouseInfo) -> bool:
         """
         Changes the button image if the mouse is hovering it
         Args:
@@ -294,15 +301,15 @@ class Button(Clickable):
             True if the button was clicked else False
         """
 
-        if self != hover_obj:
-            if self._hovering:
+        if self != hovering_obj:
+            if self._is_hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self._hovering = False
+                self._is_hovering = False
 
             return False
 
-        if not self._hovering:
+        if not self._is_hovering:
             pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
-            self._hovering = True
+            self._is_hovering = True
 
         return mouse_info.released[0]

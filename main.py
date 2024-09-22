@@ -50,7 +50,7 @@ Leaving a state:
     the hovering flag for clickables, responsible for showing hovering text
 
 Window resizing:
-    The handle_resize method scales position and image manually because
+    The handle_resize method scales positions and images manually because
     blitting everything on a surface, scaling it to match the window size and blitting it
     removes text anti aliasing and causes 1 pixel offsets on some elements at specific sizes and
     pygame.SCALED doesn't scale position and images
@@ -83,7 +83,7 @@ TODO:
 - terminal arguments
 - save current colors along with the image
 - slider is faster when moving the mouse faster
-- consistent text_i across different NumInputBox
+- consistent cursor_i across different NumInputBox
 - option to change the palette to match the current colors/multiple palettes
 - CTRL Z/Y (store without alpha channel, UI to view history)
 - option to make drawing only affect the visible_area?
@@ -124,7 +124,7 @@ debug:
     - view next checkbox position in CheckBoxGrid
     - view grid, minimap and GRID_UI preview info
     - view hovering_text for Clickable
-    - view text_i for NumInputBox
+    - view cursor_i for NumInputBox
 '''
 
 import pygame as pg
@@ -152,39 +152,38 @@ EXTRA_FLAGS: Final[int] = pg.DOUBLEBUF | pg.HWSURFACE
 INIT_WIN: Final[pg.Surface] = pg.display.set_mode(
     (INIT_WIN_SIZE.w, INIT_WIN_SIZE.h), pg.RESIZABLE | EXTRA_FLAGS
 )
-pg.display.set_caption('Dixel')
-pg.display.set_icon(load_img('sprites', 'icon.png'))
+pg.display.set_caption("Dixel")
+pg.display.set_icon(load_img("sprites", "icon.png"))
 
 # These files load images at the start which require pygame to be already initialized
 from src.classes.grid_ui import GridUI
 from src.classes.color_ui import ColorPicker
-from src.classes.ui import BUTTON_M_OFF, BUTTON_M_ON
+from src.classes.ui import BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 from src.classes.tools_manager import ToolsManager
 
-BUTTON_S_OFF_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF, (64, 32))
-BUTTON_S_ON_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_ON, (64, 32))
-DATA_FILE: Final[Path] = Path('data.txt')
+BUTTON_S_OFF_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF_IMG, (64, 32))
+BUTTON_S_ON_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_ON_IMG, (64, 32))
 
 ADD_COLOR: Final[Button] = Button(
     RectPos(INIT_WIN_SIZE.w - 25.0, INIT_WIN_SIZE.h - 25.0, 'bottomright'),
-    (BUTTON_M_OFF, BUTTON_M_ON), 'add color', '(CTRL+A)'
+    (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "add color", "(CTRL+A)"
 )
 MODIFY_GRID: Final[Button] = Button(
     RectPos(ADD_COLOR.rect.x - 10.0, ADD_COLOR.rect.y, 'topright'),
-    (BUTTON_M_OFF, BUTTON_M_ON), 'modify grid', '(CTRL+M)'
+    (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "modify grid", "(CTRL+M)"
 )
 
 SAVE_AS: Final[Button] = Button(
     RectPos(0.0, 0.0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
-    'save as', '(CTRL+S)', text_h=15
+    "save as", "(CTRL+S)", text_h=15
 )
 OPEN: Final[Button] = Button(
     RectPos(SAVE_AS.rect.right, 0.0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
-    'open file', '(CTRL+O)', text_h=15
+    "open file", "(CTRL+O)", text_h=15
 )
 CLOSE: Final[Button] = Button(
     RectPos(OPEN.rect.right, 0.0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
-    'close file', '(CTRL+Q)', text_h=15
+    "close file", "(CTRL+Q)", text_h=15
 )
 
 GRID_MANAGER: Final[GridManager] = GridManager(
@@ -193,7 +192,7 @@ GRID_MANAGER: Final[GridManager] = GridManager(
 )
 
 BRUSH_SIZES_INFO: tuple[tuple[pg.Surface, str], ...] = tuple(
-    (load_img('sprites', f'size_{n}_off.png'), f'{n}px\n(CTRL+{n})') for n in range(1, 6)
+    (load_img("sprites" f"size_{n}_off.png"), f"{n}px\n(CTRL+{n})") for n in range(1, 6)
 )
 BRUSH_SIZES: Final[CheckBoxGrid] = CheckBoxGrid(
     RectPos(10.0, SAVE_AS.rect.bottom + 10.0, 'topleft'), BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO),
@@ -209,29 +208,28 @@ TOOLS_MANAGER: Final[ToolsManager] = ToolsManager(
     RectPos(10.0, INIT_WIN_SIZE.h - 10.0, 'bottomleft')
 )
 
-FPS_TEXT_LABEL: Final[Text] = Text(RectPos(INIT_WIN_SIZE.w / 2.0, 0.0, 'midtop'), 'FPS: 0')
+FPS_TEXT_LABEL: Final[Text] = Text(RectPos(INIT_WIN_SIZE.w / 2.0, 0.0, 'midtop'), "FPS: 0")
 
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
     RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'), PALETTE_MANAGER.values[0]
 )
-
 GRID_UI: Final[GridUI] = GridUI(
-    RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'), GRID_MANAGER.grid.grid_size
+    RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'), GRID_MANAGER.grid.area
 )
 
 MAIN_OBJS_INFO: Final[tuple[list[ObjInfo], ...]] = (  # Grouped by state
     [
-        ObjInfo('add color', ADD_COLOR),
-        ObjInfo('modify grid', MODIFY_GRID),
-        ObjInfo('save as', SAVE_AS), ObjInfo('open', OPEN), ObjInfo('close', CLOSE),
-        ObjInfo('grid manager', GRID_MANAGER),
-        ObjInfo('brush sizes', BRUSH_SIZES),
-        ObjInfo('palette manager', PALETTE_MANAGER),
-        ObjInfo('tools manager', TOOLS_MANAGER),
-        ObjInfo('fps text', FPS_TEXT_LABEL)
+        ObjInfo("add color", ADD_COLOR),
+        ObjInfo("modify grid", MODIFY_GRID),
+        ObjInfo("save as", SAVE_AS), ObjInfo("open", OPEN), ObjInfo("close", CLOSE),
+        ObjInfo("grid manager", GRID_MANAGER),
+        ObjInfo("brush sizes", BRUSH_SIZES),
+        ObjInfo("palette manager", PALETTE_MANAGER),
+        ObjInfo("tools manager", TOOLS_MANAGER),
+        ObjInfo("fps text", FPS_TEXT_LABEL)
     ],
-    [ObjInfo('color ui', COLOR_PICKER)],
-    [ObjInfo('grid ui', GRID_UI)]
+    [ObjInfo("color ui", COLOR_PICKER)],
+    [ObjInfo("grid ui", GRID_UI)]
 )
 
 FPSUPDATE: Final[int] = pg.USEREVENT + 1
@@ -247,7 +245,7 @@ class Dixel:
     __slots__ = (
         '_win_size', '_prev_win_size', '_main_win_flag', '_is_fullscreen', '_win', '_mouse_info',
         '_pressed_keys', '_timed_keys', '_prev_k_input', '_kmod_ctrl', '_hovered_obj', '_state',
-        '_active_objs', '_inactive_objs', '_file_path'
+        '_active_objs', '_inactive_objs', '_data_file', '_file_path'
     )
 
     def __init__(self) -> None:
@@ -259,7 +257,6 @@ class Dixel:
         self._prev_win_size: tuple[int, int] = self._win_size.wh
         self._main_win_flag: int = pg.RESIZABLE
         self._is_fullscreen: bool = False
-
         self._win: pg.Surface = INIT_WIN
 
         self._mouse_info: MouseInfo = MouseInfo(
@@ -283,9 +280,10 @@ class Dixel:
         self._active_objs: list[list[Any]] = []
         self._inactive_objs: list[list[Any]] = []
 
+        self._data_file: Path = Path("data.txt")
         self._file_path: str = ''
-        if DATA_FILE.is_file():
-            with DATA_FILE.open(encoding='utf-8') as f:
+        if self._data_file.is_file():
+            with self._data_file.open(encoding='utf-8') as f:
                 saved_file_path: str = f.read()
 
             if Path(saved_file_path).is_file():
@@ -307,7 +305,7 @@ class Dixel:
             blittable_objs.extend(self._active_objs[self._state])
 
         for obj in blittable_objs:
-            if hasattr(obj, 'blit'):
+            if hasattr(obj, "blit"):
                 main_sequence.extend(obj.blit())
 
         def get_layer(layered_blit_info: LayeredBlitInfo) -> int:
@@ -327,7 +325,7 @@ class Dixel:
         """
 
         for obj in self._active_objs[prev_state]:
-            if hasattr(obj, 'leave'):
+            if hasattr(obj, "leave"):
                 obj.leave()
 
         pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
@@ -340,13 +338,17 @@ class Dixel:
         win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
         win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
 
-        post_resize_objs: list[Any] = []
         for state in self._active_objs + self._inactive_objs:
             for obj in state:
-                if hasattr(obj, 'handle_resize'):
+                if hasattr(obj, "handle_resize"):
                     obj.handle_resize(win_ratio_w, win_ratio_h)
-                if hasattr(obj, 'post_resize'):
-                    post_resize_objs.append(obj)
+
+        post_resize_objs: list[Any] = [
+            obj
+            for state in self._active_objs + self._inactive_objs
+            for obj in state
+            if hasattr(obj, "post_resize")
+        ]
 
         for obj in post_resize_objs:
             obj.post_resize()
@@ -368,7 +370,7 @@ class Dixel:
             raise KeyboardInterrupt
 
         if k == pg.K_F1:
-            self._win_size.w, self._win_size.h = INIT_WIN_SIZE.w, INIT_WIN_SIZE.h
+            self._win_size.w, self._win_size.h = INIT_WIN_SIZE.wh
             self._main_win_flag = pg.RESIZABLE
             self._is_fullscreen = False
             self._win = pg.display.set_mode(self._win_size.wh, self._main_win_flag | EXTRA_FLAGS)
@@ -426,7 +428,7 @@ class Dixel:
                 self._pressed_keys.remove(event.key)
                 self._kmod_ctrl = pg.key.get_mods() & pg.KMOD_CTRL
             elif event.type == FPSUPDATE:
-                FPS_TEXT_LABEL.set_text('FPS: ' + str(round(CLOCK.get_fps())))
+                FPS_TEXT_LABEL.set_text("FPS: " + str(round(CLOCK.get_fps())))
 
         if pg.time.get_ticks() - self._prev_k_input < 100:
             self._timed_keys = ()
@@ -470,18 +472,18 @@ class Dixel:
                     depth_counter: int
                     name, obj, depth_counter = layer_info.pop()
 
-                    if hasattr(obj, 'print_layer'):
+                    if hasattr(obj, "print_layer"):
                         sequence.extend(obj.print_layer(name, depth_counter))
-                    if hasattr(obj, 'objs_info'):
+                    if hasattr(obj, "objs_info"):
                         obj_info: tuple[tuple[str, Any, int], ...] = tuple(
                             (info.name, info.obj, depth_counter + 1) for info in obj.objs_info
                         )
+                        # Layer info is added to the sequence from last to first
                         layer_info.extend(obj_info[::-1])
 
                 for name, layer, depth_counter in sequence:
-                    layer_repr: str = str(layer) if layer != -1 else 'None'
-                    print(f'{'\t' * depth_counter}{name}: {layer_repr}')
-                print('-' * 50)
+                    print(f"{'\t' * depth_counter}{name}: {str(layer)}")
+                print("-" * 50)
 
     def _handle_open_ui_buttons(self) -> None:
         """
@@ -496,7 +498,7 @@ class Dixel:
         ctrl_m: bool = bool(self._kmod_ctrl and pg.K_m in self._timed_keys)
         if MODIFY_GRID.upt(self._hovered_obj, self._mouse_info) or ctrl_m:
             self._state = 2
-            GRID_UI.set_size(GRID_MANAGER.grid.grid_size, GRID_MANAGER.grid.pixels)
+            GRID_UI.set_size(GRID_MANAGER.grid.area, GRID_MANAGER.grid.pixels)
 
     def _handle_file_buttons(self) -> None:
         """
@@ -519,7 +521,7 @@ class Dixel:
             tk_root = Tk()
             tk_root.withdraw()
             new_file_path = filedialog.asksaveasfilename(
-                defaultextension='.png', filetypes=(('png Files', '*.png'),), title='Save as'
+                defaultextension='.png', filetypes=(('png Files', '*.png'),), title="Save as"
             )
             tk_root.destroy()
 
@@ -544,7 +546,7 @@ class Dixel:
             tk_root = Tk()
             tk_root.withdraw()
             new_file_path = filedialog.askopenfilename(
-                defaultextension='.png', filetypes=(('png Files', '*.png'),), title='Open'
+                defaultextension='.png', filetypes=(('png Files', '*.png'),), title="Open"
             )
             tk_root.destroy()
 
@@ -571,7 +573,7 @@ class Dixel:
         new_file_img: Image.Image
         try:
             while True:
-                CLOCK.tick(6000)  # TODO: put back at 60
+                CLOCK.tick(60)
 
                 self._handle_events()
 
@@ -590,7 +592,7 @@ class Dixel:
                 for state in MAIN_OBJS_INFO:
                     state_info: list[ObjInfo] = state.copy()
                     for info in state_info:
-                        if hasattr(info.obj, 'objs_info'):
+                        if hasattr(info.obj, "objs_info"):
                             state_info.extend(info.obj.objs_info)
                     objs_info.append(state_info)
 
@@ -606,7 +608,7 @@ class Dixel:
                 self._hovered_obj = None
                 max_hovered_layer: int = 0
                 for obj in self._active_objs[self._state]:
-                    if hasattr(obj, 'check_hover'):
+                    if hasattr(obj, "check_hover"):
                         hovered_obj: Any
                         hovered_layer: int
                         hovered_obj, hovered_layer = obj.check_hover(mouse_pos)
@@ -674,21 +676,21 @@ class Dixel:
             if self._file_path:
                 new_file_img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
                 new_file_img.save(self._file_path)
-            with DATA_FILE.open('w', encoding='utf-8') as f:
+            with self._data_file.open('w', encoding='utf-8') as f:
                 f.write(self._file_path)
 
         except Exception:  # pylint: disable=broad-exception-caught
             if not self._file_path:
                 duplicate_name_counter: int = 0
-                new_file_name: str = 'new_file.png'
+                new_file_name: str = "new_file.png"
                 while Path(new_file_name).exists():
                     duplicate_name_counter += 1
-                    new_file_name = f'new_file_{duplicate_name_counter}.png'
+                    new_file_name = f"new_file_{duplicate_name_counter}.png"
                 self._file_path = new_file_name
 
             new_file_img = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
             new_file_img.save(self._file_path)
-            with DATA_FILE.open('w', encoding='utf-8') as f:
+            with self._data_file.open('w', encoding='utf-8') as f:
                 f.write(self._file_path)
 
             print_exc()

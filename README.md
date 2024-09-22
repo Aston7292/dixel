@@ -9,7 +9,7 @@ Requires pygame-ce, numpy and Pillow
 - **View Navigation**: Move the view for large images.
 - **Edit Pixels**: Color and erase pixels.
 - **Brush Size**: Select the brush size using checkboxes.
-- **Palette Options**: Edit or delete a color from the palette with a dropdown menu
+- **Palette Options**: Edit or delete a color from the palette with a drop-down menu
 - **Zooming**: Zoom in/out towards the mouse
 - **Minimap**: See the current position on the grid with a minimap
 - **Color Picker**: Select colors with a colorful and intuitive UI.
@@ -45,7 +45,7 @@ Requires pygame-ce, numpy and Pillow
 - **CTRL left/right**: switch between scrollbar and input box in color picking ui
 - **CTRL K**: toggle checkbox in grid ui
 
-- **ALT L**: print debug information about layers
+- **ALT L**: print debug info about layers
 
 ## Screenshots
 

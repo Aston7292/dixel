@@ -5,15 +5,15 @@ Class to manage drawing tools
 import pygame as pg
 from typing import Final, Any
 
-from src.classes.ui import CHECK_BOX_1, CHECK_BOX_2
+from src.classes.ui import CHECK_BOX_1_IMG, CHECK_BOX_2_IMG
 from src.classes.check_box_grid import CheckBoxGrid
 from src.classes.clickable import CheckBox
 from src.utils import RectPos, ObjInfo, MouseInfo, load_img
 from src.type_utils import LayerSequence
 from src.consts import SPECIAL_LAYER
 
-PENCIL: Final[pg.Surface] = load_img('sprites', 'pencil_tool.png')
-BUCKET: Final[pg.Surface] = PENCIL.copy()
+PENCIL_IMG: Final[pg.Surface] = load_img('sprites', 'pencil_tool.png')
+BUCKET_IMG: Final[pg.Surface] = PENCIL_IMG.copy()
 
 '''
 All tools have:
@@ -34,29 +34,29 @@ Extra UI elements need:
 
 TOOLS_INFO: Final[dict[str, dict[str, Any]]] = {
     'brush': {
-        'base_info': (PENCIL, 'edit pixels'),
+        'base_info': (PENCIL_IMG, 'edit pixels'),
         'extra_info': (
             {
                 'type': CheckBox,
-                'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'x mirror'],
-                'upt_args': ['hover_obj', 'mouse_info'],
+                'init_args': [(CHECK_BOX_1_IMG, CHECK_BOX_2_IMG), 'x mirror', ''],
+                'upt_args': ['hovered_obj', 'mouse_info'],
                 'output_format': {'x_mirror': 'is_ticked'}
             },
             {
                 'type': CheckBox,
-                'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'y mirror'],
-                'upt_args': ['hover_obj', 'mouse_info'],
+                'init_args': [(CHECK_BOX_1_IMG, CHECK_BOX_2_IMG), 'y mirror', ''],
+                'upt_args': ['hovered_obj', 'mouse_info'],
                 'output_format': {'y_mirror': 'is_ticked'}
             }
         )
     },
     'fill': {
-        'base_info': (BUCKET, 'fill'),
+        'base_info': (BUCKET_IMG, 'fill'),
         'extra_info': (
             {
                 'type': CheckBox,
-                'init_args': [(CHECK_BOX_1, CHECK_BOX_2), 'edit pixels of\nthe same color'],
-                'upt_args': ['hover_obj', 'mouse_info'],
+                'init_args': [(CHECK_BOX_1_IMG, CHECK_BOX_2_IMG), 'edit pixels of\nthe same color', ''],
+                'upt_args': ['hovered_obj', 'mouse_info'],
                 'output_format': {'same_color': 'is_ticked'}
             },
         )
@@ -88,20 +88,16 @@ class ToolsManager:
         base_info: tuple[tuple[pg.Surface, str], ...] = tuple(
             info['base_info'] for info in TOOLS_INFO.values()
         )
-        extra_info: tuple[tuple[dict[str, Any], ...], ...] = tuple(
-            info['extra_info'] for info in TOOLS_INFO.values()
-        )
-
         self._tools: CheckBoxGrid = CheckBoxGrid(pos, base_info, 5, (False, True))
 
         # Adds object and removes type and init arguments
+        extra_info: tuple[tuple[dict[str, Any], ...], ...] = tuple(
+            info['extra_info'] for info in TOOLS_INFO.values()
+        )
         self._extra_info: list[list[dict[str, Any]]] = []
         for tool_info in extra_info:
-            check_boxes_rects: tuple[pg.FRect, ...] = tuple(
-                check_box.rect for check_box in self._tools.checkboxes
-            )
-            current_x: float = min(rect.x for rect in check_boxes_rects) + 20.0
-            current_y: float = min(rect.y for rect in check_boxes_rects) - 20.0
+            current_x: float = self._tools.rect.x + 20.0
+            current_y: float = self._tools.rect.y - 20.0
 
             objs_info: list[dict[str, Any]] = []
             for info in tool_info:
@@ -118,11 +114,12 @@ class ToolsManager:
             self._extra_info.append(objs_info)
 
         self.objs_info: list[ObjInfo] = [ObjInfo('tools', self._tools)]
+
         self._dynamic_info_ranges: list[tuple[int, int]] = []
         for i, obj_info in enumerate(self._extra_info):
             range_start: int = len(self.objs_info)
             self.objs_info.extend(
-                ObjInfo(f'{self._names[i]} tool, option {j}', info['obj'])
+                ObjInfo(f'{self._names[i]} tool {j}', info['obj'])
                 for j, info in enumerate(obj_info)
             )
             range_end: int = len(self.objs_info)
@@ -142,7 +139,7 @@ class ToolsManager:
             sequence to add in the main layer sequence
         """
 
-        return [(name, -1, depth_counter)]
+        return [(name, None, depth_counter)]
 
     def _check_extra_info(self) -> None:  # Could go unnoticed
         """
@@ -173,7 +170,7 @@ class ToolsManager:
             raise ValueError('Missing required attribute/method.')
 
     def upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...]
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...]
     ) -> tuple[str, dict[str, Any]]:
         """
         Allows selecting a tool and it's extra options
@@ -184,7 +181,7 @@ class ToolsManager:
         """
 
         prev_clicked_i: int = self._tools.clicked_i
-        self._tools.upt(hover_obj, mouse_info, keys)
+        self._tools.upt(hovered_obj, mouse_info, keys)
 
         if self._tools.clicked_i != prev_clicked_i:
             prev_active_range: tuple[int, int] = self._dynamic_info_ranges[prev_clicked_i]
@@ -210,7 +207,9 @@ class ToolsManager:
         local_vars: dict[str, Any] = locals()
         output_dict: dict[str, Any] = {}
         for obj_info in self._extra_info[self._tools.clicked_i]:
-            upt_args: tuple[Any, ...] = tuple(local_vars[arg] for arg in obj_info['upt_args'])
+            upt_args: tuple[Any, ...] = tuple(
+                local_vars.get(str(arg), arg) for arg in obj_info['upt_args']
+            )
             obj_info['obj'].upt(*upt_args)
 
             obj_output_dict: dict[str, Any] = obj_info['output_format'].copy()

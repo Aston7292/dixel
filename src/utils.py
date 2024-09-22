@@ -136,7 +136,7 @@ class ObjInfo:
 @dataclass(frozen=True, slots=True)
 class MouseInfo:
     """
-    Dataclass for storing mouse information
+    Dataclass for storing mouse info
     Args:
         x, y, pressed buttons, recently released buttons
     """
@@ -144,7 +144,7 @@ class MouseInfo:
     x: int
     y: int
     pressed: tuple[bool, bool, bool]
-    released: tuple[bool, ...]
+    released: tuple[bool, bool, bool, bool, bool]
 
     @property
     def xy(self) -> tuple[int, int]:

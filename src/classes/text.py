@@ -95,20 +95,20 @@ class Text:
         self.rects = []
 
         current_y: float = self._y
-        rect_h: float = sum(img.get_height() for img in self._imgs)
+        tot_h: float = sum(img.get_height() for img in self._imgs)
         if 'bottom' in self._init_pos.coord_type:
-            current_y -= rect_h - self._imgs[-1].get_height()
+            current_y -= tot_h - self._imgs[-1].get_height()
         elif self._init_pos.coord_type in ('midright', 'center', 'midleft'):
-            current_y -= (rect_h - self._imgs[-1].get_height()) / 2.0
+            current_y -= (tot_h - self._imgs[-1].get_height()) / 2.0
 
         for img in self._imgs:
             self.rects.append(img.get_frect(**{self._init_pos.coord_type: (self._x, current_y)}))
             current_y += self.rects[-1].h
 
-        rect_x: float = min(rect.x for rect in self.rects)
-        rect_y: float = min(rect.y for rect in self.rects)
-        rect_w: float = max(rect.w for rect in self.rects)
-        self.rect = pg.FRect(rect_x, rect_y, rect_w, rect_h)
+        x: float = min(rect.x for rect in self.rects)
+        y: float = min(rect.y for rect in self.rects)
+        max_w: float = max(rect.w for rect in self.rects)
+        self.rect = pg.FRect(x, y, max_w, tot_h)
 
     def move_rect(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -134,7 +134,7 @@ class Text:
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
         self._get_rects()
 
-    def get_pos_at(self, pos_i: int) -> float:
+    def get_pos_at(self, char_i: int) -> float:
         """
         Gets the x position of the character at a given index (only for single line text)
         Args:
@@ -143,7 +143,7 @@ class Text:
             x
         """
 
-        w: int = self._renderer.render(self._lines[0][:pos_i], False, WHITE).get_width()
+        w: int = self._renderer.render(self._lines[0][:char_i], False, WHITE).get_width()
 
         return self.rects[0].x + w
 

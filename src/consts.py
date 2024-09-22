@@ -2,6 +2,7 @@
 Constants shared between files
 """
 
+import pygame as pg
 from typing import Final
 
 from src.utils import Size
@@ -13,6 +14,12 @@ BLACK: Final[ColorType] = (0, 0, 0)
 WHITE: Final[ColorType] = (255, 255, 255)
 LIGHT_GRAY: Final[ColorType] = (85, 85, 85)
 DARK_GRAY: Final[ColorType] = (75, 75, 75)
+
+EMPTY_PIXEL_SURF: pg.Surface = pg.Surface((2, 2))
+for y in range(2):
+    for x in range(2):
+        pixel_color: ColorType = LIGHT_GRAY if (x + y) % 2 == 0 else DARK_GRAY
+        EMPTY_PIXEL_SURF.set_at((x, y), pixel_color)
 
 BG_LAYER: Final[int] = 0
 ELEMENT_LAYER: Final[int] = 1

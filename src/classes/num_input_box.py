@@ -3,12 +3,15 @@ Class to choose a number in range with an input box
 """
 
 import pygame as pg
-from typing import Any
+from typing import Final, Optional, Any
 
 from src.classes.text import Text
 from src.utils import RectPos, Size, ObjInfo, MouseInfo
 from src.type_utils import LayeredBlitSequence, LayerSequence
 from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
+
+
+CHR_LIMIT: Final[int] = 1_114_111
 
 
 class NumInputBox:
@@ -17,8 +20,8 @@ class NumInputBox:
     """
 
     __slots__ = (
-        '_box_init_pos', '_box_img', 'box_rect', '_box_init_size', 'hovering', '_selected',
-        '_layer', '_hovering_layer', 'text', '_text_i', '_cursor_img', '_cursor_rect',
+        '_box_init_pos', '_box_img', 'box_rect', '_box_init_size', 'is_hovering', '_is_selected',
+        '_layer', '_hovering_layer', 'text_label', '_cursor_i', '_cursor_img', '_cursor_rect',
         '_cursor_init_size', 'objs_info'
     )
 
@@ -40,24 +43,24 @@ class NumInputBox:
 
         self._box_init_size: Size = Size(int(self.box_rect.w), int(self.box_rect.h))
 
-        self.hovering: bool = False
-        self._selected: bool = False
+        self.is_hovering: bool = False
+        self._is_selected: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
         self._hovering_layer: int = base_layer + TOP_LAYER
 
-        self.text = Text(RectPos(*self.box_rect.center, 'center'), text, base_layer)
-        self._text_i: int = 0
+        self.text_label = Text(RectPos(*self.box_rect.center, 'center'), text, base_layer)
+        self._cursor_i: int = 0
 
-        self._cursor_img: pg.Surface = pg.Surface((1, int(self.text.rect.h)))
+        self._cursor_img: pg.Surface = pg.Surface((1, int(self.text_label.rect.h)))
         self._cursor_img.fill(WHITE)
         self._cursor_rect: pg.FRect = self._cursor_img.get_frect(
-            topleft=(self.text.get_pos_at(self._text_i), self.text.rect.y)
+            topleft=(self.text_label.get_pos_at(self._cursor_i), self.text_label.rect.y)
         )
 
         self._cursor_init_size: Size = Size(int(self._cursor_rect.w), int(self._cursor_rect.h))
 
-        self.objs_info: list[ObjInfo] = [ObjInfo('text', self.text)]
+        self.objs_info: list[ObjInfo] = [ObjInfo('text', self.text_label)]
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -66,7 +69,7 @@ class NumInputBox:
         """
 
         sequence: LayeredBlitSequence = [(self._box_img, self.box_rect.topleft, self._layer)]
-        if self._selected:
+        if self._is_selected:
             sequence.append((self._cursor_img, self._cursor_rect.topleft, self._hovering_layer))
 
         return sequence
@@ -87,8 +90,8 @@ class NumInputBox:
         Clears all the relevant data when a state is leaved
         """
 
-        self.hovering = self._selected = False
-        self._text_i = 0
+        self.is_hovering = self._is_selected = False
+        self._cursor_i = 0
 
     def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
         """
@@ -136,29 +139,29 @@ class NumInputBox:
 
     def get_cursor_pos(self) -> None:
         """
-        Gets the cursor position based on the text index
+        Gets the cursor position based on the cursor index
         """
 
-        self._cursor_rect.x = self.text.get_pos_at(self._text_i)
-        self._cursor_rect.y = self.text.rect.y
+        self._cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
+        self._cursor_rect.y = self.text_label.rect.y
 
-    def set_text(self, text: str, text_i: int = -1) -> None:
+    def set_text(self, text: str, cursor_i: Optional[int]) -> None:
         """
-        Sets the text and adjusts the text index
+        Sets the text and adjusts the cursor index
         Args:
-            text, text index (doesn't change if -1) (default = -1)
+            text, cursor index (doesn't change if None)
         """
 
-        self.text.set_text(text)
-        if text_i != -1:
-            self._text_i = text_i
-        self._text_i = min(self._text_i, len(self.text.text))
+        self.text_label.set_text(text)
+        if cursor_i is not None:
+            self._cursor_i = cursor_i
+        self._cursor_i = min(self._cursor_i, len(self.text_label.text))
 
         self.get_cursor_pos()
 
     def upt(
-            self, hover_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...],
-            limits: tuple[int, int], selected: bool
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...],
+            limits: tuple[int, int], is_selected: bool
     ) -> tuple[bool, str]:
         """
         Allows typing numbers, moving the cursor and deleting a specific character
@@ -173,59 +176,58 @@ class NumInputBox:
         that use the input box
         '''
 
-        text: str = self.text.text
+        text: str = self.text_label.text
 
-        if self != hover_obj:
-            if self.hovering:
+        if self != hovered_obj:
+            if self.is_hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self.hovering = False
+                self.is_hovering = False
         else:
-            if not self.hovering:
+            if not self.is_hovering:
                 pg.mouse.set_cursor(pg.SYSTEM_CURSOR_IBEAM)
-                self.hovering = True
+                self.is_hovering = True
 
             if mouse_info.released[0]:
-                self._text_i = self.text.get_closest_to(mouse_info.x)
+                self._cursor_i = self.text_label.get_closest_to(mouse_info.x)
                 self.get_cursor_pos()
 
                 return True, text
 
-        self._selected = selected
-        if self._selected and keys:
-            prev_text_i: int = self._text_i
+        self._is_selected = is_selected
+        if self._is_selected and keys:
+            prev_cursor_i: int = self._cursor_i
             if pg.K_LEFT in keys:
-                self._text_i = max(self._text_i - 1, 0)
+                self._cursor_i = max(self._cursor_i - 1, 0)
             if pg.K_RIGHT in keys:
-                self._text_i = min(self._text_i + 1, len(text))
+                self._cursor_i = min(self._cursor_i + 1, len(text))
             if pg.K_HOME in keys:
-                self._text_i = 0
+                self._cursor_i = 0
             if pg.K_END in keys:
-                self._text_i = len(text)
+                self._cursor_i = len(text)
 
-            if self._text_i == prev_text_i:
+            if self._cursor_i == prev_cursor_i:
                 k: int = keys[-1]
-                chr_limit: int = 1_114_111
                 if k in (pg.K_BACKSPACE, pg.K_DELETE):
                     if k == pg.K_BACKSPACE:
-                        if self._text_i:
-                            text = text[:self._text_i - 1] + text[self._text_i:]
-                            self._text_i -= 1
+                        if self._cursor_i:
+                            text = text[:self._cursor_i - 1] + text[self._cursor_i:]
+                            self._cursor_i -= 1
                     else:
-                        text = text[:self._text_i] + text[self._text_i + 1:]
+                        text = text[:self._cursor_i] + text[self._cursor_i + 1:]
 
                     if text:
                         text = text.lstrip('0')
                         if not text or int(text) < limits[0]:
                             text = str(limits[0])
-                elif k <= chr_limit:
+                elif k <= CHR_LIMIT:
                     char: str = chr(k)
                     if char.isdigit():
-                        text = text[:self._text_i] + char + text[self._text_i:]
-                        change_text_i: bool = True
+                        text = text[:self._cursor_i] + char + text[self._cursor_i:]
+                        change_cursor_i: bool = True
 
                         if text.startswith('0'):
                             text = text.lstrip('0')
-                            change_text_i = not bool(text)
+                            change_cursor_i = not bool(text)
                             if not text:
                                 text = str(limits[0])
 
@@ -237,10 +239,10 @@ class NumInputBox:
                             text = str(limits[0])
                         elif int(text) > limits[1]:
                             text = str(limits[1])
-                            change_text_i = self.text.text != str(limits[1])
+                            change_cursor_i = self.text_label.text != str(limits[1])
 
-                        if change_text_i:
-                            self._text_i = min(self._text_i + 1, len(text))
+                        if change_cursor_i:
+                            self._cursor_i = min(self._cursor_i + 1, len(text))
             self.get_cursor_pos()
 
         return False, text

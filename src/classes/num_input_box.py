@@ -5,7 +5,7 @@ Class to choose a number in range with an input box
 import pygame as pg
 from typing import Final, Optional, Any
 
-from src.classes.text import Text
+from src.classes.text import TextLabel
 from src.utils import RectPos, Size, ObjInfo, MouseInfo
 from src.type_utils import LayeredBlitSequence, LayerSequence
 from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
@@ -49,7 +49,7 @@ class NumInputBox:
         self._layer: int = base_layer + ELEMENT_LAYER
         self._hovering_layer: int = base_layer + TOP_LAYER
 
-        self.text_label = Text(RectPos(*self.box_rect.center, 'center'), text, base_layer)
+        self.text_label = TextLabel(RectPos(*self.box_rect.center, 'center'), text, base_layer)
         self._cursor_i: int = 0
 
         self._cursor_img: pg.Surface = pg.Surface((1, int(self.text_label.rect.h)))
@@ -60,7 +60,7 @@ class NumInputBox:
 
         self._cursor_init_size: Size = Size(int(self._cursor_rect.w), int(self._cursor_rect.h))
 
-        self.objs_info: list[ObjInfo] = [ObjInfo('text', self.text_label)]
+        self.objs_info: list[ObjInfo] = [ObjInfo("text", self.text_label)]
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -74,7 +74,7 @@ class NumInputBox:
 
         return sequence
 
-    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
         """
         Checks if the mouse is hovering any interactable part of the object
         Args:
@@ -134,7 +134,7 @@ class NumInputBox:
 
         return [
             (name, self._layer, depth_counter),
-            ('cursor', self._hovering_layer, depth_counter + 1)
+            ("cursor", self._hovering_layer, depth_counter + 1)
         ]
 
     def get_cursor_pos(self) -> None:

@@ -11,7 +11,7 @@ from src.consts import WHITE, BG_LAYER, TEXT_LAYER
 renderers_cache: dict[int, pg.Font] = {}
 
 
-class Text:
+class TextLabel:
     """
     Class to simplify text rendering
     """
@@ -36,7 +36,7 @@ class Text:
 
         self._init_h: int = h
         if self._init_h not in renderers_cache:
-            renderers_cache[self._init_h] = pg.font.SysFont('helvetica', self._init_h)
+            renderers_cache[self._init_h] = pg.font.SysFont("helvetica", self._init_h)
         self._renderer: pg.Font = renderers_cache[self._init_h]
 
         self.text: str = text
@@ -71,7 +71,7 @@ class Text:
         self._x, self._y = self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h
 
         if h not in renderers_cache:
-            renderers_cache[h] = pg.font.SysFont('helvetica', h)
+            renderers_cache[h] = pg.font.SysFont("helvetica", h)
         self._renderer = renderers_cache[h]
 
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
@@ -95,11 +95,11 @@ class Text:
         self.rects = []
 
         current_y: float = self._y
-        tot_h: float = sum(img.get_height() for img in self._imgs)
-        if 'bottom' in self._init_pos.coord_type:
-            current_y -= tot_h - self._imgs[-1].get_height()
-        elif self._init_pos.coord_type in ('midright', 'center', 'midleft'):
+        tot_h: int = sum(img.get_height() for img in self._imgs)
+        if self._init_pos.coord_type in ('midright', 'center', 'midleft'):
             current_y -= (tot_h - self._imgs[-1].get_height()) / 2.0
+        elif 'bottom' in self._init_pos.coord_type:
+            current_y -= tot_h - self._imgs[-1].get_height()
 
         for img in self._imgs:
             self.rects.append(img.get_frect(**{self._init_pos.coord_type: (self._x, current_y)}))

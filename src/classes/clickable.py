@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import Optional, Any
 
-from src.classes.text import Text
+from src.classes.text import TextLabel
 from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo
 from src.type_utils import LayeredBlitInfo, LayeredBlitSequence, LayerSequence
 from src.consts import BG_LAYER, ELEMENT_LAYER, TOP_LAYER
@@ -20,7 +20,7 @@ class Clickable(ABC):
 
     Includes:
         base_blit(image index) -> PriorityBlitSequence
-        check_hover(mouse_position) -> tuple[object, layer]
+        check_hovering(mouse_position) -> tuple[object, layer]
         leave() -> None
         handle_resize(window width ratio, window height ratio) -> None
         print_layer(name, depth counter) -> LayerSequence:
@@ -59,7 +59,7 @@ class Clickable(ABC):
         self._layer: int = base_layer + ELEMENT_LAYER
         self._hovering_layer: int = base_layer + TOP_LAYER
 
-        self._hovering_text_label: Optional[Text] = None
+        self._hovering_text_label: Optional[TextLabel] = None
         self._hovering_text_imgs: tuple[pg.Surface, ...] = ()
         if hovering_text:
             '''
@@ -70,7 +70,9 @@ class Clickable(ABC):
             but these surfaces get recalculated every resize
             '''
 
-            self._hovering_text_label = Text(RectPos(0.0, 0.0, 'topleft'), hovering_text, h=12)
+            self._hovering_text_label = TextLabel(
+                RectPos(0.0, 0.0, 'topleft'), hovering_text, h=12
+            )
             self._hovering_text_imgs = tuple(
                 pg.Surface((int(rect.w), int(rect.h))) for rect in self._hovering_text_label.rects
             )
@@ -99,7 +101,7 @@ class Clickable(ABC):
 
         return sequence
 
-    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
         """
         Checks if the mouse is hovering any interactable part of the object
         Args:
@@ -154,7 +156,7 @@ class Clickable(ABC):
 
         sequence: LayerSequence = [(name, self._layer, depth_counter)]
         if self._hovering_text_label:
-            sequence.append(('hovering text', self._hovering_layer, depth_counter + 1))
+            sequence.append(("hovering text", self._hovering_layer, depth_counter + 1))
 
         return sequence
 
@@ -176,13 +178,13 @@ class Clickable(ABC):
         """
 
 
-class CheckBox(Clickable):
+class Checkbox(Clickable):
     """
     Class to create a checkbox with text on top
     """
 
     __slots__ = (
-        'is_ticked', 'objs_info'
+        'is_checked', 'objs_info'
     )
 
     def __init__(
@@ -197,13 +199,13 @@ class CheckBox(Clickable):
 
         super().__init__(pos, imgs, hovering_text, base_layer)
 
-        self.is_ticked: bool = False
+        self.is_checked: bool = False
 
-        text_label: Text = Text(
+        text_label: TextLabel = TextLabel(
             RectPos(self.rect.centerx, self.rect.y - 5.0, 'midbottom'), text, base_layer, 16
         )
 
-        self.objs_info: list[ObjInfo] = [ObjInfo('text', text_label)]
+        self.objs_info: list[ObjInfo] = [ObjInfo("text", text_label)]
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -211,7 +213,7 @@ class CheckBox(Clickable):
             sequence to add in the main blit sequence
         """
 
-        return self._base_blit(int(self.is_ticked))
+        return self._base_blit(int(self.is_checked))
 
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo, did_shortcut: bool = False) -> bool:
         """
@@ -219,13 +221,13 @@ class CheckBox(Clickable):
         Args:
             hovered object (can be None), mouse info, shortcut boolean (default = False)
         Returns:
-            True if the checkbox was ticked on else False
+            True if the checkbox was checked else False
         """
 
         if did_shortcut:
-            self.is_ticked = not self.is_ticked
+            self.is_checked = not self.is_checked
 
-            return self.is_ticked
+            return self.is_checked
 
         if self != hovered_obj:
             if self._is_hovering:
@@ -239,9 +241,9 @@ class CheckBox(Clickable):
             self._is_hovering = True
 
         if mouse_info.released[0]:
-            self.is_ticked = not self.is_ticked
+            self.is_checked = not self.is_checked
 
-            return self.is_ticked
+            return self.is_checked
 
         return False
 
@@ -271,8 +273,10 @@ class Button(Clickable):
         self.objs_info: list[ObjInfo] = []
 
         if text:
-            text_label: Text = Text(RectPos(*self.rect.center, 'center'), text, base_layer, text_h)
-            self.objs_info.append(ObjInfo('text', text_label))
+            text_label: TextLabel = TextLabel(
+                RectPos(*self.rect.center, 'center'), text, base_layer, text_h
+            )
+            self.objs_info.append(ObjInfo("text", text_label))
 
     def blit(self) -> LayeredBlitSequence:
         """

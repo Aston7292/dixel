@@ -5,14 +5,14 @@ Class to manage drawing tools
 import pygame as pg
 from typing import Final, Any
 
-from src.classes.ui import CHECK_BOX_1_IMG, CHECK_BOX_2_IMG
-from src.classes.check_box_grid import CheckBoxGrid
-from src.classes.clickable import CheckBox
+from src.classes.ui import CHECKBOX_1_IMG, CHECKBOX_2_IMG
+from src.classes.checkbox_grid import CheckboxGrid
+from src.classes.clickable import Checkbox
 from src.utils import RectPos, ObjInfo, MouseInfo, load_img
 from src.type_utils import LayerSequence
 from src.consts import SPECIAL_LAYER
 
-PENCIL_IMG: Final[pg.Surface] = load_img('sprites', 'pencil_tool.png')
+PENCIL_IMG: Final[pg.Surface] = load_img("sprites", "pencil_tool.png")
 BUCKET_IMG: Final[pg.Surface] = PENCIL_IMG.copy()
 
 '''
@@ -33,35 +33,66 @@ Extra UI elements need:
 '''
 
 TOOLS_INFO: Final[dict[str, dict[str, Any]]] = {
-    'brush': {
-        'base_info': (PENCIL_IMG, 'edit pixels'),
-        'extra_info': (
+    "brush": {
+        "base_info": (PENCIL_IMG, "edit pixels"),
+        "extra_info": (
             {
-                'type': CheckBox,
-                'init_args': [(CHECK_BOX_1_IMG, CHECK_BOX_2_IMG), 'x mirror', ''],
-                'upt_args': ['hovered_obj', 'mouse_info'],
-                'output_format': {'x_mirror': 'is_ticked'}
+                "type": Checkbox,
+                "init_args": [(CHECKBOX_1_IMG, CHECKBOX_2_IMG), "x mirror", ""],
+                "upt_args": ["hovered_obj", "mouse_info"],
+                "output_format": {"x_mirror": "is_checked"}
             },
             {
-                'type': CheckBox,
-                'init_args': [(CHECK_BOX_1_IMG, CHECK_BOX_2_IMG), 'y mirror', ''],
-                'upt_args': ['hovered_obj', 'mouse_info'],
-                'output_format': {'y_mirror': 'is_ticked'}
+                "type": Checkbox,
+                "init_args": [(CHECKBOX_1_IMG, CHECKBOX_2_IMG), "y mirror", ""],
+                "upt_args": ["hovered_obj", "mouse_info"],
+                "output_format": {"y_mirror": "is_checked"}
             }
         )
     },
-    'fill': {
-        'base_info': (BUCKET_IMG, 'fill'),
-        'extra_info': (
+    "fill": {
+        "base_info": (BUCKET_IMG, "fill"),
+        "extra_info": (
             {
-                'type': CheckBox,
-                'init_args': [(CHECK_BOX_1_IMG, CHECK_BOX_2_IMG), 'edit pixels of\nthe same color', ''],
-                'upt_args': ['hovered_obj', 'mouse_info'],
-                'output_format': {'same_color': 'is_ticked'}
+                "type": Checkbox,
+                "init_args": [
+                    (CHECKBOX_1_IMG, CHECKBOX_2_IMG), "edit pixels of\nthe same color", ""
+                ],
+                "upt_args": ["hovered_obj", "mouse_info"],
+                "output_format": {"same_color": "is_checked"}
             },
         )
     }
 }
+
+
+def check_extra_info() -> None:  # Could go unnoticed
+    """
+    Makes sure extra UI elements have every required attributes and methods
+    Raises:
+        ValueError if a missing required attribute/method is found
+    """
+
+    extra_info: tuple[tuple[dict[str, Any], ...], ...] = tuple(
+        info["extra_info"] for info in TOOLS_INFO.values()
+    )
+
+    missing_attrs: set[tuple[str, str]] = set()
+    for tool_info in extra_info:
+        for info in tool_info:
+            obj: Any = info["type"](RectPos(0.0, 0.0, 'topleft'), *info["init_args"])
+
+            required_attrs: list[str] = ["rect", "upt"] + list(info["output_format"].values())
+            for attr in required_attrs:
+                if not hasattr(obj, attr):
+                    missing_attrs.add((obj.__class__.__name__, attr))
+
+    if missing_attrs:
+        for name, attr in missing_attrs:
+            print(f"Class {name} is missing required attribute/method {attr}.")
+        print()
+
+        raise ValueError("Missing required attribute/method.")
 
 
 class ToolsManager:
@@ -82,17 +113,17 @@ class ToolsManager:
             ValueError if an extra UI element is missing a required attribute
         """
 
-        self._check_extra_info()
+        check_extra_info()
 
         self._names: tuple[str, ...] = tuple(TOOLS_INFO.keys())
         base_info: tuple[tuple[pg.Surface, str], ...] = tuple(
-            info['base_info'] for info in TOOLS_INFO.values()
+            info["base_info"] for info in TOOLS_INFO.values()
         )
-        self._tools: CheckBoxGrid = CheckBoxGrid(pos, base_info, 5, (False, True))
+        self._tools: CheckboxGrid = CheckboxGrid(pos, base_info, 5, (False, True))
 
         # Adds object and removes type and init arguments
         extra_info: tuple[tuple[dict[str, Any], ...], ...] = tuple(
-            info['extra_info'] for info in TOOLS_INFO.values()
+            info["extra_info"] for info in TOOLS_INFO.values()
         )
         self._extra_info: list[list[dict[str, Any]]] = []
         for tool_info in extra_info:
@@ -101,25 +132,25 @@ class ToolsManager:
 
             objs_info: list[dict[str, Any]] = []
             for info in tool_info:
-                obj: Any = info['type'](
-                    RectPos(current_x, current_y, 'bottomleft'), *info['init_args'],
+                obj: Any = info["type"](
+                    RectPos(current_x, current_y, 'bottomleft'), *info["init_args"],
                     base_layer=SPECIAL_LAYER
                 )
-                info['obj'] = obj
-                del info['type'], info['init_args']
+                info["obj"] = obj
+                del info["type"], info["init_args"]
 
                 current_x += obj.rect.w + 20.0
 
                 objs_info.append(info)
             self._extra_info.append(objs_info)
 
-        self.objs_info: list[ObjInfo] = [ObjInfo('tools', self._tools)]
+        self.objs_info: list[ObjInfo] = [ObjInfo("tools", self._tools)]
 
         self._dynamic_info_ranges: list[tuple[int, int]] = []
         for i, obj_info in enumerate(self._extra_info):
             range_start: int = len(self.objs_info)
             self.objs_info.extend(
-                ObjInfo(f'{self._names[i]} tool {j}', info['obj'])
+                ObjInfo(f"{self._names[i]} tool {j}", info["obj"])
                 for j, info in enumerate(obj_info)
             )
             range_end: int = len(self.objs_info)
@@ -141,34 +172,6 @@ class ToolsManager:
 
         return [(name, None, depth_counter)]
 
-    def _check_extra_info(self) -> None:  # Could go unnoticed
-        """
-        Makes sure extra UI elements have every required attributes and methods
-        Raises:
-            ValueError if a missing required attribute/method is found
-        """
-
-        extra_info: tuple[tuple[dict[str, Any], ...], ...] = tuple(
-            info['extra_info'] for info in TOOLS_INFO.values()
-        )
-
-        missing_attrs: set[tuple[str, str]] = set()
-        for tool_info in extra_info:
-            for info in tool_info:
-                obj: Any = info['type'](RectPos(0.0, 0.0, 'topleft'), *info['init_args'])
-
-                required_attrs: list[str] = ['rect', 'upt'] + list(info['output_format'].values())
-                for attr in required_attrs:
-                    if not hasattr(obj, attr):
-                        missing_attrs.add((obj.__class__.__name__, attr))
-
-        if missing_attrs:
-            for name, attr in missing_attrs:
-                print(f'Class {name} is missing required attribute/method {attr}.')
-            print()
-
-            raise ValueError('Missing required attribute/method.')
-
     def upt(
             self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...]
     ) -> tuple[str, dict[str, Any]]:
@@ -188,16 +191,16 @@ class ToolsManager:
             prev_objs_info: list[ObjInfo] = self.objs_info[
                 prev_active_range[0]:prev_active_range[1]
             ]
-            for info in prev_objs_info:
-                info.set_active(False)
+            for prev_info in prev_objs_info:
+                prev_info.set_active(False)
 
-            prev_objs: list[Any] = [info.obj for info in prev_objs_info]
+            prev_objs: list[Any] = [prev_info.obj for prev_info in prev_objs_info]
             while prev_objs:
                 obj: Any = prev_objs.pop()
 
-                if hasattr(obj, 'leave'):
+                if hasattr(obj, "leave"):
                     obj.leave()
-                if hasattr(obj, 'objs_info'):
+                if hasattr(obj, "objs_info"):
                     prev_objs.extend(obj.objs_info)
 
             active_range: tuple[int, int] = self._dynamic_info_ranges[self._tools.clicked_i]
@@ -206,15 +209,15 @@ class ToolsManager:
 
         local_vars: dict[str, Any] = locals()
         output_dict: dict[str, Any] = {}
-        for obj_info in self._extra_info[self._tools.clicked_i]:
+        for info in self._extra_info[self._tools.clicked_i]:
             upt_args: tuple[Any, ...] = tuple(
-                local_vars.get(str(arg), arg) for arg in obj_info['upt_args']
+                local_vars.get(str(arg), arg) for arg in info["upt_args"]
             )
-            obj_info['obj'].upt(*upt_args)
+            info["obj"].upt(*upt_args)
 
-            obj_output_dict: dict[str, Any] = obj_info['output_format'].copy()
+            obj_output_dict: dict[str, Any] = info["output_format"].copy()
             for key in obj_output_dict:
-                obj_output_dict[key] = getattr(obj_info['obj'], obj_output_dict[key])
+                obj_output_dict[key] = getattr(info["obj"], obj_output_dict[key])
             output_dict.update(obj_output_dict)
 
         return self._names[self._tools.clicked_i], output_dict

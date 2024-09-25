@@ -12,10 +12,10 @@ from src.type_utils import LayeredBlitInfo, LayeredBlitSequence, LayerSequence
 from src.consts import WHITE, BG_LAYER
 
 
-class LockedCheckBox(Clickable):
+class LockedCheckbox(Clickable):
     """
     Class to create a checkbox, when hovered changes image and displays text,
-    when ticked on it will display the hovering image, cannot be ticked off
+    when checked it will display the hovering image, cannot be unchecked
     """
 
     __slots__ = (
@@ -68,11 +68,11 @@ class LockedCheckBox(Clickable):
 
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo) -> bool:
         """
-        Changes the checkbox image if the mouse is hovering it and ticks it on if clicked
+        Changes the checkbox image if the mouse is hovering it and checks it if clicked
         Args:
             hovered object (can be None), mouse info
         Returns:
-            True if the checkbox was ticked on else False
+            True if the checkbox was checked else False
         """
 
         if self != hovered_obj:
@@ -94,7 +94,7 @@ class LockedCheckBox(Clickable):
         return False
 
 
-class CheckBoxGrid:
+class CheckboxGrid:
     """
     Class to create a grid of checkboxes with n columns (images must be of the same size)
     """
@@ -132,17 +132,17 @@ class CheckBoxGrid:
 
         self._layer: int = base_layer
 
-        self.checkboxes: list[LockedCheckBox] = []
+        self.checkboxes: list[LockedCheckbox] = []
         self.clicked_i: int = 0
         self.rect: pg.FRect = pg.FRect(0.0, 0.0, 0.0, 0.0)
 
         self.objs_info: list[ObjInfo] = [
-            ObjInfo(f'checkbox {i}', checkbox) for i, checkbox in enumerate(self.checkboxes)
+            ObjInfo(f"checkbox {i}", checkbox) for i, checkbox in enumerate(self.checkboxes)
         ]
 
         self.change_grid(checkboxes_info, 1.0, 1.0)
 
-    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
         """
         Checks if the mouse is hovering any interactable part of the object
         Args:
@@ -175,9 +175,9 @@ class CheckBoxGrid:
 
         return [(name, self._layer, depth_counter)]
 
-    def tick_on(self, clicked_i: int) -> None:
+    def check(self, clicked_i: int) -> None:
         """
-        Ticks on a specific checkbox
+        Checks a specific checkbox
         Args:
             index
         """
@@ -201,7 +201,7 @@ class CheckBoxGrid:
         self.checkboxes = []
         for i, info in enumerate(checkboxes_info):
             imgs: tuple[pg.Surface, pg.Surface] = (info[0], add_border(info[0], WHITE))
-            checkbox: LockedCheckBox = LockedCheckBox(
+            checkbox: LockedCheckbox = LockedCheckbox(
                 RectPos(self._last_x, self._last_y, self._init_pos.coord_type), imgs,
                 info[1], self._layer
             )
@@ -221,10 +221,10 @@ class CheckBoxGrid:
         self.rect = pg.FRect(left, top, w, h)
 
         self.objs_info = [
-            ObjInfo(f'checkbox {i}', checkbox) for i, checkbox in enumerate(self.checkboxes)
+            ObjInfo(f"checkbox {i}", checkbox) for i, checkbox in enumerate(self.checkboxes)
         ]
 
-        self.tick_on(0)
+        self.check(0)
 
     def insert(
             self, insert_i: Optional[int], checkbox_info: tuple[pg.Surface, str],
@@ -245,7 +245,7 @@ class CheckBoxGrid:
             self.checkboxes[insert_i].set_info(imgs, checkbox_info[1])
             self.checkboxes[insert_i].handle_resize(win_ratio_w, win_ratio_h)
         else:
-            checkbox: LockedCheckBox = LockedCheckBox(
+            checkbox: LockedCheckbox = LockedCheckbox(
                 RectPos(self._last_x, self._last_y, self._init_pos.coord_type), imgs,
                 checkbox_info[1], self._layer
             )
@@ -265,7 +265,7 @@ class CheckBoxGrid:
         self.rect = pg.FRect(left, top, w, h)
 
         self.objs_info = [
-            ObjInfo(f'checkbox {i}', checkbox) for i, checkbox in enumerate(self.checkboxes)
+            ObjInfo(f"checkbox {i}", checkbox) for i, checkbox in enumerate(self.checkboxes)
         ]
 
     def remove(
@@ -278,7 +278,7 @@ class CheckBoxGrid:
             index, fallback image and text, window width ratio, window height ratio
         """
 
-        checkbox: LockedCheckBox = self.checkboxes.pop(remove_i)
+        checkbox: LockedCheckbox = self.checkboxes.pop(remove_i)
         self._last_x = getattr(checkbox.rect, self._init_pos.coord_type)[0] / win_ratio_w
         self._last_y = getattr(checkbox.rect, self._init_pos.coord_type)[1] / win_ratio_h
         for i in range(remove_i, len(self.checkboxes)):
@@ -297,7 +297,7 @@ class CheckBoxGrid:
             imgs: tuple[pg.Surface, pg.Surface] = (
                 fallback_info[0], add_border(fallback_info[0], WHITE)
             )
-            checkbox = LockedCheckBox(
+            checkbox = LockedCheckbox(
                 RectPos(self._last_x, self._last_y, self._init_pos.coord_type), imgs,
                 fallback_info[1], self._layer
             )
@@ -308,7 +308,7 @@ class CheckBoxGrid:
             self._last_y = self._init_pos.y
 
         if self.clicked_i > remove_i:
-            self.tick_on(self.clicked_i - 1)
+            self.check(self.clicked_i - 1)
         elif self.clicked_i == remove_i:
             self.clicked_i = min(self.clicked_i, len(self.checkboxes) - 1)
             self.checkboxes[self.clicked_i].is_checked = True
@@ -321,12 +321,12 @@ class CheckBoxGrid:
         self.rect = pg.FRect(left, top, w, h)
 
         self.objs_info = [
-            ObjInfo(f'checkbox {i}', checkbox) for i, checkbox in enumerate(self.checkboxes)
+            ObjInfo(f"checkbox {i}", checkbox) for i, checkbox in enumerate(self.checkboxes)
         ]
 
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...]) -> int:
         """
-        Allows ticking on only one checkbox at a time
+        Allows checking only one checkbox at a time
         Args:
             hovered object (can be None), mouse info, keys
         Returns
@@ -359,10 +359,10 @@ class CheckBoxGrid:
                 new_clicked_i += self._cols
 
             if self.clicked_i != new_clicked_i:
-                self.tick_on(new_clicked_i)
+                self.check(new_clicked_i)
 
         for i, checkbox in enumerate(self.checkboxes):
             if checkbox.upt(hovered_obj, mouse_info):
-                self.tick_on(i)
+                self.check(i)
 
         return self.clicked_i

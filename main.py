@@ -39,7 +39,7 @@ Blitting:
     used for the UI windows of other states
 
 Hover checking:
-    The check_hover method takes the mouse info and
+    The check_hovering method takes the mouse info and
     returns the object that it's being hovered and its layer,
     only one object can be hovered at a time,
     if there's more than one it will be chose the one with the highest layer
@@ -79,7 +79,6 @@ Interacting with elements:
 
 '''
 TODO:
-- open GRID_UI when opening file
 - terminal arguments
 - save current colors along with the image
 - slider is faster when moving the mouse faster
@@ -118,28 +117,20 @@ optimizations:
         - use pygame.surfarray.blit_array instead of nested for loops and fblits
     - GRID_UI: get_preview
     - GRID_MANAGER: update_section (precalculate section_indicator?)
-
-debug:
-    - togglable debug mode
-    - view next checkbox position in CheckBoxGrid
-    - view grid, minimap and GRID_UI preview info
-    - view hovering_text for Clickable
-    - view cursor_i for NumInputBox
 '''
 
 import pygame as pg
 from tkinter import Tk, filedialog
 from PIL import Image
 from pathlib import Path
-from traceback import print_exc
 from typing import Final, Optional, Any
 
 from src.classes.palette_manager import PaletteManager
 from src.classes.grid_manager import GridManager
-from src.classes.check_box_grid import CheckBoxGrid
+from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Button
-from src.classes.text import Text
-from src.utils import RectPos, Size, ObjInfo, MouseInfo, load_img
+from src.classes.text import TextLabel
+from src.utils import RectPos, Size, ObjInfo, MouseInfo, load_img, get_pixels
 from src.type_utils import (
     ColorType, BlitSequence, LayeredBlitInfo, LayeredBlitSequence, LayerSequence
 )
@@ -192,9 +183,9 @@ GRID_MANAGER: Final[GridManager] = GridManager(
 )
 
 BRUSH_SIZES_INFO: tuple[tuple[pg.Surface, str], ...] = tuple(
-    (load_img("sprites" f"size_{n}_off.png"), f"{n}px\n(CTRL+{n})") for n in range(1, 6)
+    (load_img("sprites", f"size_{n}_off.png"), f"{n}px\n(CTRL+{n})") for n in range(1, 6)
 )
-BRUSH_SIZES: Final[CheckBoxGrid] = CheckBoxGrid(
+BRUSH_SIZES: Final[CheckboxGrid] = CheckboxGrid(
     RectPos(10.0, SAVE_AS.rect.bottom + 10.0, 'topleft'), BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO),
     (False, False)
 )
@@ -208,7 +199,9 @@ TOOLS_MANAGER: Final[ToolsManager] = ToolsManager(
     RectPos(10.0, INIT_WIN_SIZE.h - 10.0, 'bottomleft')
 )
 
-FPS_TEXT_LABEL: Final[Text] = Text(RectPos(INIT_WIN_SIZE.w / 2.0, 0.0, 'midtop'), "FPS: 0")
+FPS_TEXT_LABEL: Final[TextLabel] = TextLabel(
+    RectPos(INIT_WIN_SIZE.w / 2.0, 0.0, 'midtop'), "FPS: 0"
+)
 
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
     RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'), PALETTE_MANAGER.values[0]
@@ -245,7 +238,7 @@ class Dixel:
     __slots__ = (
         '_win_size', '_prev_win_size', '_main_win_flag', '_is_fullscreen', '_win', '_mouse_info',
         '_pressed_keys', '_timed_keys', '_prev_k_input', '_kmod_ctrl', '_hovered_obj', '_state',
-        '_active_objs', '_inactive_objs', '_data_file', '_file_path'
+        '_active_objs', '_inactive_objs', '_data_file', '_file_path', '_is_opening_file'
     )
 
     def __init__(self) -> None:
@@ -282,13 +275,15 @@ class Dixel:
 
         self._data_file: Path = Path("data.txt")
         self._file_path: str = ''
+        self._is_opening_file: bool = False
+
         if self._data_file.is_file():
             with self._data_file.open(encoding='utf-8') as f:
                 saved_file_path: str = f.read()
 
             if Path(saved_file_path).is_file():
                 self._file_path = saved_file_path
-                GRID_MANAGER.load_path(self._file_path)
+                GRID_MANAGER.load_from_path(self._file_path, GRID_MANAGER.grid.area)
                 PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
 
     def _draw(self) -> None:
@@ -328,6 +323,18 @@ class Dixel:
             if hasattr(obj, "leave"):
                 obj.leave()
 
+        objs_info: list[list[ObjInfo]] = []
+        for state_info in MAIN_OBJS_INFO:
+            state_list: list[ObjInfo] = state_info.copy()
+            for info in state_list:
+                if hasattr(info.obj, "objs_info"):
+                    state_list.extend(info.obj.objs_info)
+            objs_info.append(state_list)
+        self._active_objs = [
+            [info.obj for info in state_info if info.is_active]
+            for state_info in objs_info
+        ]
+
         pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
     def _handle_resize(self) -> None:
@@ -338,15 +345,15 @@ class Dixel:
         win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
         win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
 
-        for state in self._active_objs + self._inactive_objs:
-            for obj in state:
+        for state_objs in self._active_objs + self._inactive_objs:
+            for obj in state_objs:
                 if hasattr(obj, "handle_resize"):
                     obj.handle_resize(win_ratio_w, win_ratio_h)
 
         post_resize_objs: list[Any] = [
             obj
-            for state in self._active_objs + self._inactive_objs
-            for obj in state
+            for state_objs in self._active_objs + self._inactive_objs
+            for obj in state_objs
             if hasattr(obj, "post_resize")
         ]
 
@@ -454,38 +461,37 @@ class Dixel:
         Handles everything related to debugging
         """
 
-        if pg.key.get_mods() & pg.KMOD_ALT:
-            if pg.K_l in self._timed_keys:
-                sequence: LayerSequence = []
+        if pg.key.get_mods() & pg.KMOD_ALT and pg.K_l in self._timed_keys:
+            sequence: LayerSequence = []
 
-                layer_info: list[tuple[str, Any, int]] = [
-                    (info.name, info.obj, 0)
-                    for state_info in MAIN_OBJS_INFO
-                    for info in state_info
-                ]
-                # Layer info is added to the sequence from last to first
-                layer_info = layer_info[::-1]
+            layer_info: list[tuple[str, Any, int]] = [
+                (info.name, info.obj, 0)
+                for state_info in MAIN_OBJS_INFO
+                for info in state_info
+            ]
+            # Layer info is added to the sequence from last to first
+            layer_info = layer_info[::-1]
 
-                while layer_info:
-                    name: str
-                    obj: Any
-                    depth_counter: int
-                    name, obj, depth_counter = layer_info.pop()
+            while layer_info:
+                name: str
+                obj: Any
+                depth_counter: int
+                name, obj, depth_counter = layer_info.pop()
 
-                    if hasattr(obj, "print_layer"):
-                        sequence.extend(obj.print_layer(name, depth_counter))
-                    if hasattr(obj, "objs_info"):
-                        obj_info: tuple[tuple[str, Any, int], ...] = tuple(
-                            (info.name, info.obj, depth_counter + 1) for info in obj.objs_info
-                        )
-                        # Layer info is added to the sequence from last to first
-                        layer_info.extend(obj_info[::-1])
+                if hasattr(obj, "print_layer"):
+                    sequence.extend(obj.print_layer(name, depth_counter))
+                if hasattr(obj, "objs_info"):
+                    obj_info: tuple[tuple[str, Any, int], ...] = tuple(
+                        (info.name, info.obj, depth_counter + 1) for info in obj.objs_info
+                    )
+                    # Layer info is added to the sequence from last to first
+                    layer_info.extend(obj_info[::-1])
 
-                for name, layer, depth_counter in sequence:
-                    print(f"{'\t' * depth_counter}{name}: {str(layer)}")
-                print("-" * 50)
+            for name, layer, depth_counter in sequence:
+                print(f"{"\t" * depth_counter}{name}: {str(layer)}")
+            print("-" * 50)
 
-    def _handle_open_ui_buttons(self) -> None:
+    def _handle_ui_openers(self) -> None:
         """
         Handles the buttons that open uis
         """
@@ -521,7 +527,7 @@ class Dixel:
             tk_root = Tk()
             tk_root.withdraw()
             new_file_path = filedialog.asksaveasfilename(
-                defaultextension='.png', filetypes=(('png Files', '*.png'),), title="Save as"
+                defaultextension='.png', filetypes=(("png Files", '*.png'),), title="Save as"
             )
             tk_root.destroy()
 
@@ -546,14 +552,17 @@ class Dixel:
             tk_root = Tk()
             tk_root.withdraw()
             new_file_path = filedialog.askopenfilename(
-                defaultextension='.png', filetypes=(('png Files', '*.png'),), title="Open"
+                defaultextension='.png', filetypes=(("png Files", '*.png'),), title="Open"
             )
             tk_root.destroy()
 
             if new_file_path:
                 self._file_path = new_file_path
-                GRID_MANAGER.load_path(self._file_path)
-                PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
+
+                self._state = 2
+                img: pg.Surface = load_img(self._file_path)
+                GRID_UI.set_size(GRID_MANAGER.grid.area, get_pixels(img))
+                self._is_opening_file = True
 
         ctrl_q: bool = bool(self._kmod_ctrl and pg.K_q in self._timed_keys)
         if (CLOSE.upt(self._hovered_obj, self._mouse_info) or ctrl_q) and self._file_path:
@@ -562,7 +571,7 @@ class Dixel:
             self._leave(self._state)
 
             self._file_path = ''
-            GRID_MANAGER.load_path(self._file_path)
+            GRID_MANAGER.load_from_path(self._file_path, GRID_MANAGER.grid.area)
             PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
 
     def run(self) -> None:
@@ -589,12 +598,12 @@ class Dixel:
                 )
 
                 objs_info: list[list[ObjInfo]] = []
-                for state in MAIN_OBJS_INFO:
-                    state_info: list[ObjInfo] = state.copy()
-                    for info in state_info:
+                for state_info in MAIN_OBJS_INFO:
+                    state_list: list[ObjInfo] = state_info.copy()
+                    for info in state_list:
                         if hasattr(info.obj, "objs_info"):
-                            state_info.extend(info.obj.objs_info)
-                    objs_info.append(state_info)
+                            state_list.extend(info.obj.objs_info)
+                    objs_info.append(state_list)
 
                 self._active_objs = [
                     [info.obj for info in state_info if info.is_active]
@@ -608,10 +617,10 @@ class Dixel:
                 self._hovered_obj = None
                 max_hovered_layer: int = 0
                 for obj in self._active_objs[self._state]:
-                    if hasattr(obj, "check_hover"):
+                    if hasattr(obj, "check_hovering"):
                         hovered_obj: Any
                         hovered_layer: int
-                        hovered_obj, hovered_layer = obj.check_hover(mouse_pos)
+                        hovered_obj, hovered_layer = obj.check_hovering(mouse_pos)
                         if hovered_obj and hovered_layer >= max_hovered_layer:
                             self._hovered_obj = hovered_obj
                             max_hovered_layer = hovered_layer
@@ -642,14 +651,14 @@ class Dixel:
                             brush_size, tool_info
                         )
 
-                        self._handle_open_ui_buttons()
+                        self._handle_ui_openers()
                         self._handle_file_buttons()
 
                         if self._kmod_ctrl:  # Independent shortcuts
                             # Check if keys from 1 to max brush size are pressed
                             for i in range(len(BRUSH_SIZES.checkboxes)):
                                 if pg.K_1 + i in self._timed_keys:
-                                    BRUSH_SIZES.tick_on(i)
+                                    BRUSH_SIZES.check(i)
                     case 1:
                         new_color: Optional[ColorType]
                         is_ui_closed, new_color = COLOR_PICKER.upt(
@@ -659,12 +668,17 @@ class Dixel:
                             PALETTE_MANAGER.add(new_color)
                             self._state = 0
                     case 2:
-                        new_size: Optional[Size]
-                        is_ui_closed, new_size = GRID_UI.upt(
+                        new_area: Optional[Size]
+                        is_ui_closed, new_area = GRID_UI.upt(
                             self._hovered_obj, self._mouse_info, self._timed_keys, self._kmod_ctrl
                         )
                         if is_ui_closed:
-                            GRID_MANAGER.resize(new_size)
+                            if not self._is_opening_file:
+                                GRID_MANAGER.resize(new_area)
+                            else:
+                                GRID_MANAGER.load_from_path(self._file_path, new_area)
+                                PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
+                                self._is_opening_file = False
                             self._state = 0
 
                 if self._state != prev_state:
@@ -693,7 +707,7 @@ class Dixel:
             with self._data_file.open('w', encoding='utf-8') as f:
                 f.write(self._file_path)
 
-            print_exc()
+            raise
 
 
 if __name__ == '__main__':

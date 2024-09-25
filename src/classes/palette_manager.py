@@ -7,15 +7,15 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import Final, Optional, Any
 
-from src.classes.check_box_grid import CheckBoxGrid
+from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Button
 from src.utils import RectPos, ObjInfo, MouseInfo, add_border
 from src.type_utils import ColorType, LayerSequence
 from src.consts import BLACK, LIGHT_GRAY, SPECIAL_LAYER
 
 OPTIONS: Final[tuple[tuple[str, str], ...]] = (
-    ('edit', '(CTRL+E)'),
-    ('delete', '(CTRL+DEL)')
+    ("edit", "(CTRL+E)"),
+    ("delete", "(CTRL+DEL)")
 )
 
 
@@ -32,9 +32,9 @@ def get_color_info(color: ColorType) -> tuple[pg.Surface, str]:
     img.fill(color)
     img = add_border(img, LIGHT_GRAY)
 
-    rgb_text: str = f'({color[0]}, {color[1]}, {color[2]})'
-    hex_text: str = f'(#{''.join(f'{channel:02x}' for channel in color)})'
-    text: str = f'{rgb_text}\n{hex_text}'
+    rgb_text: str = f"({color[0]}, {color[1]}, {color[2]})"
+    hex_text: str = f"(#{''.join(f"{channel:02x}" for channel in color)})"
+    text: str = f"{rgb_text}\n{hex_text}"
 
     return img, text
 
@@ -57,7 +57,7 @@ class PaletteManager:
         """
 
         self.values: list[ColorType] = [BLACK]
-        self._colors: CheckBoxGrid = CheckBoxGrid(
+        self._colors: CheckboxGrid = CheckboxGrid(
             pos, (get_color_info(self.values[0]),), 5, (True, True)
         )
 
@@ -73,7 +73,7 @@ class PaletteManager:
         self._win_ratio_w: float = 1.0
         self._win_ratio_h: float = 1.0
 
-        self.objs_info: list[ObjInfo] = [ObjInfo('colors', self._colors)]
+        self.objs_info: list[ObjInfo] = [ObjInfo("colors", self._colors)]
 
         self._dropdown_info_start: int = len(self.objs_info)
         self.objs_info.extend(
@@ -88,7 +88,6 @@ class PaletteManager:
         Clears all the relevant data when a state is leaved
         """
 
-        self._dropdown_i = 0
         self._view_dropdown = False
 
         for i in range(self._dropdown_info_start, self._dropdown_info_end):
@@ -152,7 +151,7 @@ class PaletteManager:
         elif color not in self.values:
             self.values.append(color)
             self._colors.insert(None, get_color_info(color), self._win_ratio_w, self._win_ratio_h)
-        self._colors.tick_on(self.values.index(color))
+        self._colors.check(self.values.index(color))
 
     def load_from_arr(self, pixels: NDArray[np.uint8]) -> None:
         """
@@ -163,7 +162,7 @@ class PaletteManager:
 
         pixels_2d: NDArray[np.uint8] = pixels.reshape(-1, 4)[:, :3]
         colors: NDArray[np.uint8] = np.unique(pixels_2d, axis=0)
-        self.values = [tuple(int(value) for value in color) for color in colors]
+        self.values = [tuple(int(channel) for channel in color) for color in colors]
 
         checkboxes_info: tuple[tuple[pg.Surface, str], ...] = tuple(
             get_color_info(value) for value in self.values
@@ -184,8 +183,8 @@ class PaletteManager:
         prev_dropdown_state: bool = self._view_dropdown
 
         if mouse_info.released[2]:
-            for i, check_box in enumerate(self._colors.checkboxes):
-                if check_box.rect.collidepoint(mouse_info.xy):
+            for i, checkbox in enumerate(self._colors.checkboxes):
+                if checkbox.rect.collidepoint(mouse_info.xy):
                     self._view_dropdown = (
                         not self._view_dropdown if self._dropdown_i == i else True
                     )
@@ -250,14 +249,14 @@ class PaletteManager:
                 info.set_active(self._view_dropdown)
 
             if not self._view_dropdown:
-                drop_down_objs: list[Any] = [info.obj for info in dropdown_objs_info]
-                while drop_down_objs:
-                    obj: Any = drop_down_objs.pop()
+                dropdown_objs: list[Any] = [info.obj for info in dropdown_objs_info]
+                while dropdown_objs:
+                    obj: Any = dropdown_objs.pop()
 
-                    if hasattr(obj, 'leave'):
+                    if hasattr(obj, "leave"):
                         obj.leave()
-                    if hasattr(obj, 'objs_info'):
-                        drop_down_objs.extend(obj.objs_info)
+                    if hasattr(obj, "objs_info"):
+                        dropdown_objs.extend(obj.objs_info)
 
         color_to_edit: Optional[ColorType] = None
         if self._is_editing_color:

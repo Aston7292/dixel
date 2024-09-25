@@ -7,7 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import Final, Optional, Any
 
-from src.utils import Point, Size, RectPos, ObjInfo, MouseInfo, load_img
+from src.utils import Point, Size, RectPos, ObjInfo, MouseInfo, load_img, get_pixels
 from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSequence
 
 from src.consts import WHITE, EMPTY_PIXEL_SURF, BG_LAYER
@@ -95,7 +95,7 @@ class Grid:
             (self._minimap_img, self._minimap_rect.topleft, self._layer)
         ]
 
-    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
         """
         Checks if the mouse is hovering any interactable part of the object
         Args:
@@ -156,7 +156,7 @@ class Grid:
             sequence to add in the main layer sequence
         """
 
-        return [(name, self._layer, depth_counter), ('minimap', self._layer, depth_counter)]
+        return [(name, self._layer, depth_counter), ("minimap", self._layer, depth_counter)]
 
     def get_section_indicator(self, offset: Point) -> None:
         """
@@ -287,11 +287,11 @@ class Grid:
         self.get_section_indicator(offset)
         self.get_grid(offset, selected_pixels)
 
-    def load_img(
+    def load_from_img(
             self, img: Optional[pg.Surface], offset: Point, selected_pixels: list[Point]
     ) -> None:
         """
-        Loads a surface's rgba values into a 3D array
+        Loads a surface's rgba values into a 3D array and blits it on the grid
         Args:
             image (if it's None it creates an empty grid), offset, selected pixels
         """
@@ -299,10 +299,7 @@ class Grid:
         if not img:
             self.pixels = np.zeros((self.area.h, self.area.w, 4), np.uint8)
         else:
-            pixels_rgb: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
-            pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
-            self.pixels = np.dstack((pixels_rgb, pixels_alpha))
-            self.pixels = np.transpose(self.pixels, (1, 0, 2))
+            self.pixels = get_pixels(img)
 
             extra_rows: int = self.area.h - self.pixels.shape[0]
             extra_cols: int = self.area.w - self.pixels.shape[1]
@@ -320,22 +317,16 @@ class Grid:
                     self.pixels, ((0, 0), (0, extra_cols), (0, 0)), constant_values=0
                 )
 
-        self.visible_area.w, self.visible_area.h = self._init_visible_area.wh
-        self.grid_pixel_dim = min(
-            self._grid_init_size.w / self.visible_area.w * self._min_win_ratio,
-            self._grid_init_size.h / self.visible_area.h * self._min_win_ratio
-        )
-
         self.update_full(offset, selected_pixels)
 
-    def resize(self, size: Size) -> None:
+    def resize(self, area: Size) -> None:
         """
         Resizes the grid
         Args:
-            size
+            area
         """
 
-        self.area = size
+        self.area = area
 
         extra_rows: int = self.area.h - self.pixels.shape[0]
         extra_cols: int = self.area.w - self.pixels.shape[1]
@@ -445,7 +436,7 @@ class GridManager:
         self._offset: Point = Point(0, 0)
         self._traveled_dist: Size = Size(0, 0)
 
-        self.objs_info: list[ObjInfo] = [ObjInfo('grid', self.grid)]
+        self.objs_info: list[ObjInfo] = [ObjInfo("grid", self.grid)]
 
     def leave(self) -> None:
         """
@@ -468,17 +459,19 @@ class GridManager:
 
         return [(name, None, depth_counter)]
 
-    def load_path(self, file_path: str) -> None:
+    def load_from_path(self, file_path: str, area: Optional[Size]) -> None:
         """
         Loads an image from a path and renders it into the grid
         Args:
-            path, if it's empty it creates an empty grid
+            path (if it's empty it creates an empty grid), area
         """
 
         self._offset.x = self._offset.y = 0
 
+        if area:
+            self.grid.resize(area)
         img: Optional[pg.Surface] = load_img(file_path) if file_path else None
-        self.grid.load_img(img, self._offset, self._selected_pixels)
+        self.grid.load_from_img(img, self._offset, self._selected_pixels)
 
     def _handle_keys(self, keys: tuple[int, ...], mouse_pixel: Point, brush_size: int) -> None:
         """
@@ -496,7 +489,7 @@ class GridManager:
         k_mods: int = pg.key.get_mods()
         kmod_ctrl: int = k_mods & pg.KMOD_CTRL
 
-        size: Size = self.grid.area
+        area: Size = self.grid.area
         visible_area: Size = self.grid.visible_area
         pixel_dim: float = self.grid.grid_pixel_dim
 
@@ -520,12 +513,12 @@ class GridManager:
         if pg.K_RIGHT in keys:
             if kmod_ctrl:
                 mouse_x = visible_area.w - 1
-                self._offset.x = size.w - visible_area.w
+                self._offset.x = area.w - visible_area.w
             else:
                 mouse_x += movement_value
                 if mouse_x + 1 > visible_area.w:
                     extra_offset = mouse_x + 1 - visible_area.w
-                    self._offset.x = min(self._offset.x + extra_offset, size.w - visible_area.w)
+                    self._offset.x = min(self._offset.x + extra_offset, area.w - visible_area.w)
                     mouse_x = visible_area.w - 1
         if pg.K_UP in keys:
             if kmod_ctrl:
@@ -540,12 +533,12 @@ class GridManager:
         if pg.K_DOWN in keys:
             if kmod_ctrl:
                 mouse_y = visible_area.h - 1
-                self._offset.y = size.h - visible_area.h
+                self._offset.y = area.h - visible_area.h
             else:
                 mouse_y += movement_value
                 if mouse_y + 1 > visible_area.h:
                     extra_offset = mouse_y + 1 - visible_area.h
-                    self._offset.y = min(self._offset.y + extra_offset, size.h - visible_area.h)
+                    self._offset.y = min(self._offset.y + extra_offset, area.h - visible_area.h)
                     mouse_y = visible_area.h - 1
 
         self.grid.get_section_indicator(self._offset)
@@ -598,17 +591,17 @@ class GridManager:
         """
 
         changed_pixels: list[tuple[int, int]] = []
-        size: Size = self.grid.area
+        area: Size = self.grid.area
 
         self._selected_pixels.append(Point(end.x * 2, end.y * 2))
-        if extra_info['x_mirror']:
+        if extra_info["x_mirror"]:
             self._selected_pixels.extend(
-                Point((size.w - brush_size) * 2 - pixel.x, pixel.y)
+                Point((area.w - brush_size) * 2 - pixel.x, pixel.y)
                 for pixel in self._selected_pixels.copy()
             )
-        if extra_info['y_mirror']:
+        if extra_info["y_mirror"]:
             self._selected_pixels.extend(
-                Point(pixel.x, (size.h - brush_size) * 2 - pixel.y)
+                Point(pixel.x, (area.h - brush_size) * 2 - pixel.y)
                 for pixel in self._selected_pixels.copy()
             )
 
@@ -620,10 +613,10 @@ class GridManager:
         Bresenham's Line Algorithm
         '''
 
-        x_1: int = max(min(start.x, size.w - 1), -brush_size + 1)
-        y_1: int = max(min(start.y, size.h - 1), -brush_size + 1)
-        x_2: int = max(min(end.x, size.w - 1), -brush_size + 1)
-        y_2: int = max(min(end.y, size.h - 1), -brush_size + 1)
+        x_1: int = max(min(start.x, area.w - 1), -brush_size + 1)
+        y_1: int = max(min(start.y, area.h - 1), -brush_size + 1)
+        x_2: int = max(min(end.x, area.w - 1), -brush_size + 1)
+        y_2: int = max(min(end.y, area.h - 1), -brush_size + 1)
 
         delta: Point = Point(abs(x_2 - x_1), abs(y_2 - y_1))
         step: Point = Point(1 if x_1 < x_2 else -1, 1 if y_1 < y_2 else -1)
@@ -641,17 +634,17 @@ class GridManager:
                 err += delta.x
                 y_1 += step.y
 
-        if extra_info['x_mirror']:
-            changed_pixels.extend((size.w - brush_size - x, y) for x, y in changed_pixels.copy())
-        if extra_info['y_mirror']:
-            changed_pixels.extend((x, size.h - brush_size - y) for x, y in changed_pixels.copy())
+        if extra_info["x_mirror"]:
+            changed_pixels.extend((area.w - brush_size - x, y) for x, y in changed_pixels.copy())
+        if extra_info["y_mirror"]:
+            changed_pixels.extend((x, area.h - brush_size - y) for x, y in changed_pixels.copy())
 
         # Resizes the pixels to the brush size
         return [
-            (x_pos, y_pos)
-            for x, y in changed_pixels
-            for x_pos in range(max(x, 0), min(x + brush_size, size.w))
-            for y_pos in range(max(y, 0), min(y + brush_size, size.h))
+            (x, y)
+            for original_x, original_y in changed_pixels
+            for x in range(max(original_x, 0), min(original_x + brush_size, area.w))
+            for y in range(max(original_y, 0), min(original_y + brush_size, area.h))
         ]
 
     def _draw(
@@ -685,7 +678,7 @@ class GridManager:
         changed_pixels: list[tuple[int, int]] = []
         extra_tool_info: dict[str, Any] = tool_info[1]
         match tool_info[0]:
-            case 'brush':
+            case "brush":
                 changed_pixels = self._brush(
                     prev_mouse_pixel, mouse_pixel, is_drawing, brush_size, extra_tool_info
                 )
@@ -743,19 +736,19 @@ class GridManager:
             self.grid.get_section_indicator(self._offset)
             self.grid.get_grid(self._offset, self._selected_pixels)
 
-    def resize(self, size: Optional[Size]) -> None:
+    def resize(self, area: Optional[Size]) -> None:
         """
         Resizes the grid
         Args:
-            size
+            area
         """
 
-        if not size:
+        if not area:
             return
 
         self._traveled_dist.w = self._traveled_dist.h = 0
 
-        self.grid.resize(size)
+        self.grid.resize(area)
         self._offset.x = min(self._offset.x, self.grid.area.w - self.grid.visible_area.w)
         self._offset.y = min(self._offset.y, self.grid.area.h - self.grid.visible_area.h)
 
@@ -828,7 +821,7 @@ class GridManager:
             self._is_hovering = True
 
         # Makes drawing possible even 1 frame after the grid was left
-        if self.grid == hovered_obj or self.grid.check_hover(self._prev_mouse_pos.xy)[0]:
+        if self.grid == hovered_obj or self.grid.check_hovering(self._prev_mouse_pos.xy)[0]:
             self._draw(mouse_info, keys, color, brush_size, tool_info)
         elif self._selected_pixels:
             self._selected_pixels = []

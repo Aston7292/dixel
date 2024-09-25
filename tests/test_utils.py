@@ -3,9 +3,12 @@ Tests for the utils file
 """
 
 import pygame as pg
+import numpy as np
+from numpy.typing import NDArray
 import unittest
+from unittest import mock
 
-from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo, load_img, add_border
+from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo, load_img, add_border, get_pixels
 
 
 class ParentObj:
@@ -18,7 +21,7 @@ class ParentObj:
         Creates the objects info
         """
 
-        self.objs_info: list[ObjInfo] = [ObjInfo('obj1', 1), ObjInfo('obj2', 2)]
+        self.objs_info: list[ObjInfo] = [ObjInfo("obj_1", 1), ObjInfo("obj_2", 2)]
 
 
 class TestUtils(unittest.TestCase):
@@ -26,18 +29,21 @@ class TestUtils(unittest.TestCase):
     Tests for the utils file
     """
 
-    def test_load_img(self) -> None:
+    @mock.patch.object(pg.image, 'load')
+    def test_load_img(self, mock_load: mock.Mock) -> None:
         """
-        Tests the load image method
+        Tests the load_img method
         """
 
-        img: pg.Surface = load_img('test.png')
+        mock_surf: mock.Mock = mock.Mock(spec=pg.Surface)
+        mock_load.return_value = mock_surf
 
-        self.assertTrue(bool(img.get_flags() & pg.SRCALPHA))
+        load_img("test.png")
+        mock_surf.convert_alpha.assert_called_once()
 
     def test_add_border(self) -> None:
         """
-        Tests the add border method
+        Tests the add_border method
         """
 
         img: pg.Surface = pg.Surface((10, 10))
@@ -48,9 +54,25 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(img_with_border.get_at((9, 0)), (0, 0, 1))
         self.assertEqual(img_with_border.get_at((9, 9)), (0, 0, 1))
 
+    def test_get_pixels(self) -> None:
+        """
+        Tests the get_pixels method
+        """
+
+        img: pg.Surface = pg.Surface((50, 51), pg.SRCALPHA)
+        img.fill((255, 0, 0))
+        img.set_at((0, 1), (255, 0, 1))
+
+        pixels_rgb: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
+        pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
+        pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, pixels_alpha))
+        pixels = np.transpose(pixels, (1, 0, 2))
+
+        self.assertTrue(np.array_equal(get_pixels(img), pixels))
+
     def test_point(self) -> None:
         """
-        Tests the point dataclass
+        Tests the Point dataclass
         """
 
         point: Point = Point(0, 1)
@@ -61,7 +83,7 @@ class TestUtils(unittest.TestCase):
 
     def test_rect_pos(self) -> None:
         """
-        Tests the rect position dataclass
+        Tests the RectPos dataclass
         """
 
         pos: RectPos = RectPos(0, 1, 'topleft')
@@ -73,7 +95,7 @@ class TestUtils(unittest.TestCase):
 
     def test_size(self) -> None:
         """
-        Tests the size dataclass
+        Tests the Size dataclass
         """
 
         size: Size = Size(0, 1)
@@ -84,13 +106,13 @@ class TestUtils(unittest.TestCase):
 
     def test_obj_info(self) -> None:
         """
-        Tests the object info dataclass
+        Tests the ObjInfo dataclass
         """
 
         parent_obj: ParentObj = ParentObj()
-        parent_obj_info: ObjInfo = ObjInfo('obj', parent_obj)
+        parent_obj_info: ObjInfo = ObjInfo("obj", parent_obj)
 
-        self.assertEqual(parent_obj_info.name, 'obj')
+        self.assertEqual(parent_obj_info.name, "obj")
         self.assertEqual(parent_obj_info.obj, parent_obj)
         self.assertEqual(parent_obj_info.is_active, True)
 
@@ -100,12 +122,12 @@ class TestUtils(unittest.TestCase):
             obj_info: ObjInfo = objs_info.pop()
             self.assertEqual(obj_info.is_active, False)
 
-            if hasattr(obj_info.obj, 'objs_info'):
+            if hasattr(obj_info.obj, "objs_info"):
                 objs_info.extend(obj_info.obj.objs_info)
 
     def test_mouse_info(self) -> None:
         """
-        Tests the mouse info dataclass
+        Tests the MouseInfo dataclass
         """
 
         mouse_info: MouseInfo = MouseInfo(0, 1, (False,) * 3, (False,) * 5)
@@ -115,7 +137,3 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(mouse_info.pressed, (False,) * 3)
         self.assertEqual(mouse_info.released, (False,) * 5)
         self.assertEqual(mouse_info.xy, (0, 1))
-
-
-if __name__ == '__main__':
-    unittest.main()

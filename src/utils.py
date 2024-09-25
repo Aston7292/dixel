@@ -3,6 +3,8 @@ Functions and dataclasses shared between files
 """
 
 import pygame as pg
+import numpy as np
+from numpy.typing import NDArray
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
@@ -39,6 +41,22 @@ def add_border(img: pg.Surface, border_color: ColorType) -> pg.Surface:
     pg.draw.rect(img_with_border, border_color, img_with_border.get_rect(), border_dim)
 
     return img_with_border
+
+
+def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
+    """
+    Gets the rgba values of the pixels in an image
+    Args:
+        image
+    Returns:
+        pixels
+    """
+
+    pixels_rgb: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
+    pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
+    pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, pixels_alpha))
+
+    return np.transpose(pixels, (1, 0, 2))
 
 
 @dataclass(slots=True)
@@ -129,7 +147,7 @@ class ObjInfo:
             info: ObjInfo = objs_info.pop()
             info.is_active = is_active
 
-            if hasattr(info.obj, 'objs_info'):
+            if hasattr(info.obj, "objs_info"):
                 objs_info.extend(info.obj.objs_info)
 
 

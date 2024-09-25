@@ -6,7 +6,7 @@ import pygame as pg
 import unittest
 
 loader: unittest.TestLoader = unittest.TestLoader()
-suite: unittest.TestSuite = loader.discover('tests')
+suite: unittest.TestSuite = loader.discover("tests")
 
 pg.init()
 pg.display.set_mode(flags=pg.HIDDEN)

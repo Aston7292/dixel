@@ -8,7 +8,7 @@ from typing import Final, Optional, Any
 
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, INPUT_BOX_IMG
-from src.classes.text import Text
+from src.classes.text import TextLabel
 from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo
 from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSequence
 
@@ -20,7 +20,7 @@ SLIDER_2_IMG: Final[pg.Surface] = pg.Surface((10, 35))
 SLIDER_2_IMG.fill((10, 10, 10))
 
 
-class ScrollBar:
+class Scrollbar:
     """
     Class to create a scrollbar to pick an r, g or b value of a color
     """
@@ -71,8 +71,8 @@ class ScrollBar:
 
         self._layer: int = base_layer + ELEMENT_LAYER
 
-        channel_text_label: Text = Text(
-            RectPos(*self.bar_rect.midleft, 'midright'), ('r', 'g', 'b')[self._channel], base_layer
+        channel_text_label: TextLabel = TextLabel(
+            RectPos(*self.bar_rect.midleft, 'midright'), ("r", "g", "b")[self._channel], base_layer
         )
         self.input_box: NumInputBox = NumInputBox(
             RectPos(
@@ -82,8 +82,8 @@ class ScrollBar:
         )
 
         self.objs_info: list[ObjInfo] = [
-            ObjInfo('text', channel_text_label),
-            ObjInfo('input box', self.input_box)
+            ObjInfo("text", channel_text_label),
+            ObjInfo("input box", self.input_box)
         ]
 
         self.get_bar(color)
@@ -99,7 +99,7 @@ class ScrollBar:
             (self._slider_imgs[self._slider_img_i], self._slider_rect.topleft, self._layer)
         ]
 
-    def check_hover(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
         """
         Checks if the mouse is hovering any interactable part of the object
         Args:
@@ -167,7 +167,7 @@ class ScrollBar:
 
         return [
             (name, None, depth_counter),
-            ('bar', self._layer, depth_counter + 1), ('slider', self._layer, depth_counter + 1)
+            ("bar", self._layer, depth_counter + 1), ("slider", self._layer, depth_counter + 1)
         ]
 
     def get_bar(self, color: ColorType) -> None:
@@ -298,7 +298,7 @@ class ColorPicker(UI):
             position, starting color
         """
 
-        super().__init__(pos, 'CHOOSE A COLOR')
+        super().__init__(pos, "CHOOSE A COLOR")
 
         self._color: ColorType = color
 
@@ -314,34 +314,34 @@ class ColorPicker(UI):
 
         self._preview_layer: int = self._base_layer + ELEMENT_LAYER
 
-        b_bar: ScrollBar = ScrollBar(
+        b_bar: Scrollbar = Scrollbar(
             RectPos(self._rect.centerx, self._preview_rect.top - 50.0, 'center'), 2,
             self._color, self._base_layer
         )
-        g_bar: ScrollBar = ScrollBar(
+        g_bar: Scrollbar = Scrollbar(
             RectPos(self._rect.centerx, b_bar.bar_rect.top - 50.0, 'center'), 1,
             self._color, self._base_layer
         )
-        r_bar: ScrollBar = ScrollBar(
+        r_bar: Scrollbar = Scrollbar(
             RectPos(self._rect.centerx, g_bar.bar_rect.top - 50.0, 'center'), 0,
             self._color, self._base_layer
         )
 
-        self._channels: tuple[ScrollBar, ScrollBar, ScrollBar] = (r_bar, g_bar, b_bar)
+        self._channels: tuple[Scrollbar, Scrollbar, Scrollbar] = (r_bar, g_bar, b_bar)
         self._objs: tuple[tuple[Any, ...], ...] = (
             (r_bar, r_bar.input_box), (g_bar, g_bar.input_box), (b_bar, b_bar.input_box)
         )
         self._selection_i: Point = Point(0, 0)
 
-        hex_text: str = '#' + ''.join(f'{channel:02x}' for channel in self._color)
-        self._hex_text_label: Text = Text(
+        hex_text: str = "#" + ''.join(f"{channel:02x}" for channel in self._color)
+        self._hex_text_label: TextLabel = TextLabel(
             RectPos(*self._preview_rect.midtop, 'midbottom'), hex_text, self._base_layer
         )
 
         self.objs_info.extend(
-            ObjInfo(f'scrollbar {i}', channel) for i, channel in enumerate(self._channels)
+            ObjInfo(f"scrollbar {i}", channel) for i, channel in enumerate(self._channels)
         )
-        self.objs_info.append(ObjInfo('hex text', self._hex_text_label))
+        self.objs_info.append(ObjInfo("hex text", self._hex_text_label))
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -392,7 +392,7 @@ class ColorPicker(UI):
         """
 
         sequence: LayerSequence = super().print_layer(name, depth_counter)
-        sequence.append(('preview', self._preview_layer, depth_counter + 1))
+        sequence.append(("preview", self._preview_layer, depth_counter + 1))
 
         return sequence
 
@@ -409,7 +409,7 @@ class ColorPicker(UI):
         for channel in self._channels:
             channel.set_value(self._color)
 
-        hex_text: str = '#' + ''.join(f'{channel:02x}' for channel in self._color)
+        hex_text: str = "#" + ''.join(f"{channel:02x}" for channel in self._color)
         self._hex_text_label.set_text(hex_text)
 
     def upt(
@@ -423,7 +423,7 @@ class ColorPicker(UI):
             True if interface was closed else False, color (can be None)
         """
 
-        upt_scroll_bars: bool = True
+        upt_scrollbars: bool = True
         if keys:
             if pg.K_UP in keys:
                 self._selection_i.y = max(self._selection_i.y - 1, 0)
@@ -437,9 +437,9 @@ class ColorPicker(UI):
                     self._selection_i.x = min(self._selection_i.x + 1, len(self._objs[0]) - 1)
 
                 if self._selection_i.x != prev_selection_x:
-                    upt_scroll_bars = False
+                    upt_scrollbars = False
 
-        if upt_scroll_bars:
+        if upt_scrollbars:
             prev_color: ColorType = self._color
             selection: Any = self._objs[self._selection_i.y][self._selection_i.x]
 
@@ -456,7 +456,7 @@ class ColorPicker(UI):
                     channel.get_bar(self._color)
                 self._preview_img.fill(self._color)
 
-                hex_text: str = '#' + ''.join(f'{channel:02x}' for channel in self._color)
+                hex_text: str = "#" + ''.join(f"{channel:02x}" for channel in self._color)
                 self._hex_text_label.set_text(hex_text)
 
         confirmed: bool

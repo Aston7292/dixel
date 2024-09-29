@@ -9,7 +9,6 @@ from typing import Final, Optional, Any
 
 from src.utils import Point, Size, RectPos, ObjInfo, MouseInfo, load_img, get_pixels
 from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSequence
-
 from src.consts import WHITE, EMPTY_PIXEL_SURF, BG_LAYER
 
 TRANSPARENT_GREY: Final[ColorType] = (120, 120, 120, 125)
@@ -95,7 +94,7 @@ class Grid:
             (self._minimap_img, self._minimap_rect.topleft, self._layer)
         ]
 
-    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Optional["Grid"], int]:
         """
         Checks if the mouse is hovering any interactable part of the object
         Args:
@@ -416,8 +415,8 @@ class GridManager:
     """
 
     __slots__ = (
-        'grid', '_selected_pixels', '_is_hovering', '_prev_mouse_pos', '_offset', '_traveled_dist',
-        'objs_info'
+        'grid', '_selected_pixels', '_is_hovering', '_prev_mouse_pos', '_prev_hovered_obj',
+        '_offset', '_traveled_dist', 'objs_info'
     )
 
     def __init__(self, grid_pos: RectPos, minimap_pos: RectPos) -> None:
@@ -433,6 +432,8 @@ class GridManager:
         self._is_hovering: bool = False
 
         self._prev_mouse_pos: Point = Point(*pg.mouse.get_pos())
+        self._prev_hovered_obj: Optional[Grid] = None
+
         self._offset: Point = Point(0, 0)
         self._traveled_dist: Size = Size(0, 0)
 
@@ -578,7 +579,7 @@ class GridManager:
 
         return prev_mouse_pixel, mouse_pixel
 
-    def _brush(
+    def _handle_brush(
             self, start: Point, end: Point, is_drawing: bool, brush_size: int,
             extra_info: dict[str, Any]
     ) -> list[tuple[int, int]]:
@@ -679,7 +680,7 @@ class GridManager:
         extra_tool_info: dict[str, Any] = tool_info[1]
         match tool_info[0]:
             case "brush":
-                changed_pixels = self._brush(
+                changed_pixels = self._handle_brush(
                     prev_mouse_pixel, mouse_pixel, is_drawing, brush_size, extra_tool_info
                 )
 
@@ -821,7 +822,7 @@ class GridManager:
             self._is_hovering = True
 
         # Makes drawing possible even 1 frame after the grid was left
-        if self.grid == hovered_obj or self.grid.check_hovering(self._prev_mouse_pos.xy)[0]:
+        if self.grid in (hovered_obj, self._prev_hovered_obj):
             self._draw(mouse_info, keys, color, brush_size, tool_info)
         elif self._selected_pixels:
             self._selected_pixels = []
@@ -836,3 +837,4 @@ class GridManager:
             self.grid.reset(self._selected_pixels)
 
         self._prev_mouse_pos.x, self._prev_mouse_pos.y = mouse_info.x, mouse_info.y
+        self._prev_hovered_obj = hovered_obj

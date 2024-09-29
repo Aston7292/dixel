@@ -8,6 +8,7 @@ from typing import Final, Any
 from src.classes.ui import CHECKBOX_1_IMG, CHECKBOX_2_IMG
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
+
 from src.utils import RectPos, ObjInfo, MouseInfo, load_img
 from src.type_utils import LayerSequence
 from src.consts import SPECIAL_LAYER
@@ -38,13 +39,13 @@ TOOLS_INFO: Final[dict[str, dict[str, Any]]] = {
         "extra_info": (
             {
                 "type": Checkbox,
-                "init_args": [(CHECKBOX_1_IMG, CHECKBOX_2_IMG), "x mirror", ""],
+                "init_args": [(CHECKBOX_1_IMG, CHECKBOX_2_IMG), "x mirror", ''],
                 "upt_args": ["hovered_obj", "mouse_info"],
                 "output_format": {"x_mirror": "is_checked"}
             },
             {
                 "type": Checkbox,
-                "init_args": [(CHECKBOX_1_IMG, CHECKBOX_2_IMG), "y mirror", ""],
+                "init_args": [(CHECKBOX_1_IMG, CHECKBOX_2_IMG), "y mirror", ''],
                 "upt_args": ["hovered_obj", "mouse_info"],
                 "output_format": {"y_mirror": "is_checked"}
             }
@@ -56,7 +57,7 @@ TOOLS_INFO: Final[dict[str, dict[str, Any]]] = {
             {
                 "type": Checkbox,
                 "init_args": [
-                    (CHECKBOX_1_IMG, CHECKBOX_2_IMG), "edit pixels of\nthe same color", ""
+                    (CHECKBOX_1_IMG, CHECKBOX_2_IMG), "edit pixels of\nthe same color", ''
                 ],
                 "upt_args": ["hovered_obj", "mouse_info"],
                 "output_format": {"same_color": "is_checked"}

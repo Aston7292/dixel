@@ -5,7 +5,7 @@ Class to simplify text rendering, renderers are cached
 import pygame as pg
 
 from src.utils import RectPos
-from src.type_utils import LayeredBlitSequence, LayerSequence
+from src.type_utils import LayeredBlitSequence
 from src.consts import WHITE, BG_LAYER, TEXT_LAYER
 
 renderers_cache: dict[int, pg.Font] = {}
@@ -67,7 +67,9 @@ class TextLabel:
             window width ratio, window height ratio
         """
 
-        h: int = int(self._init_h * win_ratio_h)
+        min_win_ratio: float = min(win_ratio_w, win_ratio_h)
+
+        h: int = int(self._init_h * min_win_ratio)
         self._x, self._y = self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h
 
         if h not in renderers_cache:
@@ -76,16 +78,6 @@ class TextLabel:
 
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
         self._get_rects()
-
-    def print_layer(self, name: str, counter: int) -> LayerSequence:
-        """
-        Args:
-            name, depth counter
-        Returns:
-            sequence to add in the main layer sequence
-        """
-
-        return [(name, self._layer, counter)]
 
     def _get_rects(self) -> None:
         """

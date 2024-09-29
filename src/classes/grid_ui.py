@@ -10,10 +10,10 @@ from typing import Final, Optional, Any
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, CHECKBOX_1_IMG, CHECKBOX_2_IMG, INPUT_BOX_IMG
 from src.classes.clickable import Checkbox
-from src.classes.text import TextLabel
+from src.classes.text_label import TextLabel
+
 from src.utils import RectPos, Size, ObjInfo, MouseInfo
 from src.type_utils import BlitSequence, LayeredBlitSequence, LayerSequence
-
 from src.consts import EMPTY_PIXEL_SURF, BG_LAYER, ELEMENT_LAYER
 
 MAX_DIM: Final[int] = 256

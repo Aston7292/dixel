@@ -5,7 +5,8 @@ Class to choose a number in range with an input box
 import pygame as pg
 from typing import Final, Optional, Any
 
-from src.classes.text import TextLabel
+from src.classes.text_label import TextLabel
+
 from src.utils import RectPos, Size, ObjInfo, MouseInfo
 from src.type_utils import LayeredBlitSequence, LayerSequence
 from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
@@ -74,7 +75,7 @@ class NumInputBox:
 
         return sequence
 
-    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Optional["NumInputBox"], int]:
         """
         Checks if the mouse is hovering any interactable part of the object
         Args:
@@ -222,24 +223,25 @@ class NumInputBox:
                 elif k <= CHR_LIMIT:
                     char: str = chr(k)
                     if char.isdigit():
-                        text = text[:self._cursor_i] + char + text[self._cursor_i:]
-                        change_cursor_i: bool = True
+                        change_cursor_i: bool  # Better user experience on edge cases
+                        inserted_useless_zero: bool = bool(
+                            (char == '0' and not self._cursor_i) and text
+                        )
+                        if inserted_useless_zero:
+                            change_cursor_i = False
+                        else:
+                            text = text[:self._cursor_i] + char + text[self._cursor_i:]
+                            change_cursor_i = True
 
-                        if text.startswith('0'):
-                            text = text.lstrip('0')
-                            change_cursor_i = not bool(text)
-                            if not text:
+                            max_length: int = len(str(limits[1]))
+                            if len(text) > max_length:
+                                text = text[:max_length]
+
+                            if int(text) < limits[0]:
                                 text = str(limits[0])
-
-                        max_length: int = len(str(limits[1]))
-                        if len(text) > max_length:
-                            text = text[:max_length]
-
-                        if int(text) < limits[0]:
-                            text = str(limits[0])
-                        elif int(text) > limits[1]:
-                            text = str(limits[1])
-                            change_cursor_i = self.text_label.text != str(limits[1])
+                            elif int(text) > limits[1]:
+                                text = str(limits[1])
+                                change_cursor_i = self.text_label.text != str(limits[1])
 
                         if change_cursor_i:
                             self._cursor_i = min(self._cursor_i + 1, len(text))

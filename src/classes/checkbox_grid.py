@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from typing import Optional, Any
 
 from src.classes.clickable import Clickable
+
 from src.utils import RectPos, Size, ObjInfo, MouseInfo, add_border
 from src.type_utils import LayeredBlitInfo, LayeredBlitSequence, LayerSequence
 from src.consts import WHITE, BG_LAYER
@@ -63,8 +64,8 @@ class LockedCheckbox(Clickable):
             hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
                 self._hovering_text_imgs, self._hovering_text_label.blit()
             )
-            for surf, (text_surf, _, _) in hovering_text_info:
-                surf.blit(text_surf)
+            for target_img, (text_img, _, _) in hovering_text_info:
+                target_img.blit(text_img)
 
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo) -> bool:
         """
@@ -142,7 +143,7 @@ class CheckboxGrid:
 
         self.change_grid(checkboxes_info, 1.0, 1.0)
 
-    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Optional["CheckboxGrid"], int]:
         """
         Checks if the mouse is hovering any interactable part of the object
         Args:
@@ -209,7 +210,7 @@ class CheckboxGrid:
             self.checkboxes.append(checkbox)
 
             self._last_x += self._increment.w
-            if (i + 1) % self._cols == 0:
+            if not ((i + 1) % self._cols):
                 self._last_x = self._init_pos.x
                 self._last_y += self._increment.h
 
@@ -253,7 +254,7 @@ class CheckboxGrid:
             self.checkboxes.append(checkbox)
 
             self._last_x += self._increment.w
-            if len(self.checkboxes) % self._cols == 0:
+            if not (len(self.checkboxes) % self._cols):
                 self._last_x = self._init_pos.x
                 self._last_y += self._increment.h
 
@@ -289,7 +290,7 @@ class CheckboxGrid:
             setattr(self.checkboxes[i].rect, self._init_pos.coord_type, pos)
 
             self._last_x += self._increment.w
-            if (i + 1) % self._cols == 0:
+            if not ((i + 1) % self._cols):
                 self._last_x = self._init_pos.x
                 self._last_y += self._increment.h
 

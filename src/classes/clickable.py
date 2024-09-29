@@ -7,9 +7,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import Optional, Any
 
-from src.classes.text import TextLabel
+from src.classes.text_label import TextLabel
+
 from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo
-from src.type_utils import LayeredBlitInfo, LayeredBlitSequence, LayerSequence
+from src.type_utils import LayeredBlitInfo, LayeredBlitSequence
 from src.consts import BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
 
@@ -80,8 +81,8 @@ class Clickable(ABC):
             hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
                 self._hovering_text_imgs, self._hovering_text_label.blit()
             )
-            for surf, (text_surf, _, _) in hovering_text_info:
-                surf.blit(text_surf)
+            for target_img, (text_img, _, _) in hovering_text_info:
+                target_img.blit(text_img)
 
     def _base_blit(self, img_i: int) -> LayeredBlitSequence:
         """
@@ -94,10 +95,11 @@ class Clickable(ABC):
 
         sequence: LayeredBlitSequence = [(self._imgs[img_i], self.rect.topleft, self._layer)]
         if self._is_hovering:
-            hovering_text_pos: Point = Point(pg.mouse.get_pos()[0] + 15, pg.mouse.get_pos()[1])
-            for surf in self._hovering_text_imgs:
-                sequence.append((surf, hovering_text_pos.xy, self._hovering_layer))
-                hovering_text_pos.y += surf.get_height()
+            mouse_pos: Point = Point(*pg.mouse.get_pos())
+            hovering_text_pos: Point = Point(mouse_pos.x + 15, mouse_pos.y)
+            for img in self._hovering_text_imgs:
+                sequence.append((img, hovering_text_pos.xy, self._hovering_layer))
+                hovering_text_pos.y += img.get_height()
 
         return sequence
 
@@ -143,22 +145,8 @@ class Clickable(ABC):
             hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
                 self._hovering_text_imgs, self._hovering_text_label.blit()
             )
-            for surf, (text_surf, _, _) in hovering_text_info:
-                surf.blit(text_surf)
-
-    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
-        """
-        Args:
-            name, depth counter
-        Returns:
-            sequence to add in the main layer sequence
-        """
-
-        sequence: LayerSequence = [(name, self._layer, depth_counter)]
-        if self._hovering_text_label:
-            sequence.append(("hovering text", self._hovering_layer, depth_counter + 1))
-
-        return sequence
+            for target_img, (text_img, _, _) in hovering_text_info:
+                target_img.blit(text_img)
 
     @abstractmethod
     def blit(self) -> LayeredBlitSequence:

@@ -9,6 +9,7 @@ from typing import Final, Optional, Any
 
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Button
+
 from src.utils import RectPos, ObjInfo, MouseInfo, add_border
 from src.type_utils import ColorType, LayerSequence
 from src.consts import BLACK, LIGHT_GRAY, SPECIAL_LAYER

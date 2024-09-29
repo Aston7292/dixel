@@ -8,10 +8,10 @@ from typing import Final, Optional, Any
 
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, INPUT_BOX_IMG
-from src.classes.text import TextLabel
+from src.classes.text_label import TextLabel
+
 from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo
 from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSequence
-
 from src.consts import BG_LAYER, ELEMENT_LAYER
 
 SLIDER_1_IMG: Final[pg.Surface] = pg.Surface((10, 35))
@@ -99,7 +99,7 @@ class Scrollbar:
             (self._slider_imgs[self._slider_img_i], self._slider_rect.topleft, self._layer)
         ]
 
-    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Optional["Scrollbar"], int]:
         """
         Checks if the mouse is hovering any interactable part of the object
         Args:

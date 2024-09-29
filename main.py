@@ -52,7 +52,8 @@ Leaving a state:
 Window resizing:
     The handle_resize method scales positions and images manually because
     blitting everything on a surface, scaling it to match the window size and blitting it
-    removes text anti aliasing and causes 1 pixel offsets on some elements at specific sizes and
+    removes text anti aliasing , causes 1 pixel offsets on some elements at specific sizes, is slow
+    and doesn't allow for custom behavior on some objects
     pygame.SCALED doesn't scale position and images
 
 Layer debugging:
@@ -79,10 +80,10 @@ Interacting with elements:
 
 '''
 TODO:
-- terminal arguments
 - save current colors along with the image
 - slider is faster when moving the mouse faster
 - consistent cursor_i across different NumInputBox
+- better resizing
 - option to change the palette to match the current colors/multiple palettes
 - CTRL Z/Y (store without alpha channel, UI to view history)
 - option to make drawing only affect the visible_area?
@@ -123,18 +124,19 @@ import pygame as pg
 from tkinter import Tk, filedialog
 from PIL import Image
 from pathlib import Path
+from sys import argv
 from typing import Final, Optional, Any
 
-from src.classes.palette_manager import PaletteManager
 from src.classes.grid_manager import GridManager
+from src.classes.palette_manager import PaletteManager
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Button
-from src.classes.text import TextLabel
+from src.classes.text_label import TextLabel
+
 from src.utils import RectPos, Size, ObjInfo, MouseInfo, load_img, get_pixels
 from src.type_utils import (
     ColorType, BlitSequence, LayeredBlitInfo, LayeredBlitSequence, LayerSequence
 )
-
 from src.consts import INIT_WIN_SIZE, BLACK
 
 pg.init()
@@ -277,14 +279,27 @@ class Dixel:
         self._file_path: str = ''
         self._is_opening_file: bool = False
 
-        if self._data_file.is_file():
-            with self._data_file.open(encoding='utf-8') as f:
-                saved_file_path: str = f.read()
+        new_file_path: Path
+        if len(argv) == 1:
+            if self._data_file.is_file():
+                with self._data_file.open(encoding='utf-8') as f:
+                    new_file_path = Path(f.read())
+        else:
+            new_file_path = Path(' '.join(argv[1:]))
+            if new_file_path.suffix != '.png':
+                new_file_path = new_file_path.with_suffix('.png')
 
-            if Path(saved_file_path).is_file():
-                self._file_path = saved_file_path
-                GRID_MANAGER.load_from_path(self._file_path, GRID_MANAGER.grid.area)
-                PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
+            if not new_file_path.is_file():
+                if not new_file_path.parent.is_dir():  # TODO: How to check permission
+                    print('Invalid directory.')
+                else:
+                    new_file_img: Image.Image = Image.fromarray(GRID_MANAGER.grid.pixels, 'RGBA')
+                    new_file_img.save(new_file_path)
+
+        if new_file_path.is_file():
+            self._file_path = str(new_file_path)
+            GRID_MANAGER.load_from_path(self._file_path, GRID_MANAGER.grid.area)
+            PALETTE_MANAGER.load_from_arr(GRID_MANAGER.grid.pixels)
 
     def _draw(self) -> None:
         """
@@ -307,7 +322,7 @@ class Dixel:
             return layered_blit_info[2]
 
         main_sequence.sort(key=get_layer)
-        blit_sequence: BlitSequence = [(surf, pos) for surf, pos, _ in main_sequence]
+        blit_sequence: BlitSequence = [(img, pos) for img, pos, _ in main_sequence]
 
         self._win.fblits(blit_sequence)
         pg.display.flip()
@@ -460,6 +475,8 @@ class Dixel:
         """
         Handles everything related to debugging
         """
+
+        # TODO: remove print_layer, ObjInfo.name and associated types
 
         if pg.key.get_mods() & pg.KMOD_ALT and pg.K_l in self._timed_keys:
             sequence: LayerSequence = []

@@ -16,12 +16,12 @@ def load_img(*path_sections: str) -> pg.Surface:
     """
     Creates a surface from an image
     Args:
-        path sections
+        path sections (args)
     Returns:
         image
     """
 
-    constructed_path: str = str(Path(*path_sections))
+    constructed_path: Path = Path(*path_sections)
 
     return pg.image.load(constructed_path).convert_alpha()
 

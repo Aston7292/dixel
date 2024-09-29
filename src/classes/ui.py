@@ -7,7 +7,8 @@ from abc import ABC, abstractmethod
 from typing import Final, Any
 
 from src.classes.clickable import Button
-from src.classes.text import TextLabel
+from src.classes.text_label import TextLabel
+
 from src.utils import RectPos, Size, ObjInfo, MouseInfo, load_img
 from src.type_utils import LayeredBlitSequence, LayerSequence
 from src.consts import UI_LAYER
@@ -67,7 +68,7 @@ class UI(ABC):
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10.0, self._rect.y + 10.0, 'topright'),
-            (CLOSE_1_IMG, CLOSE_2_IMG), "", "(CTRL+BACKSPACE)", self._base_layer
+            (CLOSE_1_IMG, CLOSE_2_IMG), '', "(CTRL+BACKSPACE)", self._base_layer
         )
         self._confirm: Button = Button(
             RectPos(self._rect.right - 10.0, self._rect.bottom - 10.0, 'bottomright'),

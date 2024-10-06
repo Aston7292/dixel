@@ -63,7 +63,7 @@ class PaletteManager:
         )
 
         self._options: tuple[Button, ...] = tuple(
-            Button(RectPos(0, 0.0, 'topleft'), imgs, *option, SPECIAL_LAYER, 20)
+            Button(RectPos(0, 0, 'topleft'), imgs, *option, SPECIAL_LAYER, 20)
             for option in OPTIONS
         )
 
@@ -102,28 +102,6 @@ class PaletteManager:
         """
 
         self._win_ratio_w, self._win_ratio_h = win_ratio_w, win_ratio_h
-
-    def post_resize(self) -> None:
-        """
-        Handles post resizing behavior
-        """
-
-        if self._view_dropdown:
-            current_y: float = self._options[0].rect.y
-            for option in self._options:
-                # More precise
-                option.move_rect(option.rect.x, current_y, self._win_ratio_w, self._win_ratio_h)
-                current_y += option.rect.h
-
-    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
-        """
-        Args:
-            name, depth counter
-        Returns:
-            sequence to add in the main layer sequence
-        """
-
-        return [(name, None, depth_counter)]
 
     def add(self, color: Optional[ColorType]) -> None:
         """
@@ -181,7 +159,7 @@ class PaletteManager:
             selected color, color to edit (can be None)
         """
 
-        prev_dropdown_state: bool = self._view_dropdown
+        prev_view_dropdown: bool = self._view_dropdown
 
         if mouse_info.released[2]:
             for i, checkbox in enumerate(self._colors.checkboxes):
@@ -192,13 +170,18 @@ class PaletteManager:
 
                     if self._view_dropdown:
                         self._dropdown_i = i
-                        current_y: float = mouse_info.y + 5.0
+
+                        '''
+                        Modifies the initial position and calculates the scaled one
+                        for more accuracy
+                        '''
+                        option_x: int = round((mouse_info.x + 5) / self._win_ratio_w)
+                        option_y: int = round((mouse_info.y + 5) / self._win_ratio_h)
                         for option in self._options:
-                            # Also changes the initial position
                             option.move_rect(
-                                mouse_info.x + 5.0, current_y, self._win_ratio_w, self._win_ratio_h
+                                option_x, option_y, self._win_ratio_w, self._win_ratio_h
                             )
-                            current_y += option.rect.h
+                            option_y += int(option.rect.h / self._win_ratio_h)
                     break
             else:
                 self._view_dropdown = False
@@ -240,7 +223,7 @@ class PaletteManager:
                     self._win_ratio_w, self._win_ratio_h
                 )
 
-        if prev_dropdown_state == self._view_dropdown:
+        if prev_view_dropdown == self._view_dropdown:
             self._colors.upt(hovered_obj, mouse_info, keys)
         else:
             dropdown_objs_info: list[ObjInfo] = self.objs_info[

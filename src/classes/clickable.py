@@ -9,7 +9,7 @@ from typing import Optional, Any
 
 from src.classes.text_label import TextLabel
 
-from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo
+from src.utils import Point, RectPos, ObjInfo, MouseInfo, resize_obj
 from src.type_utils import LayeredBlitInfo, LayeredBlitSequence
 from src.consts import BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
@@ -32,7 +32,7 @@ class Clickable(ABC):
     """
 
     __slots__ = (
-        'init_pos', '_imgs', 'rect', '_init_size', '_is_hovering', '_layer', '_hovering_layer',
+        'init_pos', '_init_imgs', '_imgs', 'rect', '_is_hovering', '_layer', '_hovering_layer',
         '_hovering_text_label', '_hovering_text_imgs'
     )
 
@@ -47,13 +47,10 @@ class Clickable(ABC):
         """
 
         self.init_pos: RectPos = pos
+        self._init_imgs: tuple[pg.Surface, ...] = imgs
 
-        self._imgs: tuple[pg.Surface, ...] = imgs
-        self.rect: pg.FRect = self._imgs[0].get_frect(
-            **{self.init_pos.coord_type: self.init_pos.xy}
-        )
-
-        self._init_size: Size = Size(int(self.rect.w), int(self.rect.h))
+        self._imgs: tuple[pg.Surface, ...] = self._init_imgs
+        self.rect: pg.Rect = self._imgs[0].get_rect(**{self.init_pos.coord_type: self.init_pos.xy})
 
         self._is_hovering: bool = False
 
@@ -71,11 +68,9 @@ class Clickable(ABC):
             but these surfaces get recalculated every resize
             '''
 
-            self._hovering_text_label = TextLabel(
-                RectPos(0.0, 0.0, 'topleft'), hovering_text, h=12
-            )
+            self._hovering_text_label = TextLabel(RectPos(0, 0, 'topleft'), hovering_text, h=12)
             self._hovering_text_imgs = tuple(
-                pg.Surface((int(rect.w), int(rect.h))) for rect in self._hovering_text_label.rects
+                pg.Surface(rect.size) for rect in self._hovering_text_label.rects
             )
 
             hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
@@ -95,11 +90,13 @@ class Clickable(ABC):
 
         sequence: LayeredBlitSequence = [(self._imgs[img_i], self.rect.topleft, self._layer)]
         if self._is_hovering:
-            mouse_pos: Point = Point(*pg.mouse.get_pos())
-            hovering_text_pos: Point = Point(mouse_pos.x + 15, mouse_pos.y)
+            hovering_text_line_x: int = pg.mouse.get_pos()[0] + 15
+            hovering_text_line_y: int = pg.mouse.get_pos()[1]
             for img in self._hovering_text_imgs:
-                sequence.append((img, hovering_text_pos.xy, self._hovering_layer))
-                hovering_text_pos.y += img.get_height()
+                sequence.append(
+                    (img, (hovering_text_line_x, hovering_text_line_y), self._hovering_layer)
+                )
+                hovering_text_line_y += img.get_height()
 
         return sequence
 
@@ -128,18 +125,19 @@ class Clickable(ABC):
             window width ratio, window height ratio
         """
 
-        size: tuple[int, int] = (
-            int(self._init_size.w * win_ratio_w), int(self._init_size.h * win_ratio_h)
+        pos: tuple[int, int]
+        size: tuple[int, int]
+        pos, size = resize_obj(
+            self.init_pos, *self._init_imgs[0].get_size(), win_ratio_w, win_ratio_h
         )
-        pos: tuple[float, float] = (self.init_pos.x * win_ratio_w, self.init_pos.y * win_ratio_h)
 
-        self._imgs = tuple(pg.transform.scale(img, size) for img in self._imgs)
-        self.rect = self._imgs[0].get_frect(**{self.init_pos.coord_type: pos})
+        self._imgs = tuple(pg.transform.scale(img, size) for img in self._init_imgs)
+        self.rect = self._imgs[0].get_rect(**{self.init_pos.coord_type: pos})
 
         if self._hovering_text_label:
             self._hovering_text_label.handle_resize(win_ratio_w, win_ratio_h)
             self._hovering_text_imgs = tuple(
-                pg.Surface((int(rect.w), int(rect.h))) for rect in self._hovering_text_label.rects
+                pg.Surface(rect.size) for rect in self._hovering_text_label.rects
             )
 
             hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
@@ -190,7 +188,7 @@ class Checkbox(Clickable):
         self.is_checked: bool = False
 
         text_label: TextLabel = TextLabel(
-            RectPos(self.rect.centerx, self.rect.y - 5.0, 'midbottom'), text, base_layer, 16
+            RectPos(self.rect.centerx, self.rect.y - 5, 'midbottom'), text, base_layer, 16
         )
 
         self.objs_info: list[ObjInfo] = [ObjInfo("text", text_label)]
@@ -274,15 +272,17 @@ class Button(Clickable):
 
         return self._base_blit(int(self._is_hovering))
 
-    def move_rect(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
+    def move_rect(self, x: int, y: int, win_ratio_w: float, win_ratio_h: float) -> None:
         """
         Moves the rect to a specific coordinate
         Args:
             x, y, window width ratio, window height ratio
         """
 
-        self.init_pos.x, self.init_pos.y = x / win_ratio_w, y / win_ratio_h
-        setattr(self.rect, self.init_pos.coord_type, (x, y))
+        self.init_pos.x, self.init_pos.y = x, y
+
+        pos: tuple[int, int] = (round(x * win_ratio_w), round(y * win_ratio_h))
+        setattr(self.rect, self.init_pos.coord_type, pos)
         for info in self.objs_info:
             info.obj.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
 

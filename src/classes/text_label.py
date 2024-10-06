@@ -4,7 +4,7 @@ Class to simplify text rendering, renderers are cached
 
 import pygame as pg
 
-from src.utils import RectPos
+from src.utils import Point, RectPos, resize_obj
 from src.type_utils import LayeredBlitSequence
 from src.consts import WHITE, BG_LAYER, TEXT_LAYER
 
@@ -17,8 +17,8 @@ class TextLabel:
     """
 
     __slots__ = (
-        '_init_pos', '_x', '_y', '_init_h', '_renderer', 'text', '_lines',
-        '_imgs', 'rects', 'rect', '_layer'
+        '_init_pos', '_pos', '_init_h', '_renderer', 'text', '_lines', '_imgs', 'rects', 'rect',
+        '_layer'
     )
 
     def __init__(
@@ -31,8 +31,7 @@ class TextLabel:
         """
 
         self._init_pos: RectPos = pos
-        self._x: float = self._init_pos.x
-        self._y: float = self._init_pos.y
+        self._pos: Point = Point(*self._init_pos.xy)
 
         self._init_h: int = h
         if self._init_h not in renderers_cache:
@@ -45,8 +44,8 @@ class TextLabel:
         self._imgs: tuple[pg.Surface, ...] = tuple(
             self._renderer.render(line, True, WHITE) for line in self._lines
         )
-        self.rects: list[pg.FRect] = []
-        self.rect: pg.FRect = pg.FRect(0.0, 0.0, 0.0, 0.0)
+        self.rects: list[pg.Rect] = []
+        self.rect: pg.Rect = pg.Rect()
 
         self._layer: int = base_layer + TEXT_LAYER
 
@@ -67,10 +66,10 @@ class TextLabel:
             window width ratio, window height ratio
         """
 
-        min_win_ratio: float = min(win_ratio_w, win_ratio_h)
-
-        h: int = int(self._init_h * min_win_ratio)
-        self._x, self._y = self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h
+        h: int
+        (self._pos.x, self._pos.y), (_, h) = resize_obj(
+            self._init_pos, 0, self._init_h, win_ratio_w, win_ratio_h, False
+        )
 
         if h not in renderers_cache:
             renderers_cache[h] = pg.font.SysFont("helvetica", h)
@@ -86,31 +85,33 @@ class TextLabel:
 
         self.rects = []
 
-        current_y: float = self._y
+        rect_y: int = self._pos.y
         tot_h: int = sum(img.get_height() for img in self._imgs)
         if self._init_pos.coord_type in ('midright', 'center', 'midleft'):
-            current_y -= (tot_h - self._imgs[-1].get_height()) / 2.0
+            rect_y -= round((tot_h - self._imgs[-1].get_height()) / 2.0)
         elif 'bottom' in self._init_pos.coord_type:
-            current_y -= tot_h - self._imgs[-1].get_height()
+            rect_y -= tot_h - self._imgs[-1].get_height()
 
         for img in self._imgs:
-            self.rects.append(img.get_frect(**{self._init_pos.coord_type: (self._x, current_y)}))
-            current_y += self.rects[-1].h
+            self.rects.append(
+                img.get_rect(**{self._init_pos.coord_type: (self._pos.x, rect_y)})
+            )
+            rect_y += self.rects[-1].h
 
-        x: float = min(rect.x for rect in self.rects)
-        y: float = min(rect.y for rect in self.rects)
-        max_w: float = max(rect.w for rect in self.rects)
-        self.rect = pg.FRect(x, y, max_w, tot_h)
+        x: int = min(rect.x for rect in self.rects)
+        y: int = min(rect.y for rect in self.rects)
+        max_w: int = max(rect.w for rect in self.rects)
+        self.rect = pg.Rect(x, y, max_w, tot_h)
 
-    def move_rect(self, x: float, y: float, win_ratio_w: float, win_ratio_h: float) -> None:
+    def move_rect(self, x: int, y: int, win_ratio_w: float, win_ratio_h: float) -> None:
         """
         Moves the rects and rect to a specific coordinate
         Args:
             x, y, window width ratio, window height ratio
         """
 
-        self._init_pos.x, self._init_pos.y = x / win_ratio_w, y / win_ratio_h
-        self._x, self._y = x, y
+        self._init_pos.x, self._init_pos.y = round(x / win_ratio_w), round(y / win_ratio_h)
+        self._pos.x, self._pos.y = x, y
         self._get_rects()
 
     def set_text(self, text: str) -> None:
@@ -126,7 +127,7 @@ class TextLabel:
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
         self._get_rects()
 
-    def get_pos_at(self, char_i: int) -> float:
+    def get_pos_at(self, char_i: int) -> int:
         """
         Gets the x position of the character at a given index (only for single line text)
         Args:
@@ -148,7 +149,7 @@ class TextLabel:
             index (0 - len(text))
         """
 
-        current_x: int = int(self.rects[0].x)
+        current_x: int = self.rects[0].x
         for i, char in enumerate(self._lines[0]):
             next_x: int = current_x + self._renderer.render(char, False, WHITE).get_width()
             if x < next_x:

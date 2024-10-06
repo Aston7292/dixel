@@ -55,7 +55,6 @@ class Scrollbar:
         self.value: int = color[self._channel]
 
         self._slider_init_pos: RectPos = RectPos(*self.bar_rect.midleft, 'midleft')
-
         slider_x: float = self._slider_init_pos.x + self._unit_w * self.value
 
         self._slider_imgs: tuple[pg.Surface, ...] = (SLIDER_1_IMG, SLIDER_2_IMG)
@@ -220,13 +219,13 @@ class Scrollbar:
         if self == hovered_obj and mouse_info.released[0]:
             return 0
 
-        is_clicked: bool
+        is_input_box_clicked: bool
         new_text: str
-        is_clicked, new_text = self.input_box.upt(
+        is_input_box_clicked, new_text = self.input_box.upt(
             hovered_obj, mouse_info, keys, (0, 255), selection == self.input_box
         )
 
-        if is_clicked:
+        if is_input_box_clicked:
             return 1
 
         if self != hovered_obj:

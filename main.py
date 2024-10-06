@@ -238,9 +238,10 @@ class Dixel:
     """
 
     __slots__ = (
-        '_win_size', '_prev_win_size', '_main_win_flag', '_is_fullscreen', '_win', '_mouse_info',
-        '_pressed_keys', '_timed_keys', '_prev_k_input', '_kmod_ctrl', '_hovered_obj', '_state',
-        '_active_objs', '_inactive_objs', '_data_file', '_file_path', '_is_opening_file'
+        '_win_restore_size', '_main_win_flag', '_is_fullscreen', '_win',
+        '_mouse_info', '_pressed_keys', '_timed_keys', '_k_input_elapsed_time', '_kmod_ctrl',
+        '_state', '_active_objs', '_inactive_objs', '_hovered_obj',
+        '_data_file', '_file_path', '_is_opening_file'
     )
 
     def __init__(self) -> None:
@@ -248,8 +249,7 @@ class Dixel:
         Initializes the window
         """
 
-        self._win_size: Size = Size(INIT_WIN_SIZE.w, INIT_WIN_SIZE.h)
-        self._prev_win_size: tuple[int, int] = self._win_size.wh
+        self._win_restore_size: tuple[int, int] = INIT_WIN_SIZE.wh
         self._main_win_flag: int = pg.RESIZABLE
         self._is_fullscreen: bool = False
         self._win: pg.Surface = INIT_WIN
@@ -257,13 +257,10 @@ class Dixel:
         self._mouse_info: MouseInfo = MouseInfo(
             *pg.mouse.get_pos(), pg.mouse.get_pressed(), pg.mouse.get_just_released()
         )
-
         self._pressed_keys: list[int] = []
         self._timed_keys: tuple[int, ...] = tuple(self._pressed_keys)
-        self._prev_k_input: int = pg.time.get_ticks()
+        self._k_input_elapsed_time: int = pg.time.get_ticks()
         self._kmod_ctrl: int = 0
-
-        self._hovered_obj: Any = None
 
         '''
         0 = main interface
@@ -274,6 +271,7 @@ class Dixel:
 
         self._active_objs: list[list[Any]] = []
         self._inactive_objs: list[list[Any]] = []
+        self._hovered_obj: Any = None
 
         self._data_file: Path = Path("data.txt")
         self._file_path: str = ''
@@ -357,8 +355,8 @@ class Dixel:
         Resizes the object
         """
 
-        win_ratio_w: float = self._win_size.w / INIT_WIN_SIZE.w
-        win_ratio_h: float = self._win_size.h / INIT_WIN_SIZE.h
+        win_ratio_w: float = self._win.get_width() / INIT_WIN_SIZE.w
+        win_ratio_h: float = self._win.get_height() / INIT_WIN_SIZE.h
 
         for state_objs in self._active_objs + self._inactive_objs:
             for obj in state_objs:
@@ -385,17 +383,16 @@ class Dixel:
         """
 
         self._pressed_keys.append(k)
-        self._prev_k_input = 0
+        self._k_input_elapsed_time = 0
         self._kmod_ctrl = pg.key.get_mods() & pg.KMOD_CTRL
 
         if k == pg.K_ESCAPE:
             raise KeyboardInterrupt
 
         if k == pg.K_F1:
-            self._win_size.w, self._win_size.h = INIT_WIN_SIZE.wh
             self._main_win_flag = pg.RESIZABLE
             self._is_fullscreen = False
-            self._win = pg.display.set_mode(self._win_size.wh, self._main_win_flag | EXTRA_FLAGS)
+            self._win = pg.display.set_mode(INIT_WIN_SIZE.wh, self._main_win_flag | EXTRA_FLAGS)
 
             self._handle_resize()
         elif k == pg.K_F11:
@@ -407,17 +404,16 @@ class Dixel:
                 so the handle_resize method is not necessary
                 '''
 
-                self._win_size.w, self._win_size.h = self._prev_win_size
                 self._main_win_flag = pg.RESIZABLE
                 self._win = pg.display.set_mode(
-                    self._win_size.wh, self._main_win_flag | EXTRA_FLAGS
+                    self._win_restore_size, self._main_win_flag | EXTRA_FLAGS
                 )
             else:
                 self._main_win_flag = pg.FULLSCREEN
+                self._win_restore_size = self._win.get_size()
                 # A window of size (0, 0) becomes of the monitor's size
                 self._win = pg.display.set_mode(flags=self._main_win_flag | EXTRA_FLAGS)
-                self._prev_win_size = self._win_size.wh
-                self._win_size.w, self._win_size.h = self._win.get_size()
+
                 self._handle_resize()
 
     def _handle_events(self) -> None:
@@ -434,12 +430,10 @@ class Dixel:
                 raise KeyboardInterrupt
 
             if event.type == pg.VIDEORESIZE:
-                self._win_size.w = max(event.w, INIT_WIN_SIZE.w)
-                self._win_size.h = max(event.h, INIT_WIN_SIZE.h)
-                if self._win_size.w != event.w or self._win_size.h != event.h:
-                    self._win = pg.display.set_mode(
-                        self._win_size.wh, self._main_win_flag | EXTRA_FLAGS
-                    )
+                win_size: tuple[int, int] = (
+                    max(event.w, INIT_WIN_SIZE.w), max(event.h, INIT_WIN_SIZE.h)
+                )
+                self._win = pg.display.set_mode(win_size, self._main_win_flag | EXTRA_FLAGS)
 
                 self._handle_resize()
             elif event.type == pg.MOUSEWHEEL:
@@ -452,11 +446,11 @@ class Dixel:
             elif event.type == FPSUPDATE:
                 FPS_TEXT_LABEL.set_text("FPS: " + str(round(CLOCK.get_fps())))
 
-        if pg.time.get_ticks() - self._prev_k_input < 100:
+        if pg.time.get_ticks() - self._k_input_elapsed_time < 100:
             self._timed_keys = ()
         else:
             self._timed_keys = tuple(self._pressed_keys)
-            self._prev_k_input = pg.time.get_ticks()
+            self._k_input_elapsed_time = pg.time.get_ticks()
 
         if self._kmod_ctrl:
             if pg.K_MINUS in self._timed_keys:
@@ -505,7 +499,7 @@ class Dixel:
                     layer_info.extend(obj_info[::-1])
 
             for name, layer, depth_counter in sequence:
-                print(f"{"\t" * depth_counter}{name}: {str(layer)}")
+                print(f"{"\t" * depth_counter}{name}: {layer}")
             print("-" * 50)
 
     def _handle_ui_openers(self) -> None:
@@ -602,6 +596,28 @@ class Dixel:
                 CLOCK.tick(60)
 
                 self._handle_events()
+
+                if (
+                    not self._is_fullscreen and
+                    any(k in self._timed_keys for k in (pg.K_F5, pg.K_F6, pg.K_F7, pg.K_F8))
+                ):
+                    win_w: int
+                    win_h: int
+                    win_w, win_h = self._win.get_size()
+
+                    if pg.K_F5 in self._timed_keys:
+                        win_w = max(win_w - 1, INIT_WIN_SIZE.w)
+                    if pg.K_F6 in self._timed_keys:
+                        win_w += 1
+                    if pg.K_F7 in self._timed_keys:
+                        win_h = max(win_h - 1, INIT_WIN_SIZE.h)
+                    if pg.K_F8 in self._timed_keys:
+                        win_h += 1
+
+                    self._win = pg.display.set_mode(
+                        (win_w, win_h), self._main_win_flag | EXTRA_FLAGS
+                    )
+                    self._handle_resize()
 
                 '''
                 When the mouse is off the window it's x and y positions are 0,

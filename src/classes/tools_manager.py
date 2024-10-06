@@ -14,7 +14,7 @@ from src.type_utils import LayerSequence
 from src.consts import SPECIAL_LAYER
 
 PENCIL_IMG: Final[pg.Surface] = load_img("sprites", "pencil_tool.png")
-BUCKET_IMG: Final[pg.Surface] = PENCIL_IMG.copy()
+BUCKET_IMG: Final[pg.Surface] = PENCIL_IMG
 
 '''
 All tools have:
@@ -81,7 +81,7 @@ def check_extra_info() -> None:  # Could go unnoticed
     missing_attrs: set[tuple[str, str]] = set()
     for tool_info in extra_info:
         for info in tool_info:
-            obj: Any = info["type"](RectPos(0.0, 0.0, 'topleft'), *info["init_args"])
+            obj: Any = info["type"](RectPos(0, 0, 'topleft'), *info["init_args"])
 
             required_attrs: list[str] = ["rect", "upt"] + list(info["output_format"].values())
             for attr in required_attrs:
@@ -128,19 +128,19 @@ class ToolsManager:
         )
         self._extra_info: list[list[dict[str, Any]]] = []
         for tool_info in extra_info:
-            current_x: float = self._tools.rect.x + 20.0
-            current_y: float = self._tools.rect.y - 20.0
+            obj_x: int = self._tools.rect.x + 20
+            obj_y: int = self._tools.rect.y - 20
 
             objs_info: list[dict[str, Any]] = []
             for info in tool_info:
                 obj: Any = info["type"](
-                    RectPos(current_x, current_y, 'bottomleft'), *info["init_args"],
+                    RectPos(obj_x, obj_y, 'bottomleft'), *info["init_args"],
                     base_layer=SPECIAL_LAYER
                 )
                 info["obj"] = obj
                 del info["type"], info["init_args"]
 
-                current_x += obj.rect.w + 20.0
+                obj_x += obj.rect.w + 20
 
                 objs_info.append(info)
             self._extra_info.append(objs_info)
@@ -162,16 +162,6 @@ class ToolsManager:
         for i in range(self._dynamic_info_ranges[0][0], self._dynamic_info_ranges[-1][1]):
             if i < active_range[0] or i >= active_range[1]:
                 self.objs_info[i].set_active(False)
-
-    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
-        """
-        Args:
-            name, depth counter
-        Returns:
-            sequence to add in the main layer sequence
-        """
-
-        return [(name, None, depth_counter)]
 
     def upt(
             self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...]

@@ -8,7 +8,7 @@ from unittest import mock
 import numpy as np
 from numpy.typing import NDArray
 
-from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo, load_img, add_border, get_pixels
+from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo, load_img, get_pixels, add_border
 
 
 class ParentObj:
@@ -41,19 +41,6 @@ class TestUtils(unittest.TestCase):
         load_img("test.png")
         mock_surf.convert_alpha.assert_called_once()
 
-    def test_add_border(self) -> None:
-        """
-        Tests the add_border method
-        """
-
-        img: pg.Surface = pg.Surface((10, 11))
-        img_with_border: pg.Surface = add_border(img, (0, 0, 1))
-
-        self.assertEqual(img_with_border.get_at((0, 0)), (0, 0, 1))
-        self.assertEqual(img_with_border.get_at((0, 9)), (0, 0, 1))
-        self.assertEqual(img_with_border.get_at((9, 0)), (0, 0, 1))
-        self.assertEqual(img_with_border.get_at((9, 9)), (0, 0, 1))
-
     def test_get_pixels(self) -> None:
         """
         Tests the get_pixels method
@@ -69,6 +56,21 @@ class TestUtils(unittest.TestCase):
         expected_pixels = np.transpose(expected_pixels, (1, 0, 2))
 
         self.assertTrue(np.array_equal(get_pixels(img), expected_pixels))
+
+    def test_add_border(self) -> None:
+        """
+        Tests the add_border method
+        """
+
+        img: pg.Surface = pg.Surface((10, 11))
+        img_with_border: pg.Surface = add_border(img, (0, 0, 1))
+
+        self.assertEqual(img_with_border.get_at((0, 0)), (0, 0, 1))
+        self.assertEqual(img_with_border.get_at((0, 9)), (0, 0, 1))
+        self.assertEqual(img_with_border.get_at((9, 0)), (0, 0, 1))
+        self.assertEqual(img_with_border.get_at((9, 9)), (0, 0, 1))
+
+    # TODO: test resize_obj
 
     def test_point(self) -> None:
         """
@@ -86,12 +88,12 @@ class TestUtils(unittest.TestCase):
         Tests the RectPos dataclass
         """
 
-        pos: RectPos = RectPos(0.0, 1.0, 'topleft')
+        pos: RectPos = RectPos(0, 1, 'topleft')
 
-        self.assertEqual(pos.x, 0.0)
-        self.assertEqual(pos.y, 1.0)
+        self.assertEqual(pos.x, 0)
+        self.assertEqual(pos.y, 1)
         self.assertEqual(pos.coord_type, 'topleft')
-        self.assertTupleEqual(pos.xy, (0.0, 1.0))
+        self.assertTupleEqual(pos.xy, (0, 1))
 
     def test_size(self) -> None:
         """

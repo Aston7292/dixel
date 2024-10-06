@@ -117,10 +117,12 @@ class NumSlider:
         if self._is_sliding:
             self._traveled_x += mouse_info.x - self._prev_mouse_x
             if abs(self._traveled_x) >= 10:
-                pixels_traveled: int = round(self._traveled_x / 10.0)
-                self._traveled_x -= pixels_traveled * 10
+                units_traveled: int = abs(self._traveled_x) // 10
+                if self._traveled_x < 0:
+                    units_traveled = -units_traveled
+                self._traveled_x -= units_traveled * 10
 
-                new_value: int = max(min(self.value + pixels_traveled, MAX_DIM), 1)
+                new_value: int = max(min(self.value + units_traveled, MAX_DIM), 1)
                 new_text = str(new_value)
 
         if new_text != prev_text:
@@ -144,7 +146,7 @@ class GridUI(UI):
         '_checkbox', '_selection_i', '_min_win_ratio', '_small_preview_img'
     )
 
-    def __init__(self, pos: RectPos, grid_area: Size) -> None:
+    def __init__(self, pos: RectPos, area: Size) -> None:
         """
         Initializes the interface
         Args:
@@ -174,14 +176,14 @@ class GridUI(UI):
 
         self._h_slider: NumSlider = NumSlider(
             RectPos(self._preview_rect.x + 20.0, self._preview_rect.y - 25.0, 'bottomleft'),
-            grid_area.h, "height", self._base_layer
+            area.h, "height", self._base_layer
         )
         self._w_slider: NumSlider = NumSlider(
             RectPos(
                 self._preview_rect.x + 20.0, self._h_slider.input_box.box_rect.y - 25.0,
                 'bottomleft'
             ),
-            grid_area.w, "width", self._base_layer
+            area.w, "width", self._base_layer
         )
         self._values_ratio: tuple[float, float] = (1.0, 1.0)
 
@@ -237,25 +239,27 @@ class GridUI(UI):
             window width ratio, window height ratio
         """
 
+        # Preview resized normally for more consistency
         self._min_win_ratio = min(win_ratio_w, win_ratio_h)
 
         super().handle_resize(win_ratio_w, win_ratio_h)
 
         preview_pixel_dim: float = min(
-            self._preview_init_size.w / self._w_slider.value * self._min_win_ratio,
-            self._preview_init_size.h / self._h_slider.value * self._min_win_ratio
-        )
+            self._preview_init_size.w / self._w_slider.value,
+            self._preview_init_size.h / self._h_slider.value
+        ) * self._min_win_ratio
 
         preview_size: tuple[int, int] = (
-            int(self._w_slider.value * preview_pixel_dim),
-            int(self._h_slider.value * preview_pixel_dim)
+            round(self._w_slider.value * preview_pixel_dim),
+            round(self._h_slider.value * preview_pixel_dim)
         )
         self._preview_pos = (
-            self._preview_init_pos.x * win_ratio_w, self._preview_init_pos.y * win_ratio_h
+            round(self._preview_init_pos.x * win_ratio_w),
+            round(self._preview_init_pos.y * win_ratio_h)
         )
 
         self._preview_img = pg.transform.scale(self._small_preview_img, preview_size)
-        self._preview_rect = self._preview_img.get_frect(
+        self._preview_rect = self._preview_img.get_rect(
             **{self._preview_init_pos.coord_type: self._preview_pos}
         )
 
@@ -323,10 +327,9 @@ class GridUI(UI):
         self._small_preview_img.fblits(sequence)
 
         pixel_dim: float = min(
-            self._preview_init_size.w / area.w * self._min_win_ratio,
-            self._preview_init_size.h / area.h * self._min_win_ratio
-        )
-        size: tuple[int, int] = (int(area.w * pixel_dim), int(area.h * pixel_dim))
+            self._preview_init_size.w / area.w, self._preview_init_size.h / area.h
+        ) * self._min_win_ratio
+        size: tuple[int, int] = (round(area.w * pixel_dim), round(area.h * pixel_dim))
 
         self._preview_img = pg.transform.scale(self._small_preview_img, size)
         self._preview_rect = self._preview_img.get_frect(
@@ -350,7 +353,8 @@ class GridUI(UI):
             if pg.K_DOWN in keys:
                 self._selection_i = 1
 
-        prev_grid_area: Size = Size(self._w_slider.value, self._h_slider.value)
+        prev_grid_w: int = self._w_slider.value
+        prev_grid_h: int = self._h_slider.value
         selection: Any = (self._w_slider, self._h_slider)[self._selection_i]
 
         if self._w_slider.upt(hovered_obj, mouse_info, keys, selection):
@@ -359,11 +363,11 @@ class GridUI(UI):
             self._selection_i = 1
 
         grid_area: Size = Size(self._w_slider.value, self._h_slider.value)
-        if grid_area != prev_grid_area:
+        if grid_area.wh != (prev_grid_w, prev_grid_h):
             if self._checkbox.is_checked:
                 opp_value: int
                 opp_slider: NumSlider
-                if grid_area.w != prev_grid_area.w:
+                if grid_area.w != prev_grid_w:
                     opp_value = max(min(round(grid_area.w * self._values_ratio[0]), MAX_DIM), 1)
                     opp_slider = self._h_slider
                 else:

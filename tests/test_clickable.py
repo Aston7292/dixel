@@ -12,7 +12,7 @@ from typing import Final, Optional
 from src.classes.clickable import Checkbox
 from src.classes.text_label import TextLabel
 
-from src.utils import Point, RectPos, Size, MouseInfo
+from src.utils import Point, RectPos, MouseInfo
 from src.type_utils import LayeredBlitInfo, LayeredBlitSequence
 from src.consts import ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
@@ -36,9 +36,7 @@ class TestCheckbox(unittest.TestCase):
         Creates the checkbox
         """
 
-        cls.checkbox = Checkbox(
-            RectPos(1.0, 2.0, 'topleft'), (IMG_1, IMG_2), "hello", "world\n!", 1
-        )
+        cls.checkbox = Checkbox(RectPos(1, 2, 'topleft'), (IMG_1, IMG_2), "hello", "world\n!", 1)
 
     def test_a_init(self) -> None:
         """
@@ -46,15 +44,14 @@ class TestCheckbox(unittest.TestCase):
         """
 
         # Also tests the Clickable abstract class
-        self.assertEqual(self.checkbox.init_pos, RectPos(1.0, 2.0, 'topleft'))
+        self.assertEqual(self.checkbox.init_pos, RectPos(1, 2, 'topleft'))
 
+        for img, expected_img in zip_longest(self.checkbox._init_imgs, (IMG_1, IMG_2)):
+            self.assertTrue(cmp_imgs(img, expected_img))
         for img, expected_img in zip_longest(self.checkbox._imgs, (IMG_1, IMG_2)):
             self.assertTrue(cmp_imgs(img, expected_img))
-        expected_rect: pg.FRect = IMG_1.get_frect(topleft=(1.0, 2.0))
+        expected_rect: pg.Rect = IMG_1.get_rect(topleft=(1, 2))
         self.assertEqual(self.checkbox.rect, expected_rect)
-
-        expected_size: Size = Size(int(expected_rect.w), int(expected_rect.h))
-        self.assertEqual(self.checkbox._init_size, expected_size)
 
         self.assertFalse(self.checkbox._is_hovering)
 
@@ -63,10 +60,10 @@ class TestCheckbox(unittest.TestCase):
 
         # Compare hovering text
         expected_hovering_text_label: TextLabel = TextLabel(
-            RectPos(0.0, 0.0, 'topleft'), "world\n!", h=12
+            RectPos(0, 0, 'topleft'), "world\n!", h=12
         )
         expected_hovering_text_imgs: tuple[pg.Surface, ...] = tuple(
-            pg.Surface((int(rect.w), int(rect.h))) for rect in expected_hovering_text_label.rects
+            pg.Surface(rect.size) for rect in expected_hovering_text_label.rects
         )
 
         expected_hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip_longest(
@@ -82,7 +79,7 @@ class TestCheckbox(unittest.TestCase):
             self.assertTrue(cmp_imgs(img, expected_img, False))
 
         no_hovering_text_checkbox: Checkbox = Checkbox(
-            RectPos(0.0, 0.0, 'topleft'), (IMG_1, IMG_2), "hello", ''
+            RectPos(0, 0, 'topleft'), (IMG_1, IMG_2), "hello", ''
         )
 
         self.assertIsNone(no_hovering_text_checkbox._hovering_text_label)
@@ -95,7 +92,7 @@ class TestCheckbox(unittest.TestCase):
         self.assertIsInstance(text_label, TextLabel)
         self.assertTrue(self.checkbox.objs_info[0].is_active)
 
-        self.assertEqual(text_label._init_pos, RectPos(6.0, -3.0, 'midbottom'))
+        self.assertEqual(text_label._init_pos, RectPos(6, -3, 'midbottom'))
         self.assertEqual(text_label.text, "hello")
         self.assertEqual(text_label._layer, 1 + TEXT_LAYER)
         self.assertEqual(text_label._init_h, 16)
@@ -115,15 +112,16 @@ class TestCheckbox(unittest.TestCase):
             (self.checkbox._imgs[1], self.checkbox.rect.topleft, self.checkbox._layer)
         ]
 
-        mouse_pos: Point = Point(*pg.mouse.get_pos())
-        expected_hovering_text_pos: Point = Point(mouse_pos.x + 15, mouse_pos.y)
+        expected_hovering_text_line_x: int = pg.mouse.get_pos()[0] + 15
+        expected_hovering_text_line_y: int = pg.mouse.get_pos()[1]
 
         self.checkbox._is_hovering = True
         for img in self.checkbox._hovering_text_imgs:
-            expected_sequence_1.append(
-                (img, expected_hovering_text_pos.xy, self.checkbox._hovering_layer)
-            )
-            expected_hovering_text_pos.y += img.get_height()
+            expected_sequence_1.append((
+                img, (expected_hovering_text_line_x, expected_hovering_text_line_y),
+                self.checkbox._hovering_layer
+            ))
+            expected_hovering_text_line_y += img.get_height()
         self.assertListEqual(self.checkbox._base_blit(1), expected_sequence_1)
         self.checkbox._is_hovering = False
 
@@ -134,9 +132,7 @@ class TestCheckbox(unittest.TestCase):
 
         hovered_obj: Optional[Checkbox]
         layer: int
-
-        pos: tuple[int, int] = (int(self.checkbox.rect.x), int(self.checkbox.rect.y))
-        hovered_obj, layer = self.checkbox.check_hovering(pos)
+        hovered_obj, layer = self.checkbox.check_hovering(self.checkbox.rect.topleft)
         self.assertIs(hovered_obj, self.checkbox)
         self.assertEqual(layer, 1 + ELEMENT_LAYER)
 
@@ -157,25 +153,23 @@ class TestCheckbox(unittest.TestCase):
         Tests the handle_resize method as second
         """
 
-        size: tuple[int, int] = (
-            self.checkbox._init_size.w * 3, self.checkbox._init_size.h * 2
-        )
+        size: tuple[int, int] = (IMG_1.get_width() * 3, IMG_1.get_height() * 2)
 
         expected_imgs: tuple[pg.Surface, ...] = tuple(
-            pg.transform.scale(img, size) for img in self.checkbox._imgs
+            pg.transform.scale(img, size) for img in self.checkbox._init_imgs
         )
-        expected_rect: pg.FRect = expected_imgs[0].get_frect(topleft=(3.0, 4.0))
+        expected_rect: pg.Rect = expected_imgs[0].get_rect(topleft=(3, 4))
 
-        self.checkbox.handle_resize(3.0, 2.0)
+        self.checkbox.handle_resize(3, 2)
         for img, expected_img in zip_longest(self.checkbox._imgs, expected_imgs):
             self.assertTrue(cmp_imgs(img, expected_img))
         self.assertEqual(self.checkbox.rect, expected_rect)
 
         expected_hovering_text_label: TextLabel = TextLabel(
-            RectPos(0.0, 0.0, 'topleft'), "world\n!", h=24
+            RectPos(0, 0, 'topleft'), "world\n!", h=24
         )
         expected_hovering_text_imgs: tuple[pg.Surface, ...] = tuple(
-            pg.Surface((int(rect.w), int(rect.h))) for rect in expected_hovering_text_label.rects
+            pg.Surface(rect.size) for rect in expected_hovering_text_label.rects
         )
 
         expected_hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip_longest(

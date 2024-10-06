@@ -12,53 +12,6 @@ from typing import Any
 from src.type_utils import ColorType
 
 
-def load_img(*path_sections: str) -> pg.Surface:
-    """
-    Creates a surface from an image
-    Args:
-        path sections (args)
-    Returns:
-        image
-    """
-
-    constructed_path: Path = Path(*path_sections)
-
-    return pg.image.load(constructed_path).convert_alpha()
-
-
-def add_border(img: pg.Surface, border_color: ColorType) -> pg.Surface:
-    """
-    Adds a border to an image
-    Args:
-        image, border color
-    Returns:
-        image with border
-    """
-
-    img_with_border: pg.Surface = img.copy()
-
-    border_dim: int = min(img_with_border.get_size()) // 10
-    pg.draw.rect(img_with_border, border_color, img_with_border.get_rect(), border_dim)
-
-    return img_with_border
-
-
-def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
-    """
-    Gets the rgba values of the pixels in an image
-    Args:
-        image
-    Returns:
-        pixels
-    """
-
-    pixels_rgb: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
-    pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
-    pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, pixels_alpha))
-
-    return np.transpose(pixels, (1, 0, 2))
-
-
 @dataclass(slots=True)
 class Point:
     """
@@ -72,28 +25,6 @@ class Point:
 
     @property
     def xy(self) -> tuple[int, int]:
-        """
-        Returns:
-            x, y
-        """
-
-        return self.x, self.y
-
-
-@dataclass(slots=True)
-class RectPos:
-    """
-    Dataclass for representing a rect's position
-    Args:
-        x, y, coordinate type (e.g. topleft)
-    """
-
-    x: float
-    y: float
-    coord_type: str
-
-    @property
-    def xy(self) -> tuple[float, float]:
         """
         Returns:
             x, y
@@ -121,6 +52,106 @@ class Size:
         """
 
         return self.w, self.h
+
+
+@dataclass(slots=True)
+class RectPos:
+    """
+    Dataclass for representing a rect's position
+    Args:
+        x, y, coordinate type (e.g. topleft)
+    """
+
+    x: int
+    y: int
+    coord_type: str
+
+    @property
+    def xy(self) -> tuple[int, int]:
+        """
+        Returns:
+            x, y
+        """
+
+        return self.x, self.y
+
+
+def load_img(*path_sections: str) -> pg.Surface:
+    """
+    Creates a surface from an image
+    Args:
+        path sections (args)
+    Returns:
+        image
+    """
+
+    constructed_path: Path = Path(*path_sections)
+
+    return pg.image.load(constructed_path).convert_alpha()
+
+
+def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
+    """
+    Gets the rgba values of the pixels in an image
+    Args:
+        image
+    Returns:
+        pixels
+    """
+
+    pixels_rgb: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
+    pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
+    pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, pixels_alpha))
+
+    return np.transpose(pixels, (1, 0, 2))  # Swaps columns and rows
+
+
+def add_border(img: pg.Surface, border_color: ColorType) -> pg.Surface:
+    """
+    Adds a border to an image
+    Args:
+        image, border color
+    Returns:
+        image with border
+    """
+
+    img_with_border: pg.Surface = img.copy()
+
+    border_dim: int = round(min(img_with_border.get_size()) / 10)
+    pg.draw.rect(img_with_border, border_color, img_with_border.get_rect(), border_dim)
+
+    return img_with_border
+
+
+def resize_obj(
+        pos: RectPos, w: int, h: int, win_ratio_w: float, win_ratio_h: float,
+        distort_size: bool = True
+    ) -> tuple[tuple[int, int], tuple[int, int]]:
+    """
+    Scales position and size of an object without creating gaps between attached objects
+    Args:
+        x, y, width, height, window width ratio, window height ratio,
+        distort size boolean (default = True)
+    Returns:
+        position, size
+    """
+
+    new_x: int = round(pos.x * win_ratio_w)
+    new_y: int = round(pos.y * win_ratio_h)
+
+    img_ratio_w: float
+    img_ratio_h: float
+    if distort_size:
+        img_ratio_w, img_ratio_h = win_ratio_w, win_ratio_h
+    else:
+        img_ratio_w = img_ratio_h = min(win_ratio_w, win_ratio_h)
+
+    rect_left: int = round((pos.x * win_ratio_w) + (w * img_ratio_w))
+    new_w: int = rect_left - new_x
+    rect_bottom: int = round((pos.y * win_ratio_h) + (h * img_ratio_h))
+    new_h: int = rect_bottom - new_y
+
+    return (new_x, new_y), (new_w, new_h)
 
 
 @dataclass(slots=True)

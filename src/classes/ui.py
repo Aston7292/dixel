@@ -9,8 +9,8 @@ from typing import Final, Any
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, Size, ObjInfo, MouseInfo, load_img
-from src.type_utils import LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, ObjInfo, MouseInfo, load_img, resize_obj
+from src.type_utils import LayeredBlitSequence
 from src.consts import UI_LAYER
 
 INTERFACE_IMG: Final[pg.Surface] = pg.Surface((500, 700))
@@ -40,7 +40,7 @@ class UI(ABC):
     """
 
     __slots__ = (
-        '_init_pos', '_img', '_rect', '_init_size', '_base_layer', '_exit', '_confirm', 'objs_info'
+        '_init_pos', '_init_img', '_img', '_rect', '_base_layer', '_exit', '_confirm', 'objs_info'
     )
 
     def __init__(self, pos: RectPos, title: str) -> None:
@@ -51,27 +51,24 @@ class UI(ABC):
         """
 
         self._init_pos: RectPos = pos
+        self._init_img: pg.Surface = INTERFACE_IMG
 
-        self._img: pg.Surface = INTERFACE_IMG
-        self._rect: pg.FRect = self._img.get_frect(
-            **{self._init_pos.coord_type: self._init_pos.xy}
-        )
-
-        self._init_size: Size = Size(int(self._rect.w), int(self._rect.h))
+        self._img: pg.Surface = self._init_img
+        self._rect: pg.Rect = self._img.get_rect(**{self._init_pos.coord_type: self._init_pos.xy})
 
         self._base_layer: int = UI_LAYER
 
         title_text_label: TextLabel = TextLabel(
-            RectPos(self._rect.centerx, self._rect.top + 10.0, 'midtop'), title,
+            RectPos(self._rect.centerx, self._rect.top + 10, 'midtop'), title,
             self._base_layer, 32
         )
 
         self._exit: Button = Button(
-            RectPos(self._rect.right - 10.0, self._rect.y + 10.0, 'topright'),
+            RectPos(self._rect.right - 10, self._rect.y + 10, 'topright'),
             (CLOSE_1_IMG, CLOSE_2_IMG), '', "(CTRL+BACKSPACE)", self._base_layer
         )
         self._confirm: Button = Button(
-            RectPos(self._rect.right - 10.0, self._rect.bottom - 10.0, 'bottomright'),
+            RectPos(self._rect.right - 10, self._rect.bottom - 10, 'bottomright'),
             (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "confirm", "(CTRL+ENTER)", self._base_layer
         )
 
@@ -95,23 +92,14 @@ class UI(ABC):
             window width ratio, window height ratio
         """
 
-        size: tuple[int, int] = (
-            int(self._init_size.w * win_ratio_w), int(self._init_size.h * win_ratio_h)
+        pos: tuple[int, int]
+        size: tuple[int, int]
+        pos, size = resize_obj(
+            self._init_pos, *self._init_img.get_size(), win_ratio_w, win_ratio_h
         )
-        pos: tuple[float, float] = (self._init_pos.x * win_ratio_w, self._init_pos.y * win_ratio_h)
 
-        self._img = pg.transform.scale(self._img, size)
-        self._rect = self._img.get_frect(**{self._init_pos.coord_type: pos})
-
-    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
-        """
-        Args:
-            name, depth counter
-        Returns:
-            sequence to add in the main layer sequence
-        """
-
-        return [(name, self._base_layer, depth_counter)]
+        self._img = pg.transform.scale(self._init_img, size)
+        self._rect = self._img.get_rect(**{self._init_pos.coord_type: pos})
 
     def _base_upt(
             self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int

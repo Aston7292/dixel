@@ -45,8 +45,6 @@ Requires pygame-ce, numpy and Pillow
 - **CTRL left/right**: switch between scrollbar and input box in color picking ui
 - **CTRL K**: toggle checkbox in grid ui
 
-- **ALT L**: print debug info about layers
-
 ## Screenshots
 
 ### Main Interface

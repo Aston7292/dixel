@@ -5,10 +5,11 @@ Paintable pixel grid with minimap
 import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
+from math import ceil
 from typing import Final, Optional, Any
 
-from src.utils import Point, Size, RectPos, ObjInfo, MouseInfo, load_img, get_pixels
-from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSequence
+from src.utils import Point, Size, RectPos, ObjInfo, MouseInfo, load_img, get_pixels, resize_obj
+from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence
 from src.consts import WHITE, EMPTY_PIXEL_SURF, BG_LAYER
 
 TRANSPARENT_GREY: Final[ColorType] = (120, 120, 120, 125)
@@ -45,8 +46,8 @@ class Grid:
         self.grid_pixel_dim: float = 18.0
 
         self._grid_img: pg.Surface = pg.Surface((
-            round(self.visible_area.w * self.grid_pixel_dim),
-            round(self.visible_area.h * self.grid_pixel_dim)
+            ceil(self.visible_area.w * self.grid_pixel_dim),
+            ceil(self.visible_area.h * self.grid_pixel_dim)
         ))
         self.grid_rect: pg.Rect = self._grid_img.get_rect(
             **{self._grid_init_pos.coord_type: self._grid_init_pos.xy}
@@ -103,42 +104,45 @@ class Grid:
 
         return self if self.grid_rect.collidepoint(mouse_pos) else None, self._layer
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
-            window width ratio, window height ratio
+            window size ratio
         """
 
-        # Grid and minimap are resized normally for more consistency
-        self._min_win_ratio = min(win_ratio_w, win_ratio_h)
+        self._min_win_ratio = min(win_ratio)
 
-        self.grid_pixel_dim = min(
+        unscaled_grid_pixel_dim: float = min(
             self._grid_init_size.w / self.visible_area.w,
             self._grid_init_size.h / self.visible_area.h
-        ) * self._min_win_ratio
-
-        grid_pos: tuple[int, int] = (
-            round(self._grid_init_pos.x * win_ratio_w), round(self._grid_init_pos.y * win_ratio_h)
         )
-        grid_size: tuple[int, int] = (
-            round(self.visible_area.w * self.grid_pixel_dim),
-            round(self.visible_area.h * self.grid_pixel_dim)
+        unscaled_grid_size: tuple[float, float] = (
+            self.visible_area.w * unscaled_grid_pixel_dim,
+            self.visible_area.h * unscaled_grid_pixel_dim
+        )
+        self.grid_pixel_dim = unscaled_grid_pixel_dim * self._min_win_ratio
+
+        grid_pos: tuple[int, int]
+        grid_size: tuple[int, int]
+        grid_pos, grid_size = resize_obj(
+            self._grid_init_pos, *unscaled_grid_size, *win_ratio, True
         )
 
         self._grid_img = pg.transform.scale(self._small_grid_img, grid_size)
         self.grid_rect = self._grid_img.get_rect(**{self._grid_init_pos.coord_type: grid_pos})
 
-        minimap_pixel_dim: float = min(
+        unscaled_minimap_pixel_dim: float = min(
             self._minimap_init_size.w / self.area.w, self._minimap_init_size.h / self.area.h
         ) * self._min_win_ratio
-
-        minimap_pos: tuple[int, int] = (
-            round(self._minimap_init_pos.x * win_ratio_w),
-            round(self._minimap_init_pos.y * win_ratio_h)
+        unscaled_minimap_size: tuple[float, float] = (
+            self.area.w * unscaled_minimap_pixel_dim, self.area.h * unscaled_minimap_pixel_dim
         )
-        minimap_size: tuple[int, int] = (
-            round(self.area.w * minimap_pixel_dim), round(self.area.h * minimap_pixel_dim)
+
+        minimap_pos: tuple[int, int]
+        minimap_size: tuple[int, int]
+        minimap_pos, minimap_size = resize_obj(
+            self._minimap_init_pos, *unscaled_minimap_size, *win_ratio, True
         )
 
         self._minimap_img = pg.transform.scale(self._small_minimap_img_2, minimap_size)
@@ -192,8 +196,8 @@ class Grid:
         self._small_grid_img.fblits(blit_sequence)
 
         grid_size: tuple[int, int] = (
-            round(self.visible_area.w * self.grid_pixel_dim),
-            round(self.visible_area.h * self.grid_pixel_dim)
+            ceil(self.visible_area.w * self.grid_pixel_dim),
+            ceil(self.visible_area.h * self.grid_pixel_dim)
         )
         grid_pos: tuple[int, int] = getattr(self.grid_rect, self._grid_init_pos.coord_type)
 
@@ -238,7 +242,7 @@ class Grid:
         ) * self._min_win_ratio
 
         minimap_size: tuple[int, int] = (
-            round(w * minimap_pixel_dim), round(h * minimap_pixel_dim)
+            ceil(w * minimap_pixel_dim), ceil(h * minimap_pixel_dim)
         )
         minimap_pos: tuple[int, int] = getattr(
             self._minimap_rect, self._minimap_init_pos.coord_type
@@ -430,7 +434,7 @@ class GridManager:
         self._offset: Point = Point(0, 0)
         self._traveled_dist: Size = Size(0, 0)
 
-        self.objs_info: list[ObjInfo] = [ObjInfo("grid", self.grid)]
+        self.objs_info: list[ObjInfo] = [ObjInfo(self.grid)]
 
     def leave(self) -> None:
         """
@@ -559,6 +563,7 @@ class GridManager:
         # Can change offset so it can't be in the move method
         self._handle_keys(keys, mouse_pixel, brush_size)
 
+        # Mouse is in the center of the selected pixel
         prev_mouse_pixel.x += prev_offset_x - brush_size // 2
         prev_mouse_pixel.y += prev_offset_y - brush_size // 2
         mouse_pixel.x += self._offset.x - brush_size // 2
@@ -647,8 +652,8 @@ class GridManager:
             mouse_info, keys, color, brush size, tool info
         """
 
-        prev_mouse_pixel: Point  # Absolute coordinates
-        mouse_pixel: Point  # Absolute coordinates
+        prev_mouse_pixel: Point  # Absolute coordinate
+        mouse_pixel: Point  # Absolute coordinate
         prev_mouse_pixel, mouse_pixel = self._get_pixel_info(mouse_info, keys, brush_size)
 
         if self.grid.transparent_pixel_img.get_width() != brush_size * 2:
@@ -763,19 +768,19 @@ class GridManager:
         mouse_x, mouse_y = pg.mouse.get_pos()
 
         prev_mouse_pixel_x: int = (
-            int((mouse_x - self.grid.grid_rect.x) / self.grid.grid_pixel_dim) - brush_size // 2
+            int((mouse_x - self.grid.grid_rect.x) / self.grid.grid_pixel_dim)
         )
         prev_mouse_pixel_y: int = (
-            int((mouse_y - self.grid.grid_rect.y) / self.grid.grid_pixel_dim) - brush_size // 2
+            int((mouse_y - self.grid.grid_rect.y) / self.grid.grid_pixel_dim)
         )
 
         self.grid.zoom(amount, reach_limit)
 
         mouse_pixel_x: int = (
-            int((mouse_x - self.grid.grid_rect.x) / self.grid.grid_pixel_dim) - brush_size // 2
+            int((mouse_x - self.grid.grid_rect.x) / self.grid.grid_pixel_dim)
         )
         mouse_pixel_y: int = (
-            int((mouse_y - self.grid.grid_rect.y) / self.grid.grid_pixel_dim) - brush_size // 2
+            int((mouse_y - self.grid.grid_rect.y) / self.grid.grid_pixel_dim)
         )
 
         self._offset.x = max(
@@ -791,6 +796,8 @@ class GridManager:
             ), 0
         )
 
+        mouse_pixel_x -= brush_size // 2
+        mouse_pixel_y -= brush_size // 2
         for pixel in self._selected_pixels:
             pixel.x, pixel.y = mouse_pixel_x * 2, mouse_pixel_y * 2
 

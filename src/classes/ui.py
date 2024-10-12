@@ -23,7 +23,6 @@ CLOSE_2_IMG: Final[pg.Surface] = load_img("sprites", "close_button_on.png")
 
 CHECKBOX_1_IMG: Final[pg.Surface] = load_img("sprites", "checkbox_off.png")
 CHECKBOX_2_IMG: Final[pg.Surface] = load_img("sprites", "checkbox_on.png")
-INPUT_BOX_IMG: Final[pg.Surface] = pg.Surface((60, 40))
 
 
 class UI(ABC):
@@ -32,7 +31,7 @@ class UI(ABC):
 
     Includes:
         blit() -> PriorityBlitSequence
-        handle_resize(window width ratio, window height ratio) -> None,
+        handle_resize(window size ratio) -> None,
         base_upt(mouse, keys, ctrl) -> tuple[confirmed, exited]
 
     Children should include:
@@ -73,8 +72,8 @@ class UI(ABC):
         )
 
         self.objs_info: list[ObjInfo] = [
-            ObjInfo("title", title_text_label),
-            ObjInfo("exit", self._exit), ObjInfo("confirm", self._confirm)
+            ObjInfo(title_text_label),
+            ObjInfo(self._exit), ObjInfo(self._confirm)
         ]
 
     def blit(self) -> LayeredBlitSequence:
@@ -85,18 +84,16 @@ class UI(ABC):
 
         return [(self._img, self._rect.topleft, self._base_layer)]
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
-            window width ratio, window height ratio
+            window size ratio
         """
 
         pos: tuple[int, int]
         size: tuple[int, int]
-        pos, size = resize_obj(
-            self._init_pos, *self._init_img.get_size(), win_ratio_w, win_ratio_h
-        )
+        pos, size = resize_obj(self._init_pos, *self._init_img.get_size(), *win_ratio)
 
         self._img = pg.transform.scale(self._init_img, size)
         self._rect = self._img.get_rect(**{self._init_pos.coord_type: pos})

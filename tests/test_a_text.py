@@ -9,7 +9,7 @@ from itertools import zip_longest
 
 from src.classes.text_label import TextLabel, renderers_cache
 
-from src.utils import Point, RectPos
+from src.utils import RectPos
 from src.type_utils import LayeredBlitSequence
 from src.consts import WHITE, TEXT_LAYER
 
@@ -40,7 +40,6 @@ class TestText(unittest.TestCase):
         """
 
         self.assertEqual(self.text_label._init_pos, RectPos(1, 2, 'topleft'))
-        self.assertEqual(self.text_label._pos, Point(1, 2))
 
         self.assertEqual(self.text_label._init_h, 30)
         self.assertDictEqual(renderers_cache, {30: self.text_label._renderer})
@@ -76,9 +75,7 @@ class TestText(unittest.TestCase):
         """
 
         self.__class__.renderer = pg.font.SysFont("helvetica", 60)
-        self.text_label.handle_resize(2.0, 3.0)
-
-        self.assertEqual(self.text_label._pos, Point(2, 6))
+        self.text_label.handle_resize((2.0, 3.0))
 
         self.assertIs(renderers_cache[60], self.text_label._renderer)
 
@@ -106,7 +103,7 @@ class TestText(unittest.TestCase):
 
         for coord_type in coord_types:
             text_label: TextLabel = TextLabel(RectPos(1, 2, coord_type), "hello\nworld", h=30)
-            text_label.handle_resize(3.0, 2.0)
+            text_label.handle_resize((3.0, 2.0))
             expected_rects: list[pg.Rect] = []
 
             rect_y: int = 4
@@ -136,7 +133,6 @@ class TestText(unittest.TestCase):
         self.text_label.move_rect(100, 300, 2.0, 3.0)
 
         self.assertEqual(self.text_label._init_pos, RectPos(50, 100, 'topleft'))
-        self.assertEqual(self.text_label._pos, Point(100, 300))
         mock_get_rects.assert_called_once()
 
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)

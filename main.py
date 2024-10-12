@@ -56,24 +56,6 @@ Window resizing:
     and doesn't allow for custom behavior on some objects
     pygame.SCALED doesn't scale position and images
 
-Layer debugging:
-    The print_layer method returns the object name, its layer and its depth in the hierarchy
-    The name and layer of an object are printed in a nested hierarchy,
-    if an object doesn't have a layer it will print None
-
-    A printed element looks like this:
-    brush sizes: 0
-        checkbox 0: 1
-                hovering text: 3
-        checkbox 1: 1
-                hovering text: 3
-        checkbox 2: 1
-                hovering text: 3
-        checkbox 3: 1
-                hovering text: 3
-        checkbox 4: 1
-                hovering text: 3
-
 Interacting with elements:
     Interaction is possible with the upt method
 '''
@@ -83,7 +65,6 @@ TODO:
 - save current colors along with the image
 - slider is faster when moving the mouse faster
 - consistent cursor_i across different NumInputBox
-- better resizing
 - option to change the palette to match the current colors/multiple palettes
 - CTRL Z/Y (store without alpha channel, UI to view history)
 - option to make drawing only affect the visible_area?
@@ -134,9 +115,7 @@ from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, Size, ObjInfo, MouseInfo, load_img, get_pixels
-from src.type_utils import (
-    ColorType, BlitSequence, LayeredBlitInfo, LayeredBlitSequence, LayerSequence
-)
+from src.type_utils import ColorType, BlitSequence, LayeredBlitInfo, LayeredBlitSequence
 from src.consts import INIT_WIN_SIZE, BLACK
 
 pg.init()
@@ -158,73 +137,72 @@ BUTTON_S_OFF_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF_IMG, (64, 
 BUTTON_S_ON_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_ON_IMG, (64, 32))
 
 ADD_COLOR: Final[Button] = Button(
-    RectPos(INIT_WIN_SIZE.w - 25.0, INIT_WIN_SIZE.h - 25.0, 'bottomright'),
+    RectPos(INIT_WIN_SIZE.w - 25, INIT_WIN_SIZE.h - 25, 'bottomright'),
     (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "add color", "(CTRL+A)"
 )
 MODIFY_GRID: Final[Button] = Button(
-    RectPos(ADD_COLOR.rect.x - 10.0, ADD_COLOR.rect.y, 'topright'),
+    RectPos(ADD_COLOR.rect.x - 10, ADD_COLOR.rect.y, 'topright'),
     (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "modify grid", "(CTRL+M)"
 )
 
 SAVE_AS: Final[Button] = Button(
-    RectPos(0.0, 0.0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
+    RectPos(0, 0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
     "save as", "(CTRL+S)", text_h=15
 )
 OPEN: Final[Button] = Button(
-    RectPos(SAVE_AS.rect.right, 0.0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
+    RectPos(SAVE_AS.rect.right, 0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
     "open file", "(CTRL+O)", text_h=15
 )
 CLOSE: Final[Button] = Button(
-    RectPos(OPEN.rect.right, 0.0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
+    RectPos(OPEN.rect.right, 0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
     "close file", "(CTRL+Q)", text_h=15
 )
 
 GRID_MANAGER: Final[GridManager] = GridManager(
-    RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'),
-    RectPos(INIT_WIN_SIZE.w - 10.0, 10.0, 'topright')
+    RectPos(round(INIT_WIN_SIZE.w / 2.0), round(INIT_WIN_SIZE.h / 2.0), 'center'),
+    RectPos(INIT_WIN_SIZE.w - 10, 10, 'topright')
 )
 
 BRUSH_SIZES_INFO: tuple[tuple[pg.Surface, str], ...] = tuple(
     (load_img("sprites", f"size_{n}_off.png"), f"{n}px\n(CTRL+{n})") for n in range(1, 6)
 )
 BRUSH_SIZES: Final[CheckboxGrid] = CheckboxGrid(
-    RectPos(10.0, SAVE_AS.rect.bottom + 10.0, 'topleft'), BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO),
+    RectPos(10, SAVE_AS.rect.bottom + 10, 'topleft'), BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO),
     (False, False)
 )
 
 PALETTE_MANAGER: Final[PaletteManager] = PaletteManager(
-    RectPos(INIT_WIN_SIZE.w - 75.0, ADD_COLOR.rect.y - 25.0, 'bottomright'),
+    RectPos(INIT_WIN_SIZE.w - 75, ADD_COLOR.rect.y - 25, 'bottomright'),
     (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG)
 )
 
 TOOLS_MANAGER: Final[ToolsManager] = ToolsManager(
-    RectPos(10.0, INIT_WIN_SIZE.h - 10.0, 'bottomleft')
+    RectPos(10, INIT_WIN_SIZE.h - 10, 'bottomleft')
 )
 
 FPS_TEXT_LABEL: Final[TextLabel] = TextLabel(
-    RectPos(INIT_WIN_SIZE.w / 2.0, 0.0, 'midtop'), "FPS: 0"
+    RectPos(round(INIT_WIN_SIZE.w / 2.0), 0, 'midtop'), "FPS: 0"
 )
 
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
-    RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'), PALETTE_MANAGER.values[0]
+    RectPos(round(INIT_WIN_SIZE.w / 2.0), round(INIT_WIN_SIZE.h / 2.0), 'center'),
+    PALETTE_MANAGER.values[0]
 )
 GRID_UI: Final[GridUI] = GridUI(
-    RectPos(INIT_WIN_SIZE.w / 2.0, INIT_WIN_SIZE.h / 2.0, 'center'), GRID_MANAGER.grid.area
+    RectPos(round(INIT_WIN_SIZE.w / 2.0), round(INIT_WIN_SIZE.h / 2.0), 'center'),
+    GRID_MANAGER.grid.area
 )
 
 MAIN_OBJS_INFO: Final[tuple[list[ObjInfo], ...]] = (  # Grouped by state
     [
-        ObjInfo("add color", ADD_COLOR),
-        ObjInfo("modify grid", MODIFY_GRID),
-        ObjInfo("save as", SAVE_AS), ObjInfo("open", OPEN), ObjInfo("close", CLOSE),
-        ObjInfo("grid manager", GRID_MANAGER),
-        ObjInfo("brush sizes", BRUSH_SIZES),
-        ObjInfo("palette manager", PALETTE_MANAGER),
-        ObjInfo("tools manager", TOOLS_MANAGER),
-        ObjInfo("fps text", FPS_TEXT_LABEL)
+        ObjInfo(ADD_COLOR), ObjInfo(MODIFY_GRID),
+        ObjInfo(SAVE_AS), ObjInfo(OPEN), ObjInfo(CLOSE),
+        ObjInfo(GRID_MANAGER),
+        ObjInfo(BRUSH_SIZES), ObjInfo(PALETTE_MANAGER), ObjInfo(TOOLS_MANAGER),
+        ObjInfo(FPS_TEXT_LABEL)
     ],
-    [ObjInfo("color ui", COLOR_PICKER)],
-    [ObjInfo("grid ui", GRID_UI)]
+    [ObjInfo(COLOR_PICKER)],
+    [ObjInfo(GRID_UI)]
 )
 
 FPSUPDATE: Final[int] = pg.USEREVENT + 1
@@ -355,13 +333,14 @@ class Dixel:
         Resizes the object
         """
 
-        win_ratio_w: float = self._win.get_width() / INIT_WIN_SIZE.w
-        win_ratio_h: float = self._win.get_height() / INIT_WIN_SIZE.h
+        win_ratio: tuple[float, float] = (
+            self._win.get_width() / INIT_WIN_SIZE.w, self._win.get_height() / INIT_WIN_SIZE.h
+        )
 
         for state_objs in self._active_objs + self._inactive_objs:
             for obj in state_objs:
                 if hasattr(obj, "handle_resize"):
-                    obj.handle_resize(win_ratio_w, win_ratio_h)
+                    obj.handle_resize(win_ratio)
 
         post_resize_objs: list[Any] = [
             obj
@@ -444,7 +423,7 @@ class Dixel:
                 self._pressed_keys.remove(event.key)
                 self._kmod_ctrl = pg.key.get_mods() & pg.KMOD_CTRL
             elif event.type == FPSUPDATE:
-                FPS_TEXT_LABEL.set_text("FPS: " + str(round(CLOCK.get_fps())))
+                FPS_TEXT_LABEL.set_text("FPS: " + str(round(CLOCK.get_fps(), 2)))
 
         if pg.time.get_ticks() - self._k_input_elapsed_time < 100:
             self._timed_keys = ()
@@ -464,43 +443,6 @@ class Dixel:
 
         if zoom_amount:
             GRID_MANAGER.zoom(zoom_amount, BRUSH_SIZES.clicked_i + 1, reach_zoom_limit)
-
-    def _handle_debugging(self) -> None:
-        """
-        Handles everything related to debugging
-        """
-
-        # TODO: remove print_layer, ObjInfo.name and associated types
-
-        if pg.key.get_mods() & pg.KMOD_ALT and pg.K_l in self._timed_keys:
-            sequence: LayerSequence = []
-
-            layer_info: list[tuple[str, Any, int]] = [
-                (info.name, info.obj, 0)
-                for state_info in MAIN_OBJS_INFO
-                for info in state_info
-            ]
-            # Layer info is added to the sequence from last to first
-            layer_info = layer_info[::-1]
-
-            while layer_info:
-                name: str
-                obj: Any
-                depth_counter: int
-                name, obj, depth_counter = layer_info.pop()
-
-                if hasattr(obj, "print_layer"):
-                    sequence.extend(obj.print_layer(name, depth_counter))
-                if hasattr(obj, "objs_info"):
-                    obj_info: tuple[tuple[str, Any, int], ...] = tuple(
-                        (info.name, info.obj, depth_counter + 1) for info in obj.objs_info
-                    )
-                    # Layer info is added to the sequence from last to first
-                    layer_info.extend(obj_info[::-1])
-
-            for name, layer, depth_counter in sequence:
-                print(f"{"\t" * depth_counter}{name}: {layer}")
-            print("-" * 50)
 
     def _handle_ui_openers(self) -> None:
         """
@@ -716,7 +658,6 @@ class Dixel:
 
                 if self._state != prev_state:
                     self._leave(prev_state)
-                self._handle_debugging()
 
                 self._draw()
         except KeyboardInterrupt:

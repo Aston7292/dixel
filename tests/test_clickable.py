@@ -12,7 +12,7 @@ from typing import Final, Optional
 from src.classes.clickable import Checkbox
 from src.classes.text_label import TextLabel
 
-from src.utils import Point, RectPos, MouseInfo
+from src.utils import RectPos, MouseInfo
 from src.type_utils import LayeredBlitInfo, LayeredBlitSequence
 from src.consts import ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
@@ -44,7 +44,7 @@ class TestCheckbox(unittest.TestCase):
         """
 
         # Also tests the Clickable abstract class
-        self.assertEqual(self.checkbox.init_pos, RectPos(1, 2, 'topleft'))
+        self.assertEqual(self.checkbox._init_pos, RectPos(1, 2, 'topleft'))
 
         for img, expected_img in zip_longest(self.checkbox._init_imgs, (IMG_1, IMG_2)):
             self.assertTrue(cmp_imgs(img, expected_img))
@@ -136,7 +136,7 @@ class TestCheckbox(unittest.TestCase):
         self.assertIs(hovered_obj, self.checkbox)
         self.assertEqual(layer, 1 + ELEMENT_LAYER)
 
-        hovered_obj, layer = self.checkbox.check_hovering((0, -1))
+        hovered_obj, layer = self.checkbox.check_hovering((-1, -1))
         self.assertIsNone(hovered_obj)
 
     def test_leave(self) -> None:
@@ -160,7 +160,7 @@ class TestCheckbox(unittest.TestCase):
         )
         expected_rect: pg.Rect = expected_imgs[0].get_rect(topleft=(3, 4))
 
-        self.checkbox.handle_resize(3, 2)
+        self.checkbox.handle_resize((3.0, 2.0))
         for img, expected_img in zip_longest(self.checkbox._imgs, expected_imgs):
             self.assertTrue(cmp_imgs(img, expected_img))
         self.assertEqual(self.checkbox.rect, expected_rect)

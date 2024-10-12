@@ -5,15 +5,16 @@ Interface to modify the grid's size
 import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
+from math import ceil
 from typing import Final, Optional, Any
 
 from src.classes.num_input_box import NumInputBox
-from src.classes.ui import UI, CHECKBOX_1_IMG, CHECKBOX_2_IMG, INPUT_BOX_IMG
+from src.classes.ui import UI, CHECKBOX_1_IMG, CHECKBOX_2_IMG
 from src.classes.clickable import Checkbox
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, Size, ObjInfo, MouseInfo
-from src.type_utils import BlitSequence, LayeredBlitSequence, LayerSequence
+from src.utils import RectPos, Size, ObjInfo, MouseInfo, resize_obj
+from src.type_utils import BlitSequence, LayeredBlitSequence
 from src.consts import EMPTY_PIXEL_SURF, BG_LAYER, ELEMENT_LAYER
 
 MAX_DIM: Final[int] = 256
@@ -36,21 +37,18 @@ class NumSlider:
         """
 
         self.value: int = value
-        self.input_box: NumInputBox = NumInputBox(pos, INPUT_BOX_IMG, str(self.value), base_layer)
+        self.input_box: NumInputBox = NumInputBox(pos, str(self.value), base_layer)
 
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
         self._traveled_x: int = 0
         self._is_sliding: bool = False
 
         extra_text_label: TextLabel = TextLabel(
-            RectPos(self.input_box.box_rect.x - 10.0, self.input_box.box_rect.centery, 'midright'),
-            text, base_layer
+            RectPos(self.input_box.rect.x - 10, self.input_box.rect.centery, 'midright'), text,
+            base_layer
         )
 
-        self.objs_info: list[ObjInfo] = [
-            ObjInfo("input box", self.input_box),
-            ObjInfo("additional text", extra_text_label)
-        ]
+        self.objs_info: list[ObjInfo] = [ObjInfo(self.input_box), ObjInfo(extra_text_label)]
 
     def leave(self) -> None:
         """
@@ -59,16 +57,6 @@ class NumSlider:
 
         self._is_sliding = False
         self._traveled_x = 0
-
-    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
-        """
-        Args:
-            name, depth counter
-        Returns:
-            sequence to add in the main layer sequence
-        """
-
-        return [(name, None, depth_counter)]
 
     def set_value(self, value: int) -> None:
         """
@@ -108,11 +96,9 @@ class NumSlider:
                 self._is_sliding = False
                 self._traveled_x = 0
         else:
+            self._is_sliding = mouse_info.pressed[0]
             if not mouse_info.pressed[0]:
-                self._is_sliding = False
                 self._traveled_x = 0
-            else:
-                self._is_sliding = True
 
         if self._is_sliding:
             self._traveled_x += mouse_info.x - self._prev_mouse_x
@@ -141,7 +127,7 @@ class GridUI(UI):
     """
 
     __slots__ = (
-        '_preview_init_pos', '_preview_pos', '_preview_img', '_preview_rect', '_preview_init_size',
+        '_preview_init_pos', '_preview_img', '_preview_rect', '_preview_init_size',
         '_preview_layer', '_h_slider', '_w_slider', '_values_ratio', '_preview_pixels',
         '_checkbox', '_selection_i', '_min_win_ratio', '_small_preview_img'
     )
@@ -161,28 +147,24 @@ class GridUI(UI):
         super().__init__(pos, "MODIFY GRID")
 
         self._preview_init_pos: RectPos = RectPos(
-            self._rect.centerx, self._rect.centery + 40.0, 'center'
+            self._rect.centerx, self._rect.centery + 40, 'center'
         )
-        self._preview_pos: tuple[float, float] = self._preview_init_pos.xy
 
         self._preview_img: pg.Surface = pg.Surface((300, 300))
-        self._preview_rect: pg.FRect = self._preview_img.get_frect(
-            **{self._preview_init_pos.coord_type: self._preview_pos}
+        self._preview_rect: pg.Rect = self._preview_img.get_rect(
+            **{self._preview_init_pos.coord_type: self._preview_init_pos.xy}
         )
 
-        self._preview_init_size: Size = Size(int(self._preview_rect.w), int(self._preview_rect.h))
+        self._preview_init_size: Size = Size(*self._preview_rect.size)
 
         self._preview_layer: int = self._base_layer + ELEMENT_LAYER
 
         self._h_slider: NumSlider = NumSlider(
-            RectPos(self._preview_rect.x + 20.0, self._preview_rect.y - 25.0, 'bottomleft'),
+            RectPos(self._preview_rect.x + 20, self._preview_rect.y - 25, 'bottomleft'),
             area.h, "height", self._base_layer
         )
         self._w_slider: NumSlider = NumSlider(
-            RectPos(
-                self._preview_rect.x + 20.0, self._h_slider.input_box.box_rect.y - 25.0,
-                'bottomleft'
-            ),
+            RectPos(self._preview_rect.x + 20, self._h_slider.input_box.rect.y - 25, 'bottomleft'),
             area.w, "width", self._base_layer
         )
         self._values_ratio: tuple[float, float] = (1.0, 1.0)
@@ -191,11 +173,9 @@ class GridUI(UI):
             (self._h_slider.value, self._w_slider.value, 4), np.uint8
         )
 
+        checkbox_y: int = self._h_slider.input_box.rect.centery
         self._checkbox: Checkbox = Checkbox(
-            RectPos(
-                self._preview_rect.right - 20.0, self._h_slider.input_box.box_rect.centery,
-                'midright'
-            ),
+            RectPos(self._preview_rect.right - 20, checkbox_y, 'midright'),
             (CHECKBOX_1_IMG, CHECKBOX_2_IMG), "keep ratio", "(CTRL+K)", self._base_layer
         )
 
@@ -208,8 +188,8 @@ class GridUI(UI):
         )
 
         self.objs_info.extend((
-            ObjInfo("width slider", self._w_slider), ObjInfo("height slider", self._h_slider),
-            ObjInfo("checkbox", self._checkbox)
+            ObjInfo(self._w_slider), ObjInfo(self._h_slider),
+            ObjInfo(self._checkbox)
         ))
 
         self._get_preview(Size(self._w_slider.value, self._h_slider.value))
@@ -232,49 +212,36 @@ class GridUI(UI):
 
         self._selection_i = 0
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
-            window width ratio, window height ratio
+            window size ratio
         """
 
-        # Preview resized normally for more consistency
-        self._min_win_ratio = min(win_ratio_w, win_ratio_h)
+        self._min_win_ratio = min(win_ratio)
 
-        super().handle_resize(win_ratio_w, win_ratio_h)
+        super().handle_resize(win_ratio)
 
-        preview_pixel_dim: float = min(
+        unscaled_preview_pixel_dim: float = min(
             self._preview_init_size.w / self._w_slider.value,
             self._preview_init_size.h / self._h_slider.value
-        ) * self._min_win_ratio
-
-        preview_size: tuple[int, int] = (
-            round(self._w_slider.value * preview_pixel_dim),
-            round(self._h_slider.value * preview_pixel_dim)
         )
-        self._preview_pos = (
-            round(self._preview_init_pos.x * win_ratio_w),
-            round(self._preview_init_pos.y * win_ratio_h)
+        unscaled_preview_size: tuple[float, float] = (
+            self._w_slider.value * unscaled_preview_pixel_dim,
+            self._h_slider.value * unscaled_preview_pixel_dim
+        )
+
+        preview_pos: tuple[int, int]
+        preview_size: tuple[int, int]
+        preview_pos, preview_size = resize_obj(
+            self._preview_init_pos, *unscaled_preview_size, *win_ratio, True
         )
 
         self._preview_img = pg.transform.scale(self._small_preview_img, preview_size)
         self._preview_rect = self._preview_img.get_rect(
-            **{self._preview_init_pos.coord_type: self._preview_pos}
+            **{self._preview_init_pos.coord_type: preview_pos}
         )
-
-    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
-        """
-        Args:
-            name, depth counter
-        Returns:
-            sequence to add in the main layer sequence
-        """
-
-        sequence: LayerSequence = super().print_layer(name, depth_counter)
-        sequence.append(("preview", self._preview_layer, depth_counter + 1))
-
-        return sequence
 
     def set_size(self, area: Size, pixels: NDArray[np.uint8]) -> None:
         """
@@ -329,12 +296,11 @@ class GridUI(UI):
         pixel_dim: float = min(
             self._preview_init_size.w / area.w, self._preview_init_size.h / area.h
         ) * self._min_win_ratio
-        size: tuple[int, int] = (round(area.w * pixel_dim), round(area.h * pixel_dim))
+        size: tuple[int, int] = (ceil(area.w * pixel_dim), ceil(area.h * pixel_dim))
+        pos: tuple[int, int] = getattr(self._preview_rect, self._preview_init_pos.coord_type)
 
         self._preview_img = pg.transform.scale(self._small_preview_img, size)
-        self._preview_rect = self._preview_img.get_frect(
-            **{self._preview_init_pos.coord_type: self._preview_pos}
-        )
+        self._preview_rect = self._preview_img.get_rect(**{self._preview_init_pos.coord_type: pos})
 
     def upt(
             self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], kmod_ctrl: int
@@ -348,6 +314,8 @@ class GridUI(UI):
         """
 
         if keys:
+            if pg.K_a in keys:
+                self._get_preview(Size(self._w_slider.value, self._h_slider.value))
             if pg.K_UP in keys:
                 self._selection_i = 0
             if pg.K_DOWN in keys:

@@ -7,6 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pathlib import Path
 from dataclasses import dataclass, field
+from math import ceil
 from typing import Any
 
 from src.type_utils import ColorType
@@ -117,41 +118,36 @@ def add_border(img: pg.Surface, border_color: ColorType) -> pg.Surface:
 
     img_with_border: pg.Surface = img.copy()
 
-    border_dim: int = round(min(img_with_border.get_size()) / 10)
+    border_dim: int = round(min(img_with_border.get_size()) / 10.0)
     pg.draw.rect(img_with_border, border_color, img_with_border.get_rect(), border_dim)
 
     return img_with_border
 
 
 def resize_obj(
-        pos: RectPos, w: int, h: int, win_ratio_w: float, win_ratio_h: float,
-        distort_size: bool = True
-    ) -> tuple[tuple[int, int], tuple[int, int]]:
+        pos: RectPos, w: float, h: float, win_ratio_w: float, win_ratio_h: float,
+        keep_size_ratio: bool = False
+) -> tuple[tuple[int, int], tuple[int, int]]:
     """
     Scales position and size of an object without creating gaps between attached objects
     Args:
         x, y, width, height, window width ratio, window height ratio,
-        distort size boolean (default = True)
+        keep size ratio boolean (default = False)
     Returns:
         position, size
     """
 
-    new_x: int = round(pos.x * win_ratio_w)
-    new_y: int = round(pos.y * win_ratio_h)
-
     img_ratio_w: float
     img_ratio_h: float
-    if distort_size:
-        img_ratio_w, img_ratio_h = win_ratio_w, win_ratio_h
-    else:
+    if keep_size_ratio:
         img_ratio_w = img_ratio_h = min(win_ratio_w, win_ratio_h)
+    else:
+        img_ratio_w, img_ratio_h = win_ratio_w, win_ratio_h
 
-    rect_left: int = round((pos.x * win_ratio_w) + (w * img_ratio_w))
-    new_w: int = rect_left - new_x
-    rect_bottom: int = round((pos.y * win_ratio_h) + (h * img_ratio_h))
-    new_h: int = rect_bottom - new_y
+    new_pos: tuple[int, int] = (round(pos.x * win_ratio_w), round(pos.y * win_ratio_h))
+    new_size: tuple[int, int] = (ceil(w * img_ratio_w), ceil(h * img_ratio_h))
 
-    return (new_x, new_y), (new_w, new_h)
+    return new_pos, new_size
 
 
 @dataclass(slots=True)
@@ -162,7 +158,6 @@ class ObjInfo:
         name, object
     """
 
-    name: str
     obj: Any
     is_active: bool = field(default=True, init=False)
 

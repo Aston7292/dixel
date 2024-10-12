@@ -7,11 +7,11 @@ from math import ceil
 from typing import Final, Optional, Any
 
 from src.classes.num_input_box import NumInputBox
-from src.classes.ui import UI, INPUT_BOX_IMG
+from src.classes.ui import UI
 from src.classes.text_label import TextLabel
 
-from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo
-from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence, LayerSequence
+from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo, resize_obj
+from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence
 from src.consts import BG_LAYER, ELEMENT_LAYER
 
 SLIDER_1_IMG: Final[pg.Surface] = pg.Surface((10, 35))
@@ -27,7 +27,7 @@ class Scrollbar:
 
     __slots__ = (
         '_bar_init_pos', '_unit_w', '_bar_img', 'bar_rect', '_bar_init_size', '_channel', 'value',
-        '_slider_init_pos', '_slider_imgs', '_slider_rect', '_slider_init_size',
+        '_slider_init_pos', '_slider_init_imgs', '_slider_imgs', '_slider_rect',
         '_slider_img_i', '_is_hovering', '_is_scrolling', '_layer', 'input_box', 'objs_info'
     )
 
@@ -44,25 +44,24 @@ class Scrollbar:
 
         self._unit_w: float = 1.0
 
-        self._bar_img: pg.Surface = pg.Surface((int(255.0 * self._unit_w), 25))
-        self.bar_rect: pg.FRect = self._bar_img.get_frect(
+        self._bar_img: pg.Surface = pg.Surface((ceil(255.0 * self._unit_w), 25))
+        self.bar_rect: pg.Rect = self._bar_img.get_rect(
             **{self._bar_init_pos.coord_type: self._bar_init_pos.xy}
         )
 
-        self._bar_init_size: Size = Size(int(self.bar_rect.w), int(self.bar_rect.h))
+        self._bar_init_size: Size = Size(*self.bar_rect.size)
 
         self._channel: int = channel
         self.value: int = color[self._channel]
 
         self._slider_init_pos: RectPos = RectPos(*self.bar_rect.midleft, 'midleft')
-        slider_x: float = self._slider_init_pos.x + self._unit_w * self.value
+        self._slider_init_imgs: tuple[pg.Surface, ...] = (SLIDER_1_IMG, SLIDER_2_IMG)
+        slider_x: int = self._slider_init_pos.x + round(self.value * self._unit_w)
 
-        self._slider_imgs: tuple[pg.Surface, ...] = (SLIDER_1_IMG, SLIDER_2_IMG)
-        self._slider_rect: pg.FRect = self._slider_imgs[0].get_frect(
+        self._slider_imgs: tuple[pg.Surface, ...] = self._slider_init_imgs
+        self._slider_rect: pg.Rect = self._slider_imgs[0].get_rect(
             **{self._slider_init_pos.coord_type: (slider_x, self._slider_init_pos.y)}
         )
-
-        self._slider_init_size: Size = Size(int(self._slider_rect.w), int(self._slider_rect.h))
 
         self._slider_img_i: int = 0
         self._is_hovering: bool = False
@@ -70,20 +69,16 @@ class Scrollbar:
 
         self._layer: int = base_layer + ELEMENT_LAYER
 
+        input_box_x: int = self.bar_rect.right + self._slider_rect.w + 10
+
         channel_text_label: TextLabel = TextLabel(
             RectPos(*self.bar_rect.midleft, 'midright'), ("r", "g", "b")[self._channel], base_layer
         )
         self.input_box: NumInputBox = NumInputBox(
-            RectPos(
-                self.bar_rect.right + self._slider_rect.w + 10.0, self.bar_rect.centery, 'midleft'
-            ),
-            INPUT_BOX_IMG, str(self.value), base_layer
+            RectPos(input_box_x, self.bar_rect.centery, 'midleft'), str(self.value), base_layer
         )
 
-        self.objs_info: list[ObjInfo] = [
-            ObjInfo("text", channel_text_label),
-            ObjInfo("input box", self.input_box)
-        ]
+        self.objs_info: list[ObjInfo] = [ObjInfo(channel_text_label), ObjInfo(self.input_box)]
 
         self.get_bar(color)
 
@@ -121,53 +116,39 @@ class Scrollbar:
         self._slider_img_i = 0
         self._is_hovering = self._is_scrolling = False
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
-            window width ratio, window height ratio
+            window size ratio
         """
 
-        bar_size: tuple[int, int] = (
-            int(self._bar_init_size.w * win_ratio_w), int(self._bar_init_size.h * win_ratio_h)
-        )
-        bar_pos: tuple[float, float] = (
-            self._bar_init_pos.x * win_ratio_w, self._bar_init_pos.y * win_ratio_h
-        )
+        bar_pos: tuple[int, int]
+        bar_size: tuple[int, int]
+        bar_pos, bar_size = resize_obj(self._bar_init_pos, *self._bar_init_size.wh, *win_ratio)
 
         self._unit_w = bar_size[0] / 255.0
 
         self._bar_img = pg.transform.scale(self._bar_img, bar_size)
-        self.bar_rect = self._bar_img.get_frect(center=bar_pos)
+        self.bar_rect = self._bar_img.get_rect(**{self._bar_init_pos.coord_type: bar_pos})
 
-        slider_size: tuple[int, int] = (
-            int(self._slider_init_size.w * win_ratio_w),
-            int(self._slider_init_size.h * win_ratio_h)
+        slider_y: int
+        slider_size: tuple[int, int]
+        (_, slider_y), slider_size = resize_obj(
+            self._slider_init_pos, *self._slider_init_imgs[0].get_size(), *win_ratio
         )
-        slider_pos: tuple[float, float] = (
-            self._slider_init_pos.x * win_ratio_w + self._unit_w * self.value,
-            self._slider_init_pos.y * win_ratio_h
+
+        # Calculating slider_x like this is more accurate
+        slider_pos: tuple[int, int] = (
+            self.bar_rect.x + round(self.value * self._unit_w), slider_y
         )
 
         self._slider_imgs = tuple(
-            pg.transform.scale(img, slider_size) for img in self._slider_imgs
+            pg.transform.scale(img, slider_size) for img in self._slider_init_imgs
         )
-        self._slider_rect = self._slider_imgs[0].get_frect(
+        self._slider_rect = self._slider_imgs[0].get_rect(
             **{self._slider_init_pos.coord_type: slider_pos}
         )
-
-    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
-        """
-        Args:
-            name, depth counter
-        Returns:
-            sequence to add in the main layer sequence
-        """
-
-        return [
-            (name, None, depth_counter),
-            ("bar", self._layer, depth_counter + 1), ("slider", self._layer, depth_counter + 1)
-        ]
 
     def get_bar(self, color: ColorType) -> None:
         """
@@ -178,7 +159,7 @@ class Scrollbar:
 
         blit_sequence: BlitSequence = []
 
-        original_size: tuple[int, int] = self._bar_img.get_size()
+        bar_size: tuple[int, int] = self._bar_img.get_size()
         #  Drawing on the normal-sized bar is inaccurate
         self._bar_img = pg.Surface((255, self._bar_init_size.h))
         unit_surf: pg.Surface = pg.Surface((1, self._bar_init_size.h))
@@ -190,7 +171,7 @@ class Scrollbar:
             blit_sequence.append((unit_surf.copy(), (i, 0)))
         self._bar_img.fblits(blit_sequence)
 
-        self._bar_img = pg.transform.scale(self._bar_img, original_size)
+        self._bar_img = pg.transform.scale(self._bar_img, bar_size)
 
     def set_value(self, color: ColorType) -> None:
         """
@@ -200,7 +181,7 @@ class Scrollbar:
         """
 
         self.value = color[self._channel]
-        self._slider_rect.x = self.bar_rect.x + self._unit_w * self.value
+        self._slider_rect.x = self.bar_rect.x + round(self.value * self._unit_w)
         self.input_box.set_text(str(self.value), 0)
 
         self.get_bar(color)
@@ -272,7 +253,7 @@ class Scrollbar:
 
         if new_text != prev_text:
             self.value = int(new_text) if new_text else 0
-            self._slider_rect.x = self.bar_rect.x + self._unit_w * self.value
+            self._slider_rect.x = self.bar_rect.x + round(self.value * self._unit_w)
 
             self.input_box.set_text(new_text, None)
 
@@ -305,24 +286,24 @@ class ColorPicker(UI):
 
         self._preview_img: pg.Surface = pg.Surface((100, 100))
         self._preview_img.fill(self._color)
-        self._preview_rect: pg.FRect = self._preview_img.get_frect(
+        self._preview_rect: pg.Rect = self._preview_img.get_rect(
             **{self._preview_init_pos.coord_type: self._preview_init_pos.xy}
         )
 
-        self._preview_init_size: Size = Size(int(self._preview_rect.w), int(self._preview_rect.h))
+        self._preview_init_size: Size = Size(*self._preview_rect.size)
 
         self._preview_layer: int = self._base_layer + ELEMENT_LAYER
 
         b_bar: Scrollbar = Scrollbar(
-            RectPos(self._rect.centerx, self._preview_rect.top - 50.0, 'center'), 2,
+            RectPos(self._rect.centerx, self._preview_rect.top - 50, 'center'), 2,
             self._color, self._base_layer
         )
         g_bar: Scrollbar = Scrollbar(
-            RectPos(self._rect.centerx, b_bar.bar_rect.top - 50.0, 'center'), 1,
+            RectPos(self._rect.centerx, b_bar.bar_rect.top - 50, 'center'), 1,
             self._color, self._base_layer
         )
         r_bar: Scrollbar = Scrollbar(
-            RectPos(self._rect.centerx, g_bar.bar_rect.top - 50.0, 'center'), 0,
+            RectPos(self._rect.centerx, g_bar.bar_rect.top - 50, 'center'), 0,
             self._color, self._base_layer
         )
 
@@ -337,10 +318,8 @@ class ColorPicker(UI):
             RectPos(*self._preview_rect.midtop, 'midbottom'), hex_text, self._base_layer
         )
 
-        self.objs_info.extend(
-            ObjInfo(f"scrollbar {i}", channel) for i, channel in enumerate(self._channels)
-        )
-        self.objs_info.append(ObjInfo("hex text", self._hex_text_label))
+        self.objs_info.extend(ObjInfo(channel) for channel in self._channels)
+        self.objs_info.append(ObjInfo(self._hex_text_label))
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -360,40 +339,25 @@ class ColorPicker(UI):
 
         self._selection_i.x = self._selection_i.y = 0
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
-            window width ratio, window height ratio
+            window size ratio
         """
 
-        super().handle_resize(win_ratio_w, win_ratio_h)
+        super().handle_resize(win_ratio)
 
-        preview_size: tuple[int, int] = (
-            int(self._preview_init_size.w * win_ratio_w),
-            int(self._preview_init_size.h * win_ratio_h)
-        )
-        preview_pos: tuple[float, float] = (
-            self._preview_init_pos.x * win_ratio_w, self._preview_init_pos.y * win_ratio_h
+        preview_pos: tuple[int, int]
+        preview_size: tuple[int, int]
+        preview_pos, preview_size = resize_obj(
+            self._preview_init_pos, *self._preview_init_size.wh, *win_ratio
         )
 
         self._preview_img = pg.transform.scale(self._preview_img, preview_size)
-        self._preview_rect = self._preview_img.get_frect(
+        self._preview_rect = self._preview_img.get_rect(
             **{self._preview_init_pos.coord_type: preview_pos}
         )
-
-    def print_layer(self, name: str, depth_counter: int) -> LayerSequence:
-        """
-        Args:
-            name, depth counter
-        Returns:
-            sequence to add in the main layer sequence
-        """
-
-        sequence: LayerSequence = super().print_layer(name, depth_counter)
-        sequence.append(("preview", self._preview_layer, depth_counter + 1))
-
-        return sequence
 
     def set_color(self, color: ColorType) -> None:
         """

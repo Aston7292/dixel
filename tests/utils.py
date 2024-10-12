@@ -7,7 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 
-def cmp_imgs(img_1: pg.Surface, img_2: pg.Surface, compare_alpha: bool = True) -> bool:
+def cmp_imgs(img_1: pg.Surface, img_2: pg.Surface, cmp_alpha: bool = True) -> bool:
     """
     Compares two images
     Args:
@@ -18,7 +18,7 @@ def cmp_imgs(img_1: pg.Surface, img_2: pg.Surface, compare_alpha: bool = True) -
 
     pixels_rgb_1: NDArray[np.uint8] = pg.surfarray.pixels3d(img_1)
     pixels_1: NDArray[np.uint8]
-    if not compare_alpha:
+    if not cmp_alpha:
         pixels_1 = pixels_rgb_1
     else:
         pixels_alpha_1: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img_1)
@@ -26,7 +26,7 @@ def cmp_imgs(img_1: pg.Surface, img_2: pg.Surface, compare_alpha: bool = True) -
 
     pixels_rgb_2: NDArray[np.uint8] = pg.surfarray.pixels3d(img_2)
     pixels_2: NDArray[np.uint8]
-    if not compare_alpha:
+    if not cmp_alpha:
         pixels_2 = pixels_rgb_2
     else:
         pixels_alpha_2: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img_2)

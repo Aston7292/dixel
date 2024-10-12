@@ -116,7 +116,7 @@ class CheckboxGrid:
             base layer (default = BG_LAYER)
         """
 
-        #  last x and y don't change during window resize
+        #  last pos doesn't change during window resize
         self._init_pos: RectPos = pos
         self._last_pos: Point = Point(*self._init_pos.xy)
 
@@ -135,11 +135,9 @@ class CheckboxGrid:
         self.clicked_i: int = 0
         self.rect: pg.Rect = pg.Rect()
 
-        self.objs_info: list[ObjInfo] = [
-            ObjInfo(f"checkbox {i}", checkbox) for i, checkbox in enumerate(self.checkboxes)
-        ]
+        self.objs_info: list[ObjInfo] = [ObjInfo(checkbox) for checkbox in self.checkboxes]
 
-        self.change_grid(checkboxes_info, 1.0, 1.0)
+        self.change_grid(checkboxes_info, (1.0, 1.0))
 
     def check_hovering(self, mouse_pos: tuple[int, int]) -> tuple[Optional["CheckboxGrid"], int]:
         """
@@ -178,12 +176,12 @@ class CheckboxGrid:
 
     def change_grid(
             self, checkboxes_info: tuple[tuple[pg.Surface, str], ...],
-            win_ratio_w: float, win_ratio_h: float
+            win_ratio: tuple[float, float]
     ) -> None:
         """
         Clears the grid and creates a new one
         Args:
-            checkboxes images and texts, window width ratio, window height ratio
+            checkboxes images and texts, window size ratio
         """
 
         self._last_pos.x, self._last_pos.y = self._init_pos.xy
@@ -191,9 +189,10 @@ class CheckboxGrid:
         for i, info in enumerate(checkboxes_info):
             imgs: tuple[pg.Surface, pg.Surface] = (info[0], add_border(info[0], WHITE))
             checkbox: LockedCheckbox = LockedCheckbox(
-                RectPos(*self._last_pos.xy, self._init_pos.coord_type), imgs, info[1], self._layer
+                RectPos(*self._last_pos.xy, self._init_pos.coord_type), imgs, info[1],
+                self._layer
             )
-            checkbox.handle_resize(win_ratio_w, win_ratio_h)
+            checkbox.handle_resize(win_ratio)
             self.checkboxes.append(checkbox)
 
             self._last_pos.x += self._increment.w
@@ -208,21 +207,18 @@ class CheckboxGrid:
         h: int = max(rect.bottom for rect in rects) - top
         self.rect = pg.Rect(left, top, w, h)
 
-        self.objs_info = [
-            ObjInfo(f"checkbox {i}", checkbox) for i, checkbox in enumerate(self.checkboxes)
-        ]
+        self.objs_info = [ObjInfo(checkbox) for checkbox in self.checkboxes]
 
         self.check(0)
 
     def insert(
             self, insert_i: Optional[int], checkbox_info: tuple[pg.Surface, str],
-            win_ratio_w: float, win_ratio_h: float
+            win_ratio: tuple[float, float]
     ) -> None:
         """
         Inserts a checkbox at an index
         Args:
-            index (appends if None), checkbox image and text,
-            window width ratio, window height ratio
+            index (appends if None), checkbox image and text, window size ratio
         """
 
         imgs: tuple[pg.Surface, pg.Surface] = (
@@ -231,13 +227,13 @@ class CheckboxGrid:
 
         if insert_i is not None:
             self.checkboxes[insert_i].set_info(imgs, checkbox_info[1])
-            self.checkboxes[insert_i].handle_resize(win_ratio_w, win_ratio_h)
+            self.checkboxes[insert_i].handle_resize(win_ratio)
         else:
             checkbox: LockedCheckbox = LockedCheckbox(
                 RectPos(*self._last_pos.xy, self._init_pos.coord_type), imgs, checkbox_info[1],
                 self._layer
             )
-            checkbox.handle_resize(win_ratio_w, win_ratio_h)
+            checkbox.handle_resize(win_ratio)
             self.checkboxes.append(checkbox)
 
             self._last_pos.x += self._increment.w
@@ -252,9 +248,7 @@ class CheckboxGrid:
         h: int = max(rect.bottom for rect in rects) - top
         self.rect = pg.Rect(left, top, w, h)
 
-        self.objs_info = [
-            ObjInfo(f"checkbox {i}", checkbox) for i, checkbox in enumerate(self.checkboxes)
-        ]
+        self.objs_info = [ObjInfo(checkbox) for checkbox in self.checkboxes]
 
     def remove(
             self, remove_i: int, fallback_info: tuple[pg.Surface, str],
@@ -267,15 +261,15 @@ class CheckboxGrid:
         """
 
         checkbox: LockedCheckbox = self.checkboxes.pop(remove_i)
-        self._last_pos.x = round(getattr(checkbox.rect, self._init_pos.coord_type)[0] / win_ratio_w)
-        self._last_pos.y = round(getattr(checkbox.rect, self._init_pos.coord_type)[1] / win_ratio_h)
+        self._last_pos.x = round(
+            getattr(checkbox.rect, self._init_pos.coord_type)[0] / win_ratio_w
+        )
+        self._last_pos.y = round(
+            getattr(checkbox.rect, self._init_pos.coord_type)[1] / win_ratio_h
+        )
+
         for i in range(remove_i, len(self.checkboxes)):
-            # TODO: make into a method?
-            self.checkboxes[i].init_pos.x, self.checkboxes[i].init_pos.y = self._last_pos.xy
-            checkbox_pos: tuple[int, int] = (
-                round(self._last_pos.x * win_ratio_w), round(self._last_pos.y * win_ratio_h)
-            )
-            setattr(self.checkboxes[i].rect, self._init_pos.coord_type, checkbox_pos)
+            self.checkboxes[i].move_rect(*self._last_pos.xy, win_ratio_w, win_ratio_h)
 
             self._last_pos.x += self._increment.w
             if not ((i + 1) % self._cols):
@@ -290,7 +284,7 @@ class CheckboxGrid:
                 RectPos(*self._last_pos.xy, self._init_pos.coord_type), imgs, fallback_info[1],
                 self._layer
             )
-            checkbox.handle_resize(win_ratio_w, win_ratio_h)
+            checkbox.handle_resize((win_ratio_w, win_ratio_h))
             self.checkboxes = [checkbox]
 
             self._last_pos.x, self._last_pos.y = self._init_pos.xy
@@ -312,9 +306,7 @@ class CheckboxGrid:
         h: int = max(rect.bottom for rect in rects) - top
         self.rect = pg.Rect(left, top, w, h)
 
-        self.objs_info = [
-            ObjInfo(f"checkbox {i}", checkbox) for i, checkbox in enumerate(self.checkboxes)
-        ]
+        self.objs_info = [ObjInfo(checkbox) for checkbox in self.checkboxes]
 
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...]) -> int:
         """

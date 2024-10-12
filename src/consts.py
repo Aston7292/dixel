@@ -18,7 +18,7 @@ DARK_GRAY: Final[ColorType] = (75, 75, 75)
 EMPTY_PIXEL_SURF: pg.Surface = pg.Surface((2, 2))
 for y in range(2):
     for x in range(2):
-        pixel_color: ColorType = LIGHT_GRAY if not ((x + y) % 2) else DARK_GRAY
+        pixel_color: ColorType = DARK_GRAY if (x + y) % 2 else LIGHT_GRAY
         EMPTY_PIXEL_SURF.set_at((x, y), pixel_color)
 
 BG_LAYER: Final[int] = 0

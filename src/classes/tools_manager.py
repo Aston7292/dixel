@@ -10,7 +10,6 @@ from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
 
 from src.utils import RectPos, ObjInfo, MouseInfo, load_img
-from src.type_utils import LayerSequence
 from src.consts import SPECIAL_LAYER
 
 PENCIL_IMG: Final[pg.Surface] = load_img("sprites", "pencil_tool.png")
@@ -145,15 +144,12 @@ class ToolsManager:
                 objs_info.append(info)
             self._extra_info.append(objs_info)
 
-        self.objs_info: list[ObjInfo] = [ObjInfo("tools", self._tools)]
+        self.objs_info: list[ObjInfo] = [ObjInfo(self._tools)]
 
         self._dynamic_info_ranges: list[tuple[int, int]] = []
-        for i, obj_info in enumerate(self._extra_info):
+        for obj_info in self._extra_info:
             range_start: int = len(self.objs_info)
-            self.objs_info.extend(
-                ObjInfo(f"{self._names[i]} tool {j}", info["obj"])
-                for j, info in enumerate(obj_info)
-            )
+            self.objs_info.extend(ObjInfo(info["obj"]) for info in obj_info)
             range_end: int = len(self.objs_info)
 
             self._dynamic_info_ranges.append((range_start, range_end))

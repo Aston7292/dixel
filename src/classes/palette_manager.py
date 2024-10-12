@@ -11,7 +11,7 @@ from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Button
 
 from src.utils import RectPos, ObjInfo, MouseInfo, add_border
-from src.type_utils import ColorType, LayerSequence
+from src.type_utils import ColorType
 from src.consts import BLACK, LIGHT_GRAY, SPECIAL_LAYER
 
 OPTIONS: Final[tuple[tuple[str, str], ...]] = (
@@ -74,12 +74,11 @@ class PaletteManager:
         self._win_ratio_w: float = 1.0
         self._win_ratio_h: float = 1.0
 
-        self.objs_info: list[ObjInfo] = [ObjInfo("colors", self._colors)]
+        self.objs_info: list[ObjInfo] = [ObjInfo(self._colors)]
 
         self._dropdown_info_start: int = len(self.objs_info)
-        self.objs_info.extend(
-            ObjInfo(OPTIONS[i][0], option) for i, option in enumerate(self._options)
-        )
+        self.objs_info.extend(ObjInfo(option) for option in self._options)
+
         self._dropdown_info_end: int = len(self.objs_info)
         for i in range(self._dropdown_info_start, self._dropdown_info_end):
             self.objs_info[i].set_active(self._view_dropdown)
@@ -94,14 +93,14 @@ class PaletteManager:
         for i in range(self._dropdown_info_start, self._dropdown_info_end):
             self.objs_info[i].set_active(self._view_dropdown)
 
-    def handle_resize(self, win_ratio_w: float, win_ratio_h: float) -> None:
+    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
-            window width ratio, window height ratio
+            window size ratio
         """
 
-        self._win_ratio_w, self._win_ratio_h = win_ratio_w, win_ratio_h
+        self._win_ratio_w, self._win_ratio_h = win_ratio
 
     def add(self, color: Optional[ColorType]) -> None:
         """
@@ -123,13 +122,15 @@ class PaletteManager:
         if self._is_editing_color:
             self.values[self._dropdown_i] = color
             self._colors.insert(
-                self._dropdown_i, get_color_info(color), self._win_ratio_w, self._win_ratio_h
+                self._dropdown_i, get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
             )
 
             self._is_editing_color = False
         elif color not in self.values:
             self.values.append(color)
-            self._colors.insert(None, get_color_info(color), self._win_ratio_w, self._win_ratio_h)
+            self._colors.insert(
+                None, get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
+            )
         self._colors.check(self.values.index(color))
 
     def load_from_arr(self, pixels: NDArray[np.uint8]) -> None:
@@ -146,7 +147,7 @@ class PaletteManager:
         checkboxes_info: tuple[tuple[pg.Surface, str], ...] = tuple(
             get_color_info(value) for value in self.values
         )
-        self._colors.change_grid(checkboxes_info, self._win_ratio_w, self._win_ratio_h)
+        self._colors.change_grid(checkboxes_info, (self._win_ratio_w, self._win_ratio_h))
 
     def upt(
             self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int
@@ -175,8 +176,9 @@ class PaletteManager:
                         Modifies the initial position and calculates the scaled one
                         for more accuracy
                         '''
-                        option_x: int = round((mouse_info.x + 5) / self._win_ratio_w)
-                        option_y: int = round((mouse_info.y + 5) / self._win_ratio_h)
+                        option_x: int = round((mouse_info.x + 5.0) / self._win_ratio_w)
+                        option_y: int = round((mouse_info.y + 5.0) / self._win_ratio_h)
+                        # TODO: Stack?
                         for option in self._options:
                             option.move_rect(
                                 option_x, option_y, self._win_ratio_w, self._win_ratio_h

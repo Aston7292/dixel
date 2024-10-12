@@ -21,7 +21,7 @@ class ParentObj:
         Creates the objects info
         """
 
-        self.objs_info: list[ObjInfo] = [ObjInfo("obj_1", 1), ObjInfo("obj_2", 2)]
+        self.objs_info: list[ObjInfo] = [ObjInfo(1), ObjInfo(2)]
 
 
 class TestUtils(unittest.TestCase):
@@ -112,9 +112,8 @@ class TestUtils(unittest.TestCase):
         """
 
         parent_obj: ParentObj = ParentObj()
-        parent_obj_info: ObjInfo = ObjInfo("obj", parent_obj)
+        parent_obj_info: ObjInfo = ObjInfo(parent_obj)
 
-        self.assertEqual(parent_obj_info.name, "obj")
         self.assertIs(parent_obj_info.obj, parent_obj)
         self.assertTrue(parent_obj_info.is_active)
 

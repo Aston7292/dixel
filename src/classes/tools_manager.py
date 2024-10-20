@@ -9,10 +9,11 @@ from src.classes.ui import CHECKBOX_1_IMG, CHECKBOX_2_IMG
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
 
-from src.utils import RectPos, ObjInfo, MouseInfo, load_img
+from src.utils import RectPos, ObjInfo, MouseInfo, load_img_from_path
+from src.type_utils import ToolInfo
 from src.consts import SPECIAL_LAYER
 
-PENCIL_IMG: Final[pg.Surface] = load_img("sprites", "pencil_tool.png")
+PENCIL_IMG: Final[pg.Surface] = load_img_from_path("sprites", "pencil_tool.png")
 BUCKET_IMG: Final[pg.Surface] = PENCIL_IMG
 
 '''
@@ -32,7 +33,11 @@ Extra UI elements need:
     - a rect attribute
 '''
 
-TOOLS_INFO: Final[dict[str, dict[str, Any]]] = {
+ToolsInfo = dict[str, dict[str, Any]]
+ExtraInfos = tuple[tuple[dict[str, Any], ...], ...]
+ExtraInfosList = list[list[dict[str, Any]]]
+
+TOOLS_INFO: Final[ToolsInfo] = {
     "brush": {
         "base_info": (PENCIL_IMG, "edit pixels"),
         "extra_info": (
@@ -66,42 +71,13 @@ TOOLS_INFO: Final[dict[str, dict[str, Any]]] = {
 }
 
 
-def check_extra_info() -> None:  # Could go unnoticed
-    """
-    Makes sure extra UI elements have every required attributes and methods
-    Raises:
-        ValueError if a missing required attribute/method is found
-    """
-
-    extra_info: tuple[tuple[dict[str, Any], ...], ...] = tuple(
-        info["extra_info"] for info in TOOLS_INFO.values()
-    )
-
-    missing_attrs: set[tuple[str, str]] = set()
-    for tool_info in extra_info:
-        for info in tool_info:
-            obj: Any = info["type"](RectPos(0, 0, 'topleft'), *info["init_args"])
-
-            required_attrs: list[str] = ["rect", "upt"] + list(info["output_format"].values())
-            for attr in required_attrs:
-                if not hasattr(obj, attr):
-                    missing_attrs.add((obj.__class__.__name__, attr))
-
-    if missing_attrs:
-        for name, attr in missing_attrs:
-            print(f"Class {name} is missing required attribute/method {attr}.")
-        print()
-
-        raise ValueError("Missing required attribute/method.")
-
-
 class ToolsManager:
     """
     Class to manage drawing tools
     """
 
     __slots__ = (
-        '_names', '_tools', '_extra_info', 'objs_info', '_dynamic_info_ranges'
+        '_names', '_tools', '_extra_infos', 'objs_info', '_dynamic_info_ranges'
     )
 
     def __init__(self, pos: RectPos) -> None:
@@ -109,24 +85,20 @@ class ToolsManager:
         Creates the grid of options and sub options
         Args:
             position
-        Raises:
-            ValueError if an extra UI element is missing a required attribute
         """
 
-        check_extra_info()
-
         self._names: tuple[str, ...] = tuple(TOOLS_INFO.keys())
-        base_info: tuple[tuple[pg.Surface, str], ...] = tuple(
+        base_infos: tuple[tuple[pg.Surface, str], ...] = tuple(
             info["base_info"] for info in TOOLS_INFO.values()
         )
-        self._tools: CheckboxGrid = CheckboxGrid(pos, base_info, 5, (False, True))
+        self._tools: CheckboxGrid = CheckboxGrid(pos, base_infos, 5, (False, True))
 
-        # Adds object and removes type and init arguments
-        extra_info: tuple[tuple[dict[str, Any], ...], ...] = tuple(
+        # Adds object and removes type and init_args keys
+        extra_infos: ExtraInfos = tuple(
             info["extra_info"] for info in TOOLS_INFO.values()
         )
-        self._extra_info: list[list[dict[str, Any]]] = []
-        for tool_info in extra_info:
+        self._extra_infos: ExtraInfosList = []
+        for tool_info in extra_infos:
             obj_x: int = self._tools.rect.x + 20
             obj_y: int = self._tools.rect.y - 20
 
@@ -142,12 +114,12 @@ class ToolsManager:
                 obj_x += obj.rect.w + 20
 
                 objs_info.append(info)
-            self._extra_info.append(objs_info)
+            self._extra_infos.append(objs_info)
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self._tools)]
 
         self._dynamic_info_ranges: list[tuple[int, int]] = []
-        for obj_info in self._extra_info:
+        for obj_info in self._extra_infos:
             range_start: int = len(self.objs_info)
             self.objs_info.extend(ObjInfo(info["obj"]) for info in obj_info)
             range_end: int = len(self.objs_info)
@@ -159,9 +131,28 @@ class ToolsManager:
             if i < active_range[0] or i >= active_range[1]:
                 self.objs_info[i].set_active(False)
 
-    def upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...]
-    ) -> tuple[str, dict[str, Any]]:
+    def _leave_prev_tool(self, prev_clicked_i: int) -> None:
+        """
+        Clears all the relevant data of the previous tool
+        Args:
+            index of the previous active tool
+        """
+
+        prev_active_range: tuple[int, int] = self._dynamic_info_ranges[prev_clicked_i]
+        prev_objs_info: list[ObjInfo] = self.objs_info[prev_active_range[0]:prev_active_range[1]]
+        for prev_info in prev_objs_info:
+            prev_info.set_active(False)
+
+        prev_objs: list[Any] = [prev_info.obj for prev_info in prev_objs_info]
+        while prev_objs:
+            obj: Any = prev_objs.pop()
+
+            if hasattr(obj, "leave"):
+                obj.leave()
+            if hasattr(obj, "objs_info"):
+                prev_objs.extend(info.obj for info in obj.objs_info)
+
+    def upt(self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]) -> ToolInfo:
         """
         Allows selecting a tool and it's extra options
         Args:
@@ -174,29 +165,14 @@ class ToolsManager:
         self._tools.upt(hovered_obj, mouse_info, keys)
 
         if self._tools.clicked_i != prev_clicked_i:
-            prev_active_range: tuple[int, int] = self._dynamic_info_ranges[prev_clicked_i]
-            prev_objs_info: list[ObjInfo] = self.objs_info[
-                prev_active_range[0]:prev_active_range[1]
-            ]
-            for prev_info in prev_objs_info:
-                prev_info.set_active(False)
-
-            prev_objs: list[Any] = [prev_info.obj for prev_info in prev_objs_info]
-            while prev_objs:
-                obj: Any = prev_objs.pop()
-
-                if hasattr(obj, "leave"):
-                    obj.leave()
-                if hasattr(obj, "objs_info"):
-                    prev_objs.extend(obj.objs_info)
-
+            self._leave_prev_tool(prev_clicked_i)
             active_range: tuple[int, int] = self._dynamic_info_ranges[self._tools.clicked_i]
             for i in range(active_range[0], active_range[1]):
                 self.objs_info[i].set_active(True)
 
         local_vars: dict[str, Any] = locals()
         output_dict: dict[str, Any] = {}
-        for info in self._extra_info[self._tools.clicked_i]:
+        for info in self._extra_infos[self._tools.clicked_i]:
             upt_args: tuple[Any, ...] = tuple(
                 local_vars.get(str(arg), arg) for arg in info["upt_args"]
             )

@@ -9,12 +9,9 @@ from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, ObjInfo, MouseInfo, resize_obj
 from src.type_utils import LayeredBlitSequence
-from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
-
+from src.consts import CHR_LIMIT, WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
 INPUT_BOX_IMG: Final[pg.Surface] = pg.Surface((60, 40))
-
-CHR_LIMIT: Final[int] = 1_114_111
 
 
 class NumInputBox:
@@ -89,7 +86,7 @@ class NumInputBox:
         self.is_hovering = self._is_selected = False
         self._cursor_i = 0
 
-    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
+    def resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
@@ -110,32 +107,32 @@ class NumInputBox:
 
         self._cursor_img = pg.Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
-        self.get_cursor_pos()
+        self._upt_cursor_pos()
 
-    def get_cursor_pos(self) -> None:
+    def _upt_cursor_pos(self) -> None:
         """
-        Gets the cursor position based on the cursor index
+        Updates the cursor position based on the cursor index
         """
 
         self._cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
         self._cursor_rect.y = self.text_label.rect.y
 
-    def set_text(self, text: str, cursor_i: Optional[int]) -> None:
+    def set_text(self, text: str, cursor_i: Optional[int] = None) -> None:
         """
         Sets the text and adjusts the cursor index
         Args:
-            text, cursor index (doesn't change if None)
+            text, cursor index (doesn't change if None) (default = None)
         """
 
         self.text_label.set_text(text)
+        self._cursor_i = min(self._cursor_i, len(self.text_label.text))
         if cursor_i is not None:
             self._cursor_i = cursor_i
-        self._cursor_i = min(self._cursor_i, len(self.text_label.text))
 
-        self.get_cursor_pos()
+        self._upt_cursor_pos()
 
     def upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...],
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int],
             limits: tuple[int, int], is_selected: bool
     ) -> tuple[bool, str]:
         """
@@ -164,7 +161,7 @@ class NumInputBox:
 
             if mouse_info.released[0]:
                 self._cursor_i = self.text_label.get_closest_to(mouse_info.x)
-                self.get_cursor_pos()
+                self._upt_cursor_pos()
 
                 return True, new_text
 
@@ -173,8 +170,12 @@ class NumInputBox:
             prev_cursor_i: int = self._cursor_i
             if pg.K_LEFT in keys:
                 self._cursor_i = max(self._cursor_i - 1, 0)
+                if pg.key.get_mods() & pg.KMOD_CTRL:
+                    self._cursor_i = 0
             if pg.K_RIGHT in keys:
                 self._cursor_i = min(self._cursor_i + 1, len(new_text))
+                if pg.key.get_mods() & pg.KMOD_CTRL:
+                    self._cursor_i = len(new_text)
             if pg.K_HOME in keys:
                 self._cursor_i = 0
             if pg.K_END in keys:
@@ -183,12 +184,11 @@ class NumInputBox:
             if self._cursor_i == prev_cursor_i:
                 k: int = keys[-1]
                 if k in (pg.K_BACKSPACE, pg.K_DELETE):
-                    if k == pg.K_BACKSPACE:
-                        if self._cursor_i:
-                            new_text = new_text[:self._cursor_i - 1] + new_text[self._cursor_i:]
-                            self._cursor_i -= 1
-                    else:
+                    if k == pg.K_DELETE:
                         new_text = new_text[:self._cursor_i] + new_text[self._cursor_i + 1:]
+                    elif k == pg.K_BACKSPACE and self._cursor_i:
+                        new_text = new_text[:self._cursor_i - 1] + new_text[self._cursor_i:]
+                        self._cursor_i -= 1
 
                     if new_text.startswith('0'):
                         new_text = new_text.lstrip('0')
@@ -224,6 +224,6 @@ class NumInputBox:
 
                         if change_cursor_i:
                             self._cursor_i = min(self._cursor_i + 1, len(new_text))
-            self.get_cursor_pos()
+            self._upt_cursor_pos()
 
         return False, new_text

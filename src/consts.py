@@ -8,6 +8,8 @@ from typing import Final
 from src.utils import Size
 from src.type_utils import ColorType
 
+CHR_LIMIT: Final[int] = 1_114_111
+
 INIT_WIN_SIZE: Final[Size] = Size(1_200, 900)
 
 BLACK: Final[ColorType] = (0, 0, 0)

@@ -23,7 +23,7 @@ class Clickable(ABC):
         base_blit(image index) -> PriorityBlitSequence
         check_hovering(mouse_position) -> tuple[object, layer]
         leave() -> None
-        handle_resize(window size ratio) -> None
+        resize(window size ratio) -> None
         move_rect(x, y, window size ratio) -> None
 
     Children should include:
@@ -32,7 +32,7 @@ class Clickable(ABC):
     """
 
     __slots__ = (
-        '_init_pos', '_init_imgs', '_imgs', 'rect', '_is_hovering', '_layer', '_hovering_layer',
+        'init_pos', '_init_imgs', '_imgs', 'rect', '_is_hovering', '_layer', '_hovering_layer',
         '_hovering_text_label', '_hovering_text_imgs'
     )
 
@@ -46,13 +46,11 @@ class Clickable(ABC):
             position, two images, hovering text, base layer
         """
 
-        self._init_pos: RectPos = pos
+        self.init_pos: RectPos = pos
         self._init_imgs: tuple[pg.Surface, ...] = imgs
 
         self._imgs: tuple[pg.Surface, ...] = self._init_imgs
-        self.rect: pg.Rect = self._imgs[0].get_rect(
-            **{self._init_pos.coord_type: self._init_pos.xy}
-        )
+        self.rect: pg.Rect = self._imgs[0].get_rect(**{self.init_pos.coord_type: self.init_pos.xy})
 
         self._is_hovering: bool = False
 
@@ -120,20 +118,20 @@ class Clickable(ABC):
 
         self._is_hovering = False
 
-    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
+    def resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
             window size ratio
         """
 
-        pos, size = resize_obj(self._init_pos, *self._init_imgs[0].get_size(), *win_ratio)
+        pos, size = resize_obj(self.init_pos, *self._init_imgs[0].get_size(), *win_ratio)
 
         self._imgs = tuple(pg.transform.scale(img, size) for img in self._init_imgs)
-        self.rect = self._imgs[0].get_rect(**{self._init_pos.coord_type: pos})
+        self.rect = self._imgs[0].get_rect(**{self.init_pos.coord_type: pos})
 
         if self._hovering_text_label:
-            self._hovering_text_label.handle_resize(win_ratio)
+            self._hovering_text_label.resize(win_ratio)
             self._hovering_text_imgs = tuple(
                 pg.Surface(rect.size) for rect in self._hovering_text_label.rects
             )
@@ -151,10 +149,12 @@ class Clickable(ABC):
             x, y, window width ratio, window height ratio
         """
 
-        self._init_pos.x, self._init_pos.y = x, y
+        # Modifying the init_pos is more accurate
+
+        self.init_pos.x, self.init_pos.y = x, y
 
         pos: tuple[int, int] = (round(x * win_ratio_w), round(y * win_ratio_h))
-        setattr(self.rect, self._init_pos.coord_type, pos)
+        setattr(self.rect, self.init_pos.coord_type, pos)
 
     @abstractmethod
     def blit(self) -> LayeredBlitSequence:
@@ -281,17 +281,6 @@ class Button(Clickable):
         """
 
         return self._base_blit(int(self._is_hovering))
-
-    def move_rect(self, x: int, y: int, win_ratio_w: float, win_ratio_h: float) -> None:
-        """
-        Moves the rect to a specific coordinate
-        Args:
-            x, y, window width ratio, window height ratio
-        """
-
-        super().move_rect(x, y, win_ratio_w, win_ratio_h)
-        for info in self.objs_info:
-            info.obj.move_rect(*self.rect.center, win_ratio_w, win_ratio_h)
 
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo) -> bool:
         """

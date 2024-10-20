@@ -14,7 +14,8 @@ from src.utils import RectPos, ObjInfo, MouseInfo, add_border
 from src.type_utils import ColorType
 from src.consts import BLACK, LIGHT_GRAY, SPECIAL_LAYER
 
-OPTIONS: Final[tuple[tuple[str, str], ...]] = (
+OptionsInfo = tuple[tuple[str, str], ...]
+OPTIONS: Final[OptionsInfo] = (
     ("edit", "(CTRL+E)"),
     ("delete", "(CTRL+DEL)")
 )
@@ -93,7 +94,7 @@ class PaletteManager:
         for i in range(self._dropdown_info_start, self._dropdown_info_end):
             self.objs_info[i].set_active(self._view_dropdown)
 
-    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
+    def resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
@@ -122,14 +123,14 @@ class PaletteManager:
         if self._is_editing_color:
             self.values[self._dropdown_i] = color
             self._colors.insert(
-                self._dropdown_i, get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
+                self._dropdown_i, *get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
             )
 
             self._is_editing_color = False
         elif color not in self.values:
             self.values.append(color)
             self._colors.insert(
-                None, get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
+                None, *get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
             )
         self._colors.check(self.values.index(color))
 
@@ -147,15 +148,51 @@ class PaletteManager:
         checkboxes_info: tuple[tuple[pg.Surface, str], ...] = tuple(
             get_color_info(value) for value in self.values
         )
-        self._colors.change_grid(checkboxes_info, (self._win_ratio_w, self._win_ratio_h))
+        self._colors.set_grid(checkboxes_info, (self._win_ratio_w, self._win_ratio_h))
+
+    def _activate_dropdown(self, mouse_info: MouseInfo) -> None:
+        """
+        Places the drop-down menu near the cursor
+        Args:
+            mouse info
+        """
+
+        option_x: int = round((mouse_info.x + 5.0) / self._win_ratio_w)
+        option_y: int = round((mouse_info.y + 5.0) / self._win_ratio_h)
+        for option in self._options:
+            x_change: int = 0
+            y_change: int = 0
+            option_sub_objs: list[Any] = [option]
+            is_first: bool = True
+            while option_sub_objs:
+                obj: Any = option_sub_objs.pop()
+                if not hasattr(obj, "move_rect"):
+                    continue
+
+                if not is_first:
+                    obj.move_rect(
+                        obj.init_pos.x + x_change, obj.init_pos.y + y_change,
+                        self._win_ratio_w, self._win_ratio_h
+                    )
+                else:
+                    prev_init_x, prev_init_y = obj.init_pos.xy
+                    obj.move_rect(option_x, option_y, self._win_ratio_w, self._win_ratio_h)
+
+                    x_change, y_change = obj.init_pos.x - prev_init_x, obj.init_pos.y - prev_init_y
+                    is_first = False
+
+                if hasattr(obj, "objs_info"):
+                    option_sub_objs.extend(info.obj for info in obj.objs_info)
+
+            option_y += int(option.rect.h / self._win_ratio_h)
 
     def upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]
     ) -> tuple[ColorType, Optional[ColorType]]:
         """
         Allows selecting a color and making a drop-down menu appear on right click
         Args:
-            hovered object (can be None), mouse info, keys, ctrl
+            hovered object (can be None), mouse info, keys
         Returns:
             selected color, color to edit (can be None)
         """
@@ -163,29 +200,20 @@ class PaletteManager:
         prev_view_dropdown: bool = self._view_dropdown
 
         if mouse_info.released[2]:
+            clicked_checkbox: bool = False
             for i, checkbox in enumerate(self._colors.checkboxes):
                 if checkbox.rect.collidepoint(mouse_info.xy):
+                    clicked_checkbox = True
                     self._view_dropdown = (
                         not self._view_dropdown if self._dropdown_i == i else True
                     )
 
                     if self._view_dropdown:
                         self._dropdown_i = i
-
-                        '''
-                        Modifies the initial position and calculates the scaled one
-                        for more accuracy
-                        '''
-                        option_x: int = round((mouse_info.x + 5.0) / self._win_ratio_w)
-                        option_y: int = round((mouse_info.y + 5.0) / self._win_ratio_h)
-                        # TODO: Stack?
-                        for option in self._options:
-                            option.move_rect(
-                                option_x, option_y, self._win_ratio_w, self._win_ratio_h
-                            )
-                            option_y += int(option.rect.h / self._win_ratio_h)
+                        self._activate_dropdown(mouse_info)
                     break
-            else:
+
+            if not clicked_checkbox:
                 self._view_dropdown = False
 
         '''
@@ -193,7 +221,7 @@ class PaletteManager:
         even at different window sizes
         '''
 
-        if ctrl:
+        if pg.key.get_mods() & pg.KMOD_CTRL:
             if pg.K_e in keys:
                 self._dropdown_i = self._colors.clicked_i
                 self._view_dropdown = False
@@ -228,21 +256,21 @@ class PaletteManager:
         if prev_view_dropdown == self._view_dropdown:
             self._colors.upt(hovered_obj, mouse_info, keys)
         else:
-            dropdown_objs_info: list[ObjInfo] = self.objs_info[
-                self._dropdown_info_start:self._dropdown_info_end
-            ]
+            dropdown_objs_info: list[ObjInfo] = (
+                self.objs_info[self._dropdown_info_start:self._dropdown_info_end]
+            )
             for info in dropdown_objs_info:
                 info.set_active(self._view_dropdown)
 
             if not self._view_dropdown:
-                dropdown_objs: list[Any] = [info.obj for info in dropdown_objs_info]
-                while dropdown_objs:
-                    obj: Any = dropdown_objs.pop()
+                dropdown_sub_objs: list[Any] = [info.obj for info in dropdown_objs_info]
+                while dropdown_sub_objs:
+                    obj: Any = dropdown_sub_objs.pop()
 
                     if hasattr(obj, "leave"):
                         obj.leave()
                     if hasattr(obj, "objs_info"):
-                        dropdown_objs.extend(obj.objs_info)
+                        dropdown_sub_objs.extend(info.obj for info in obj.objs_info)
 
         color_to_edit: Optional[ColorType] = None
         if self._is_editing_color:

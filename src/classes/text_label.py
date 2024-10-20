@@ -17,11 +17,11 @@ class TextLabel:
     """
 
     __slots__ = (
-        '_init_pos', '_init_h', '_renderer', 'text', '_lines', '_imgs', 'rect', 'rects', '_layer'
+        'init_pos', '_init_h', '_renderer', 'text', '_lines', '_imgs', 'rect', 'rects', '_layer'
     )
 
     def __init__(
-        self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 24
+            self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 24
     ) -> None:
         """
         Creates the text images
@@ -29,7 +29,7 @@ class TextLabel:
             position, text, base_layer (default = BG_LAYER), height (default = 24)
         """
 
-        self._init_pos: RectPos = pos
+        self.init_pos: RectPos = pos
         self._init_h: int = h
 
         if self._init_h not in renderers_cache:
@@ -47,7 +47,7 @@ class TextLabel:
 
         self._layer: int = base_layer + TEXT_LAYER
 
-        self._get_rects(self._init_pos.xy)
+        self._get_rects(self.init_pos.xy)
 
     def blit(self) -> LayeredBlitSequence:
         """
@@ -57,14 +57,14 @@ class TextLabel:
 
         return [(img, rect.topleft, self._layer) for img, rect in zip(self._imgs, self.rects)]
 
-    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
+    def resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
             window size ratio
         """
 
-        pos, (_, h) = resize_obj(self._init_pos, 0.0, self._init_h, *win_ratio, True)
+        pos, (_, h) = resize_obj(self.init_pos, 0.0, self._init_h, *win_ratio, True)
 
         if h not in renderers_cache:
             renderers_cache[h] = pg.font.SysFont("helvetica", h)
@@ -83,11 +83,18 @@ class TextLabel:
         rect_w: int = max(img.get_width() for img in self._imgs)
         rect_h: int = sum(img.get_height() for img in self._imgs)
         self.rect = pg.Rect(0, 0, rect_w, rect_h)
-        setattr(self.rect, self._init_pos.coord_type, pos)
+        setattr(self.rect, self.init_pos.coord_type, pos)
 
         line_rect_y: int = self.rect.y
         for img in self._imgs:
-            self.rects.append(img.get_rect(topleft=(self.rect.x, line_rect_y)))
+            line_rect: pg.Rect = img.get_rect(topleft=(self.rect.x, line_rect_y))
+            leftover_w: int = self.rect.w - line_rect.w
+            if self.init_pos.coord_type in ('midtop', 'center', 'midbottom'):
+                line_rect.x += round(leftover_w / 2)
+            elif 'right' in self.init_pos.coord_type:
+                line_rect.x += leftover_w
+
+            self.rects.append(line_rect)
             line_rect_y += self.rects[-1].h
 
     def move_rect(self, x: int, y: int, win_ratio_w: float, win_ratio_h: float) -> None:
@@ -97,8 +104,9 @@ class TextLabel:
             x, y, window width ratio, window height ratio
         """
 
-        self._init_pos.x, self._init_pos.y = round(x / win_ratio_w), round(y / win_ratio_h)
-        self._get_rects((x, y))
+        self.init_pos.x, self.init_pos.y = x, y
+        pos: tuple[int, int] = (round(x * win_ratio_w), round(y * win_ratio_h))
+        self._get_rects(pos)
 
     def set_text(self, text: str) -> None:
         """
@@ -111,7 +119,7 @@ class TextLabel:
         self._lines = tuple(self.text.split('\n'))
 
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
-        pos: tuple[int, int] = getattr(self.rect, self._init_pos.coord_type)
+        pos: tuple[int, int] = getattr(self.rect, self.init_pos.coord_type)
         self._get_rects(pos)
 
     def get_pos_at(self, char_i: int) -> int:

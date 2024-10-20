@@ -42,7 +42,8 @@ Requires pygame-ce, numpy and Pillow
 - **CTRL E**: Edit selected color
 - **CTRL Del**: delete selected color
 
-- **CTRL left/right**: switch between scrollbar and input box in color picking ui
+- **CTRL left/right**: go to end of text in input box
+- **CTRL ALT left/right**: switch between scrollbar and input box in color picking ui
 - **CTRL K**: toggle checkbox in grid ui
 
 ## Screenshots

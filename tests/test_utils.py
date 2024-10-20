@@ -7,8 +7,16 @@ import unittest
 from unittest import mock
 import numpy as np
 from numpy.typing import NDArray
+from random import SystemRandom
+from typing import Final
 
-from src.utils import Point, RectPos, Size, ObjInfo, MouseInfo, load_img, get_pixels, add_border
+from src.utils import (
+    Point, RectPos, Size, ObjInfo, MouseInfo, load_img_from_path, get_pixels, add_border,
+    resize_obj
+)
+from src.type_utils import ColorType
+
+RNG: Final[SystemRandom] = SystemRandom()
 
 
 class ParentObj:
@@ -21,7 +29,7 @@ class ParentObj:
         Creates the objects info
         """
 
-        self.objs_info: list[ObjInfo] = [ObjInfo(1), ObjInfo(2)]
+        self.objs_info: list[ObjInfo] = [ObjInfo(1)]
 
 
 class TestUtils(unittest.TestCase):
@@ -30,15 +38,15 @@ class TestUtils(unittest.TestCase):
     """
 
     @mock.patch.object(pg.image, 'load')
-    def test_load_img(self, mock_load: mock.Mock) -> None:
+    def test_load_img_from_path(self, mock_load: mock.Mock) -> None:
         """
-        Tests the load_img method (mocks the pygame.image.load method)
+        Tests the load_img_from_path method (mocks the pygame.image.load method)
         """
 
         mock_surf: mock.Mock = mock.Mock(spec=pg.Surface)
         mock_load.return_value = mock_surf
 
-        load_img("test.png")
+        load_img_from_path("test.png")
         mock_surf.convert_alpha.assert_called_once()
 
     def test_get_pixels(self) -> None:
@@ -50,12 +58,11 @@ class TestUtils(unittest.TestCase):
         img.fill((255, 0, 0, 0))
         img.set_at((0, 1), (255, 0, 1))
 
-        pixels_rgb: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
-        pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
-        expected_pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, pixels_alpha))
-        expected_pixels = np.transpose(expected_pixels, (1, 0, 2))
-
-        self.assertTrue(np.array_equal(get_pixels(img), expected_pixels))
+        pixels: NDArray[np.uint8] = get_pixels(img)
+        for y in range(img.get_height()):
+            for x in range(img.get_width()):
+                pixel: ColorType = tuple(pixels[y, x])
+                self.assertEqual(pixel, img.get_at((x, y)))
 
     def test_add_border(self) -> None:
         """
@@ -70,7 +77,39 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(img_with_border.get_at((9, 0)), (0, 0, 1))
         self.assertEqual(img_with_border.get_at((9, 9)), (0, 0, 1))
 
-    # TODO: test resize_obj
+    def test_resize_obj(self) -> None:
+        """
+        Tests the resize_obj method
+        """
+
+        init_pos: RectPos = RectPos(1, 2, 'topleft')
+
+        new_pos: tuple[int, int]
+        new_size: tuple[int, int]
+        new_pos, new_size = resize_obj(init_pos, 3.0, 4.0, 2.1, 3.1)
+
+        # Also makes round and ceil were used
+        self.assertTupleEqual(new_pos, (2, 6))
+        self.assertTupleEqual(new_size, (7, 13))
+
+        new_pos, new_size = resize_obj(init_pos, 3.0, 4.0, 2.6, 3.4, True)
+        self.assertTupleEqual(new_pos, (3, 7))
+        self.assertTupleEqual(new_size, (8, 11))
+
+        for _ in range(100):
+            x: int = RNG.randint(0, 500)
+            y: int = RNG.randint(0, 500)
+            w: float = RNG.uniform(0.0, 100.0)
+            h: float = RNG.uniform(0.0, 100.0)
+            ratio_w: float = RNG.uniform(0.0, 5.0)
+            ratio_h: float = RNG.uniform(0.0, 5.0)
+
+            # Check gaps
+            new_pos, new_size = resize_obj(RectPos(x, y, 'topleft'), w, h, ratio_w, ratio_h)
+            expected_x_sum: int = round(x * ratio_w + w * ratio_w)
+            expected_y_sum: int = round(y * ratio_h + h * ratio_h)
+            self.assertGreaterEqual(new_pos[0] + new_size[0], expected_x_sum)
+            self.assertGreaterEqual(new_pos[1] + new_size[1], expected_y_sum)
 
     def test_point(self) -> None:
         """
@@ -81,7 +120,7 @@ class TestUtils(unittest.TestCase):
 
         self.assertEqual(point.x, 0)
         self.assertEqual(point.y, 1)
-        self.assertTupleEqual(point.xy, (0, 1))
+        self.assertTupleEqual(point.xy, (point.x, point.y))
 
     def test_rect_pos(self) -> None:
         """
@@ -93,7 +132,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(pos.x, 0)
         self.assertEqual(pos.y, 1)
         self.assertEqual(pos.coord_type, 'topleft')
-        self.assertTupleEqual(pos.xy, (0, 1))
+        self.assertTupleEqual(pos.xy, (pos.x, pos.y))
 
     def test_size(self) -> None:
         """
@@ -104,7 +143,7 @@ class TestUtils(unittest.TestCase):
 
         self.assertEqual(size.w, 0)
         self.assertEqual(size.h, 1)
-        self.assertTupleEqual(size.wh, (0, 1))
+        self.assertTupleEqual(size.wh, (size.w, size.h))
 
     def test_obj_info(self) -> None:
         """
@@ -118,13 +157,9 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(parent_obj_info.is_active)
 
         parent_obj_info.set_active(False)
-        objs_info: list[ObjInfo] = [parent_obj_info]
-        while objs_info:
-            obj_info: ObjInfo = objs_info.pop()
-            self.assertFalse(obj_info.is_active)
-
-            if hasattr(obj_info.obj, "objs_info"):
-                objs_info.extend(obj_info.obj.objs_info)
+        self.assertFalse(parent_obj_info.is_active)
+        child_obj_info: ObjInfo = parent_obj.objs_info[0]
+        self.assertFalse(child_obj_info.is_active)
 
     def test_mouse_info(self) -> None:
         """
@@ -137,4 +172,4 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(mouse_info.y, 1)
         self.assertTupleEqual(mouse_info.pressed, (False,) * 3)
         self.assertTupleEqual(mouse_info.released, (False,) * 5)
-        self.assertTupleEqual(mouse_info.xy, (0, 1))
+        self.assertTupleEqual(mouse_info.xy, (mouse_info.x, mouse_info.y))

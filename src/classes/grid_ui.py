@@ -6,7 +6,7 @@ import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
 from math import ceil
-from typing import Final, Optional, Any
+from typing import Union, Final, Optional, Any
 
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, CHECKBOX_1_IMG, CHECKBOX_2_IMG
@@ -16,6 +16,8 @@ from src.classes.text_label import TextLabel
 from src.utils import RectPos, Size, ObjInfo, MouseInfo, resize_obj
 from src.type_utils import BlitSequence, LayeredBlitSequence
 from src.consts import EMPTY_PIXEL_SURF, BG_LAYER, ELEMENT_LAYER
+
+SelectionType = Union["NumSlider"]
 
 MAX_DIM: Final[int] = 256
 
@@ -70,7 +72,8 @@ class NumSlider:
         self.input_box.set_text(str(self.value), 0)
 
     def upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], selection: Any
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int],
+            selection: SelectionType
     ) -> bool:
         """
         Allows to select a color either by sliding or typing
@@ -112,8 +115,8 @@ class NumSlider:
                 new_text = str(new_value)
 
         if new_text != prev_text:
-            self.value = int(new_text) if new_text else 1
-            self.input_box.set_text(new_text, None)
+            self.value = int(new_text or 1)
+            self.input_box.set_text(new_text)
 
         self._prev_mouse_x = mouse_info.x
 
@@ -192,8 +195,6 @@ class GridUI(UI):
             ObjInfo(self._checkbox)
         ))
 
-        self._get_preview(Size(self._w_slider.value, self._h_slider.value))
-
     def blit(self) -> LayeredBlitSequence:
         """
         Returns:
@@ -212,7 +213,7 @@ class GridUI(UI):
 
         self._selection_i = 0
 
-    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
+    def resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
@@ -221,7 +222,7 @@ class GridUI(UI):
 
         self._min_win_ratio = min(win_ratio)
 
-        super().handle_resize(win_ratio)
+        super().resize(win_ratio)
 
         unscaled_preview_pixel_dim: float = min(
             self._preview_init_size.w / self._w_slider.value,
@@ -303,19 +304,17 @@ class GridUI(UI):
         self._preview_rect = self._preview_img.get_rect(**{self._preview_init_pos.coord_type: pos})
 
     def upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], kmod_ctrl: int
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]
     ) -> tuple[bool, Optional[Size]]:
         """
-        Allows selecting a grid area with 2 sliders and view it's preview
+        Allows selecting a grid area with 2 sliders and view its preview
         Args:
-            hovered object (can be None), mouse info, keys, ctrl
+            hovered object (can be None), mouse info, keys
         Returns:
             True if the interface was closed else False, size (can be None)
         """
 
         if keys:
-            if pg.K_a in keys:
-                self._get_preview(Size(self._w_slider.value, self._h_slider.value))
             if pg.K_UP in keys:
                 self._selection_i = 0
             if pg.K_DOWN in keys:
@@ -323,7 +322,7 @@ class GridUI(UI):
 
         prev_grid_w: int = self._w_slider.value
         prev_grid_h: int = self._h_slider.value
-        selection: Any = (self._w_slider, self._h_slider)[self._selection_i]
+        selection: SelectionType = (self._w_slider, self._h_slider)[self._selection_i]
 
         if self._w_slider.upt(hovered_obj, mouse_info, keys, selection):
             self._selection_i = 0
@@ -333,26 +332,29 @@ class GridUI(UI):
         grid_area: Size = Size(self._w_slider.value, self._h_slider.value)
         if grid_area.wh != (prev_grid_w, prev_grid_h):
             if self._checkbox.is_checked:
-                opp_value: int
                 opp_slider: NumSlider
                 if grid_area.w != prev_grid_w:
-                    opp_value = max(min(round(grid_area.w * self._values_ratio[0]), MAX_DIM), 1)
                     opp_slider = self._h_slider
+                    opp_slider.value = max(
+                        min(round(grid_area.w * self._values_ratio[0]), MAX_DIM), 1
+                    )
                 else:
-                    opp_value = max(min(round(grid_area.h * self._values_ratio[1]), MAX_DIM), 1)
                     opp_slider = self._w_slider
+                    opp_slider.value = max(
+                        min(round(grid_area.h * self._values_ratio[1]), MAX_DIM), 1
+                    )
 
-                opp_slider.value = opp_value
-                opp_slider.input_box.set_text(str(opp_slider.value), None)
+                opp_slider.input_box.set_text(str(opp_slider.value))
                 grid_area.w, grid_area.h = self._w_slider.value, self._h_slider.value
 
             self._get_preview(grid_area)
 
-        if self._checkbox.upt(hovered_obj, mouse_info, bool(kmod_ctrl and pg.K_k in keys)):
+        did_shortcut: bool = bool((pg.key.get_mods() & pg.KMOD_CTRL) and pg.K_k in keys)
+        if self._checkbox.upt(hovered_obj, mouse_info, did_shortcut):
             self._values_ratio = (grid_area.h / grid_area.w, grid_area.w / grid_area.h)
 
         confirmed: bool
         exited: bool
-        confirmed, exited = self._base_upt(hovered_obj, mouse_info, keys, kmod_ctrl)
+        confirmed, exited = self._base_upt(hovered_obj, mouse_info, keys)
 
         return confirmed or exited, grid_area if confirmed else None

@@ -77,7 +77,7 @@ class RectPos:
         return self.x, self.y
 
 
-def load_img(*path_sections: str) -> pg.Surface:
+def load_img_from_path(*path_sections: str) -> pg.Surface:
     """
     Creates a surface from an image
     Args:
@@ -137,12 +137,10 @@ def resize_obj(
         position, size
     """
 
-    img_ratio_w: float
-    img_ratio_h: float
+    img_ratio_w: float = win_ratio_w
+    img_ratio_h: float = win_ratio_h
     if keep_size_ratio:
         img_ratio_w = img_ratio_h = min(win_ratio_w, win_ratio_h)
-    else:
-        img_ratio_w, img_ratio_h = win_ratio_w, win_ratio_h
 
     new_pos: tuple[int, int] = (round(pos.x * win_ratio_w), round(pos.y * win_ratio_h))
     new_size: tuple[int, int] = (ceil(w * img_ratio_w), ceil(h * img_ratio_h))

@@ -9,20 +9,20 @@ from typing import Final, Any
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, ObjInfo, MouseInfo, load_img, resize_obj
+from src.utils import RectPos, ObjInfo, MouseInfo, load_img_from_path, resize_obj
 from src.type_utils import LayeredBlitSequence
 from src.consts import UI_LAYER
 
 INTERFACE_IMG: Final[pg.Surface] = pg.Surface((500, 700))
 INTERFACE_IMG.fill((60, 60, 60))
 
-BUTTON_M_OFF_IMG: Final[pg.Surface] = load_img("sprites", "button_m_off.png")
-BUTTON_M_ON_IMG: Final[pg.Surface] = load_img("sprites", "button_m_on.png")
-CLOSE_1_IMG: Final[pg.Surface] = load_img("sprites", "close_button_off.png")
-CLOSE_2_IMG: Final[pg.Surface] = load_img("sprites", "close_button_on.png")
+BUTTON_M_OFF_IMG: Final[pg.Surface] = load_img_from_path("sprites", "button_m_off.png")
+BUTTON_M_ON_IMG: Final[pg.Surface] = load_img_from_path("sprites", "button_m_on.png")
+CLOSE_1_IMG: Final[pg.Surface] = load_img_from_path("sprites", "close_button_off.png")
+CLOSE_2_IMG: Final[pg.Surface] = load_img_from_path("sprites", "close_button_on.png")
 
-CHECKBOX_1_IMG: Final[pg.Surface] = load_img("sprites", "checkbox_off.png")
-CHECKBOX_2_IMG: Final[pg.Surface] = load_img("sprites", "checkbox_on.png")
+CHECKBOX_1_IMG: Final[pg.Surface] = load_img_from_path("sprites", "checkbox_off.png")
+CHECKBOX_2_IMG: Final[pg.Surface] = load_img_from_path("sprites", "checkbox_on.png")
 
 
 class UI(ABC):
@@ -31,15 +31,16 @@ class UI(ABC):
 
     Includes:
         blit() -> PriorityBlitSequence
-        handle_resize(window size ratio) -> None,
-        base_upt(mouse, keys, ctrl) -> tuple[confirmed, exited]
+        resize(window size ratio) -> None,
+        base_upt(mouse, keys) -> tuple[confirmed, exited]
 
     Children should include:
-        upt(hovered object, mouse info, keys, ctrl) -> tuple[closed, extra info]
+        upt(hovered object, mouse info, keys) -> tuple[closed, extra info]
     """
 
     __slots__ = (
-        '_init_pos', '_init_img', '_img', '_rect', '_base_layer', '_exit', '_confirm', 'objs_info'
+        '_init_pos', '_init_img', '_img', '_rect', '_base_layer', '_exit', '_confirm',
+        'objs_info'
     )
 
     def __init__(self, pos: RectPos, title: str) -> None:
@@ -84,7 +85,7 @@ class UI(ABC):
 
         return [(self._img, self._rect.topleft, self._base_layer)]
 
-    def handle_resize(self, win_ratio: tuple[float, float]) -> None:
+    def resize(self, win_ratio: tuple[float, float]) -> None:
         """
         Resizes the object
         Args:
@@ -99,32 +100,32 @@ class UI(ABC):
         self._rect = self._img.get_rect(**{self._init_pos.coord_type: pos})
 
     def _base_upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]
     ) -> tuple[bool, bool]:
         """
         Handles the base behavior
         Args:
-            hovered object, mouse info, keys, ctrl
+            hovered object, mouse info, keys
         Returns:
             buttons states
         """
 
-        ctrl_backspace: bool = bool(ctrl and pg.K_BACKSPACE in keys)
+        kmod_ctrl: int = pg.key.get_mods() & pg.KMOD_CTRL
+
+        ctrl_backspace: bool = bool(kmod_ctrl and pg.K_BACKSPACE in keys)
         exited: bool = self._exit.upt(hovered_obj, mouse_info) or ctrl_backspace
 
-        ctrl_enter: bool = bool(ctrl and pg.K_RETURN in keys)
+        ctrl_enter: bool = bool(kmod_ctrl and pg.K_RETURN in keys)
         confirmed: bool = self._confirm.upt(hovered_obj, mouse_info) or ctrl_enter
 
         return confirmed, exited
 
     @abstractmethod
-    def upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: tuple[int, ...], ctrl: int
-    ) -> tuple[bool, Any]:
+    def upt(self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]) -> tuple[bool, Any]:
         """
         Should implement a way to make the object interactable
         Args:
-            hovered object (can be None), mouse info, keys, ctrl
+            hovered object (can be None), mouse info, keys
         Returns:
             True if the interface was closed else False, extra info
         """

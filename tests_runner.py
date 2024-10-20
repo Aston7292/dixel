@@ -12,9 +12,8 @@ pg.init()
 pg.display.set_mode(flags=pg.HIDDEN)
 
 '''
-In the tests the handle_resize method runs as second
+In the tests the resize method runs as first
 to make sure other methods work at different sizes
-and the init method runs as first to check initialization before resizing
 '''
 
 runner: unittest.TextTestRunner = unittest.TextTestRunner()

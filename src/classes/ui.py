@@ -9,20 +9,20 @@ from typing import Final, Any
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, ObjInfo, MouseInfo, load_img_from_path, resize_obj
+from src.utils import RectPos, ObjInfo, MouseInfo, get_img, resize_obj
 from src.type_utils import LayeredBlitSequence
 from src.consts import UI_LAYER
 
 INTERFACE_IMG: Final[pg.Surface] = pg.Surface((500, 700))
 INTERFACE_IMG.fill((60, 60, 60))
 
-BUTTON_M_OFF_IMG: Final[pg.Surface] = load_img_from_path("sprites", "button_m_off.png")
-BUTTON_M_ON_IMG: Final[pg.Surface] = load_img_from_path("sprites", "button_m_on.png")
-CLOSE_1_IMG: Final[pg.Surface] = load_img_from_path("sprites", "close_button_off.png")
-CLOSE_2_IMG: Final[pg.Surface] = load_img_from_path("sprites", "close_button_on.png")
+BUTTON_M_OFF_IMG: Final[pg.Surface] = get_img("sprites", "button_m_off.png")
+BUTTON_M_ON_IMG: Final[pg.Surface] = get_img("sprites", "button_m_on.png")
+CLOSE_1_IMG: Final[pg.Surface] = get_img("sprites", "close_button_off.png")
+CLOSE_2_IMG: Final[pg.Surface] = get_img("sprites", "close_button_on.png")
 
-CHECKBOX_1_IMG: Final[pg.Surface] = load_img_from_path("sprites", "checkbox_off.png")
-CHECKBOX_2_IMG: Final[pg.Surface] = load_img_from_path("sprites", "checkbox_on.png")
+CHECKBOX_1_IMG: Final[pg.Surface] = get_img("sprites", "checkbox_off.png")
+CHECKBOX_2_IMG: Final[pg.Surface] = get_img("sprites", "checkbox_on.png")
 
 
 class UI(ABC):

@@ -21,7 +21,7 @@ class NumInputBox:
 
     __slots__ = (
         '_init_pos', '_init_img', '_img', 'rect', 'is_hovering', '_is_selected',
-        '_layer', '_hovering_layer', 'text_label', '_cursor_i', '_cursor_img', '_cursor_rect',
+        '_layer', '_hovering_layer', 'text_label', 'cursor_i', '_cursor_img', '_cursor_rect',
         'objs_info'
     )
 
@@ -45,12 +45,12 @@ class NumInputBox:
         self._hovering_layer: int = base_layer + TOP_LAYER
 
         self.text_label = TextLabel(RectPos(*self.rect.center, 'center'), text, base_layer)
-        self._cursor_i: int = 0
+        self.cursor_i: int = 0
 
         self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
         self._cursor_rect: pg.Rect = self._cursor_img.get_rect(
-            topleft=(self.text_label.get_pos_at(self._cursor_i), self.text_label.rect.y)
+            topleft=(self.text_label.get_pos_at(self.cursor_i), self.text_label.rect.y)
         )
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self.text_label)]
@@ -73,7 +73,7 @@ class NumInputBox:
         Args:
             mouse position
         Returns:
-            hovered object (can be None), hovered object's layer
+            hovered object (can be None), hovered object layer
         """
 
         return self if self.rect.collidepoint(mouse_pos) else None, self._layer
@@ -84,7 +84,7 @@ class NumInputBox:
         """
 
         self.is_hovering = self._is_selected = False
-        self._cursor_i = 0
+        self.cursor_i = 0
 
     def resize(self, win_ratio: tuple[float, float]) -> None:
         """
@@ -107,29 +107,22 @@ class NumInputBox:
 
         self._cursor_img = pg.Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
-        self._upt_cursor_pos()
 
-    def _upt_cursor_pos(self) -> None:
-        """
-        Updates the cursor position based on the cursor index
-        """
-
-        self._cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
+        self._cursor_rect.x = self.text_label.get_pos_at(self.cursor_i)
         self._cursor_rect.y = self.text_label.rect.y
 
-    def set_text(self, text: str, cursor_i: Optional[int] = None) -> None:
+    def bounded_set_cursor_i(self, cursor_i: Optional[int] = None) -> None:
         """
-        Sets the text and adjusts the cursor index
+        Sets the cursor index making sure it stays in bounds
         Args:
-            text, cursor index (doesn't change if None) (default = None)
+            cursor index (normal cursor index if None) (default = None)
         """
 
-        self.text_label.set_text(text)
-        self._cursor_i = min(self._cursor_i, len(self.text_label.text))
-        if cursor_i is not None:
-            self._cursor_i = cursor_i
-
-        self._upt_cursor_pos()
+        if cursor_i is None:
+            self.cursor_i = min(self.cursor_i, len(self.text_label.text))
+        else:
+            self.cursor_i = min(cursor_i, len(self.text_label.text))
+        self._cursor_rect.x = self.text_label.get_pos_at(self.cursor_i)
 
     def upt(
             self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int],
@@ -160,35 +153,35 @@ class NumInputBox:
                 self.is_hovering = True
 
             if mouse_info.released[0]:
-                self._cursor_i = self.text_label.get_closest_to(mouse_info.x)
-                self._upt_cursor_pos()
+                self.cursor_i = self.text_label.get_closest_to(mouse_info.x)
+                self._cursor_rect.x = self.text_label.get_pos_at(self.cursor_i)
 
                 return True, new_text
 
         self._is_selected = is_selected
         if self._is_selected and keys:
-            prev_cursor_i: int = self._cursor_i
+            prev_cursor_i: int = self.cursor_i
             if pg.K_LEFT in keys:
-                self._cursor_i = max(self._cursor_i - 1, 0)
+                self.cursor_i = max(self.cursor_i - 1, 0)
                 if pg.key.get_mods() & pg.KMOD_CTRL:
-                    self._cursor_i = 0
+                    self.cursor_i = 0
             if pg.K_RIGHT in keys:
-                self._cursor_i = min(self._cursor_i + 1, len(new_text))
+                self.cursor_i = min(self.cursor_i + 1, len(new_text))
                 if pg.key.get_mods() & pg.KMOD_CTRL:
-                    self._cursor_i = len(new_text)
+                    self.cursor_i = len(new_text)
             if pg.K_HOME in keys:
-                self._cursor_i = 0
+                self.cursor_i = 0
             if pg.K_END in keys:
-                self._cursor_i = len(new_text)
+                self.cursor_i = len(new_text)
 
-            if self._cursor_i == prev_cursor_i:
+            if self.cursor_i == prev_cursor_i:
                 k: int = keys[-1]
                 if k in (pg.K_BACKSPACE, pg.K_DELETE):
                     if k == pg.K_DELETE:
-                        new_text = new_text[:self._cursor_i] + new_text[self._cursor_i + 1:]
-                    elif k == pg.K_BACKSPACE and self._cursor_i:
-                        new_text = new_text[:self._cursor_i - 1] + new_text[self._cursor_i:]
-                        self._cursor_i -= 1
+                        new_text = new_text[:self.cursor_i] + new_text[self.cursor_i + 1:]
+                    elif k == pg.K_BACKSPACE and self.cursor_i:
+                        new_text = new_text[:self.cursor_i - 1] + new_text[self.cursor_i:]
+                        self.cursor_i -= 1
 
                     if new_text.startswith('0'):
                         new_text = new_text.lstrip('0')
@@ -198,13 +191,13 @@ class NumInputBox:
                     char: str = chr(k)
                     if char.isdigit():
                         inserted_trailing_zero: bool = bool(
-                            (char == '0' and not self._cursor_i) and new_text
+                            (char == '0' and not self.cursor_i) and new_text
                         )
 
                         # Better user experience on edge cases
                         change_cursor_i: bool = not inserted_trailing_zero
                         if not inserted_trailing_zero:
-                            new_text = new_text[:self._cursor_i] + char + new_text[self._cursor_i:]
+                            new_text = new_text[:self.cursor_i] + char + new_text[self.cursor_i:]
                             change_cursor_i = True
 
                             max_length: int = len(str(limits[1]))
@@ -223,7 +216,7 @@ class NumInputBox:
                                     new_text = str(limits[0])
 
                         if change_cursor_i:
-                            self._cursor_i = min(self._cursor_i + 1, len(new_text))
-            self._upt_cursor_pos()
+                            self.cursor_i = min(self.cursor_i + 1, len(new_text))
+            self._cursor_rect.x = self.text_label.get_pos_at(self.cursor_i)
 
         return False, new_text

@@ -143,7 +143,7 @@ class CheckboxGrid:
         Args:
             mouse position
         Returns:
-            hovered object (can be None), hovered object's layer
+            hovered object (can be None), hovered object layer
         """
 
         return self if self.rect.collidepoint(mouse_pos) else None, self._layer
@@ -160,16 +160,16 @@ class CheckboxGrid:
         h: int = max(rect.bottom for rect in rects) - top
         self.rect = pg.Rect(left, top, w, h)
 
-    def check(self, new_clicked_i: int) -> None:
+    def check(self, clicked_i: int) -> None:
         """
         Checks a specific checkbox and unchecks the previous one, changes clicked_i
         Args:
-            index of the new active checkbox
+            index of the active checkbox
         """
 
         if self.clicked_i < len(self.checkboxes):
             self.checkboxes[self.clicked_i].is_checked = False
-        self.clicked_i = new_clicked_i
+        self.clicked_i = clicked_i
         self.checkboxes[self.clicked_i].is_checked = True
 
     def set_grid(
@@ -253,27 +253,27 @@ class CheckboxGrid:
             index, window size ratio
         """
 
-        x_change: int = 0
-        y_change: int = 0
-        checkbox_sub_objs: list[Any] = [self.checkboxes[move_i]]
+        change_x: int = 0
+        change_y: int = 0
+        checkbox_objs: list[Any] = [self.checkboxes[move_i]]
 
         is_first: bool = True
-        while checkbox_sub_objs:
-            obj: Any = checkbox_sub_objs.pop()
-            if not hasattr(obj, "move_rect"):
-                continue
+        while checkbox_objs:
+            obj: Any = checkbox_objs.pop()
+            if hasattr(obj, "move_rect"):
+                if not is_first:
+                    obj.move_rect(obj.init_pos.x + change_x, obj.init_pos.y + change_y, *win_ratio)
+                else:
+                    prev_init_x: int
+                    prev_init_y: int
+                    prev_init_x, prev_init_y = obj.init_pos.xy
+                    obj.move_rect(*self._last_pos.xy, *win_ratio)
 
-            if not is_first:
-                obj.move_rect(obj.init_pos.x + x_change, obj.init_pos.y + y_change, *win_ratio)
-            else:
-                prev_init_x, prev_init_y = obj.init_pos.xy
-                obj.move_rect(*self._last_pos.xy, *win_ratio)
-
-                x_change, y_change = obj.init_pos.x - prev_init_x, obj.init_pos.y - prev_init_y
-                is_first = False
+                    change_x, change_y = obj.init_pos.x - prev_init_x, obj.init_pos.y - prev_init_y
+                    is_first = False
 
             if hasattr(obj, "objs_info"):
-                checkbox_sub_objs.extend(info.obj for info in obj.objs_info)
+                checkbox_objs.extend(info.obj for info in obj.objs_info)
 
     def _get_grid_from_fallback(
             self, img: pg.Surface, hovering_text: str, win_ratio: tuple[float, float]
@@ -309,7 +309,7 @@ class CheckboxGrid:
         """
 
         checkbox: LockedCheckbox = self.checkboxes.pop(remove_i)
-        # last_pos becomes the removed checkbox's position
+        # last_pos becomes the removed checkbox position
         self._last_pos.x = round(
             getattr(checkbox.rect, self._init_pos.coord_type)[0] / win_ratio_w
         )
@@ -366,9 +366,9 @@ class CheckboxGrid:
             new_clicked_i = max(new_clicked_i - 1, 0)
         if k_add_1 in keys:
             new_clicked_i = min(new_clicked_i + 1, len(self.checkboxes) - 1)
-        if k_sub_cols in keys and new_clicked_i - self._cols >= 0:
+        if k_sub_cols in keys and (new_clicked_i - self._cols >= 0):
             new_clicked_i -= self._cols
-        if k_add_cols in keys and new_clicked_i + self._cols <= len(self.checkboxes) - 1:
+        if k_add_cols in keys and (new_clicked_i + self._cols <= len(self.checkboxes) - 1):
             new_clicked_i += self._cols
 
         return new_clicked_i

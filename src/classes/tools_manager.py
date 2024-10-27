@@ -9,11 +9,11 @@ from src.classes.ui import CHECKBOX_1_IMG, CHECKBOX_2_IMG
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
 
-from src.utils import RectPos, ObjInfo, MouseInfo, load_img_from_path
+from src.utils import RectPos, ObjInfo, MouseInfo, get_img
 from src.type_utils import ToolInfo
 from src.consts import SPECIAL_LAYER
 
-PENCIL_IMG: Final[pg.Surface] = load_img_from_path("sprites", "pencil_tool.png")
+PENCIL_IMG: Final[pg.Surface] = get_img("sprites", "pencil_tool.png")
 BUCKET_IMG: Final[pg.Surface] = PENCIL_IMG
 
 '''

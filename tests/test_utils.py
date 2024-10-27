@@ -11,8 +11,7 @@ from random import SystemRandom
 from typing import Final
 
 from src.utils import (
-    Point, RectPos, Size, ObjInfo, MouseInfo, load_img_from_path, get_pixels, add_border,
-    resize_obj
+    Point, RectPos, Size, ObjInfo, MouseInfo, get_img, get_pixels, add_border, resize_obj
 )
 from src.type_utils import ColorType
 
@@ -40,13 +39,13 @@ class TestUtils(unittest.TestCase):
     @mock.patch.object(pg.image, 'load')
     def test_load_img_from_path(self, mock_load: mock.Mock) -> None:
         """
-        Tests the load_img_from_path method (mocks the pygame.image.load method)
+        Tests the load_img_from_path method, mocks the pygame.image.load method
         """
 
         mock_surf: mock.Mock = mock.Mock(spec=pg.Surface)
         mock_load.return_value = mock_surf
 
-        load_img_from_path("test.png")
+        get_img("test.png")
         mock_surf.convert_alpha.assert_called_once()
 
     def test_get_pixels(self) -> None:
@@ -84,17 +83,17 @@ class TestUtils(unittest.TestCase):
 
         init_pos: RectPos = RectPos(1, 2, 'topleft')
 
-        new_pos: tuple[int, int]
-        new_size: tuple[int, int]
-        new_pos, new_size = resize_obj(init_pos, 3.0, 4.0, 2.1, 3.1)
+        resized_pos: tuple[int, int]
+        resized_size: tuple[int, int]
+        resized_pos, resized_size = resize_obj(init_pos, 3.0, 4.0, 2.1, 3.1)
 
         # Also makes round and ceil were used
-        self.assertTupleEqual(new_pos, (2, 6))
-        self.assertTupleEqual(new_size, (7, 13))
+        self.assertTupleEqual(resized_pos, (2, 6))
+        self.assertTupleEqual(resized_size, (7, 13))
 
-        new_pos, new_size = resize_obj(init_pos, 3.0, 4.0, 2.6, 3.4, True)
-        self.assertTupleEqual(new_pos, (3, 7))
-        self.assertTupleEqual(new_size, (8, 11))
+        resized_pos, resized_size = resize_obj(init_pos, 3.0, 4.0, 2.6, 3.4, True)
+        self.assertTupleEqual(resized_pos, (3, 7))
+        self.assertTupleEqual(resized_size, (8, 11))
 
         for _ in range(100):
             x: int = RNG.randint(0, 500)
@@ -104,12 +103,15 @@ class TestUtils(unittest.TestCase):
             ratio_w: float = RNG.uniform(0.0, 5.0)
             ratio_h: float = RNG.uniform(0.0, 5.0)
 
+            resized_pos, resized_size = resize_obj(
+                RectPos(x, y, 'topleft'), w, h, ratio_w, ratio_h
+            )
+
             # Check gaps
-            new_pos, new_size = resize_obj(RectPos(x, y, 'topleft'), w, h, ratio_w, ratio_h)
-            expected_x_sum: int = round(x * ratio_w + w * ratio_w)
-            expected_y_sum: int = round(y * ratio_h + h * ratio_h)
-            self.assertGreaterEqual(new_pos[0] + new_size[0], expected_x_sum)
-            self.assertGreaterEqual(new_pos[1] + new_size[1], expected_y_sum)
+            expected_sum_x: int = round((x * ratio_w) + (w * ratio_w))
+            expected_sum_y: int = round((y * ratio_h) + (h * ratio_h))
+            self.assertGreaterEqual(resized_pos[0] + resized_size[0], expected_sum_x)
+            self.assertGreaterEqual(resized_pos[1] + resized_size[1], expected_sum_y)
 
     def test_point(self) -> None:
         """

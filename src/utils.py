@@ -58,7 +58,7 @@ class Size:
 @dataclass(slots=True)
 class RectPos:
     """
-    Dataclass for representing a rect's position
+    Dataclass for representing a rect position
     Args:
         x, y, coordinate type (e.g. topleft)
     """
@@ -77,9 +77,9 @@ class RectPos:
         return self.x, self.y
 
 
-def load_img_from_path(*path_sections: str) -> pg.Surface:
+def get_img(*path_sections: str) -> pg.Surface:
     """
-    Creates a surface from an image
+    Loads an image with transparency
     Args:
         path sections (args)
     Returns:
@@ -142,10 +142,10 @@ def resize_obj(
     if keep_size_ratio:
         img_ratio_w = img_ratio_h = min(win_ratio_w, win_ratio_h)
 
-    new_pos: tuple[int, int] = (round(pos.x * win_ratio_w), round(pos.y * win_ratio_h))
-    new_size: tuple[int, int] = (ceil(w * img_ratio_w), ceil(h * img_ratio_h))
+    resized_pos: tuple[int, int] = (round(pos.x * win_ratio_w), round(pos.y * win_ratio_h))
+    resized_size: tuple[int, int] = (ceil(w * img_ratio_w), ceil(h * img_ratio_h))
 
-    return new_pos, new_size
+    return resized_pos, resized_size
 
 
 @dataclass(slots=True)
@@ -153,7 +153,7 @@ class ObjInfo:
     """
     Dataclass for storing a name, object and active boolean
     Args:
-        name, object
+        object
     """
 
     obj: Any
@@ -161,7 +161,7 @@ class ObjInfo:
 
     def set_active(self, is_active: bool) -> None:
         """
-        Sets the active flag for the object and it's sub objects
+        Sets the active flag for the object and its sub objects
         Args:
             active boolean
         """

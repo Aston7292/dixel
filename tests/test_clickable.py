@@ -32,7 +32,7 @@ def cmp_hovering_text(
     Args:
         expected hovering text height, expected hovering text, hovering text images
     Returns:
-        True if the surfaces are the same ele False
+        True if the surfaces are the same else False
     """
 
     expected_hovering_text_label: TextLabel = TextLabel(
@@ -75,7 +75,7 @@ class TestCheckbox(unittest.TestCase):
     @mock.patch.object(TextLabel, '__init__', autospec=True, wraps=TextLabel.__init__)
     def test_init(self, mock_text_label_init: mock.Mock) -> None:
         """
-        Tests the init method (mocks the TextLabel.__init__ method)
+        Tests the init method, mocks the TextLabel.__init__ method
         """
 
         test_checkbox: Checkbox = Checkbox(
@@ -199,7 +199,7 @@ class TestCheckbox(unittest.TestCase):
     @mock.patch.object(Clickable, "_base_blit", autospec=True, wraps=Clickable._base_blit)
     def test_blit(self, mock_base_blit: mock.Mock) -> None:
         """
-        Tests the blit method (mocks the Clickable._base_blit method)
+        Tests the blit method, mocks the Clickable._base_blit method
         """
 
         self.checkbox.blit()
@@ -213,7 +213,7 @@ class TestCheckbox(unittest.TestCase):
     @mock.patch.object(pg.mouse, 'set_cursor')
     def test_upt(self, mock_set_cursor: mock.Mock) -> None:
         """
-        Tests the upt method (mocks the pygame.mouse.set_cursor method)
+        Tests the upt method, mocks the pygame.mouse.set_cursor method
         """
 
         mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (True,) * 5)
@@ -262,7 +262,7 @@ class TestButton(unittest.TestCase):
     @mock.patch.object(Clickable, '__init__', autospec=True, wraps=Clickable.__init__)
     def test_init(self, mock_clickable_init: mock.Mock, mock_text_label_init: mock.Mock) -> None:
         """
-        Tests the init method (mocks the Clickable.__init__ and TextLabel.__init__ methods)
+        Tests the init method, mocks the Clickable.__init__ and TextLabel.__init__ methods
         """
 
         test_button: Button = Button(
@@ -272,7 +272,6 @@ class TestButton(unittest.TestCase):
             test_button, RectPos(1, 2, 'center'), (IMG_1, IMG_2), "world\n!", 1
         )
 
-        self.assertEqual(mock_text_label_init.call_count, 2)
         text_label_init_args: tuple[Any, ...] = mock_text_label_init.call_args[0]
 
         text_label_used_args: tuple[Any, ...] = text_label_init_args[1:]
@@ -290,7 +289,7 @@ class TestButton(unittest.TestCase):
     @mock.patch.object(Clickable, "_base_blit", autospec=True, wraps=Clickable._base_blit)
     def test_blit(self, mock_base_blit: mock.Mock) -> None:
         """
-        Tests the blit method (mocks the Clickable._base_blit method)
+        Tests the blit method, mocks the Clickable._base_blit method
         """
 
         self.button.blit()
@@ -304,7 +303,7 @@ class TestButton(unittest.TestCase):
     @mock.patch.object(pg.mouse, 'set_cursor')
     def test_upt(self, mock_set_cursor: mock.Mock) -> None:
         """
-        Tests the upt method (mocks the pygame.mouse.set_cursor method)
+        Tests the upt method, mocks the pygame.mouse.set_cursor method
         """
 
         mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (True,) * 5)

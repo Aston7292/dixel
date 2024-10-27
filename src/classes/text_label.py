@@ -75,7 +75,7 @@ class TextLabel:
 
     def _get_rects(self, pos: tuple[int, int]) -> None:
         """
-        Calculates the rects and rect depending on the position's coordinate
+        Calculates the rects and rect depending on the position coordinate
         """
 
         self.rects = []
@@ -90,7 +90,7 @@ class TextLabel:
             line_rect: pg.Rect = img.get_rect(topleft=(self.rect.x, line_rect_y))
             leftover_w: int = self.rect.w - line_rect.w
             if self.init_pos.coord_type in ('midtop', 'center', 'midbottom'):
-                line_rect.x += round(leftover_w / 2)
+                line_rect.x += round(leftover_w / 2.0)
             elif 'right' in self.init_pos.coord_type:
                 line_rect.x += leftover_w
 
@@ -128,7 +128,7 @@ class TextLabel:
         Args:
             index
         Returns:
-            x
+            character x
         """
 
         w: int = self._renderer.render(self._lines[0][:char_i], False, WHITE).get_width()
@@ -148,7 +148,7 @@ class TextLabel:
         for i, char in enumerate(self._lines[0]):
             next_x: int = current_x + self._renderer.render(char, False, WHITE).get_width()
             if x < next_x:
-                return i if abs(x - current_x) < abs(x - next_x) else i + 1
+                return i if abs(x - current_x) < abs(x - next_x) else (i + 1)
 
             current_x = next_x
 

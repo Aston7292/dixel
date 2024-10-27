@@ -21,7 +21,7 @@ OPTIONS: Final[OptionsInfo] = (
 )
 
 
-def get_color_info(color: ColorType) -> tuple[pg.Surface, str]:
+def _get_color_info(color: ColorType) -> tuple[pg.Surface, str]:
     """
     Creates the image and text for a color
     Args:
@@ -60,7 +60,7 @@ class PaletteManager:
 
         self.values: list[ColorType] = [BLACK]
         self._colors: CheckboxGrid = CheckboxGrid(
-            pos, (get_color_info(self.values[0]),), 5, (True, True)
+            pos, (_get_color_info(self.values[0]),), 5, (True, True)
         )
 
         self._options: tuple[Button, ...] = tuple(
@@ -123,20 +123,20 @@ class PaletteManager:
         if self._is_editing_color:
             self.values[self._dropdown_i] = color
             self._colors.insert(
-                self._dropdown_i, *get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
+                self._dropdown_i, *_get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
             )
 
             self._is_editing_color = False
         elif color not in self.values:
             self.values.append(color)
             self._colors.insert(
-                None, *get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
+                None, *_get_color_info(color), (self._win_ratio_w, self._win_ratio_h)
             )
         self._colors.check(self.values.index(color))
 
-    def load_from_arr(self, pixels: NDArray[np.uint8]) -> None:
+    def set_colors(self, pixels: NDArray[np.uint8]) -> None:
         """
-        Creates a palette out of every unique colors in a pixels array
+        Sets the palette using all unique colors in an array
         Args:
             pixels
         """
@@ -146,7 +146,7 @@ class PaletteManager:
         self.values = [tuple(int(channel) for channel in color) for color in colors]
 
         checkboxes_info: tuple[tuple[pg.Surface, str], ...] = tuple(
-            get_color_info(value) for value in self.values
+            _get_color_info(value) for value in self.values
         )
         self._colors.set_grid(checkboxes_info, (self._win_ratio_w, self._win_ratio_h))
 
@@ -160,29 +160,30 @@ class PaletteManager:
         option_x: int = round((mouse_info.x + 5.0) / self._win_ratio_w)
         option_y: int = round((mouse_info.y + 5.0) / self._win_ratio_h)
         for option in self._options:
-            x_change: int = 0
-            y_change: int = 0
-            option_sub_objs: list[Any] = [option]
+            change_x: int = 0
+            change_y: int = 0
+            option_objs: list[Any] = [option]
             is_first: bool = True
-            while option_sub_objs:
-                obj: Any = option_sub_objs.pop()
-                if not hasattr(obj, "move_rect"):
-                    continue
+            while option_objs:
+                obj: Any = option_objs.pop()
+                if hasattr(obj, "move_rect"):
+                    if not is_first:
+                        obj.move_rect(
+                            obj.init_pos.x + change_x, obj.init_pos.y + change_y,
+                            self._win_ratio_w, self._win_ratio_h
+                        )
+                    else:
+                        prev_init_x: int
+                        prev_init_y: int
+                        prev_init_x, prev_init_y = obj.init_pos.xy
+                        obj.move_rect(option_x, option_y, self._win_ratio_w, self._win_ratio_h)
 
-                if not is_first:
-                    obj.move_rect(
-                        obj.init_pos.x + x_change, obj.init_pos.y + y_change,
-                        self._win_ratio_w, self._win_ratio_h
-                    )
-                else:
-                    prev_init_x, prev_init_y = obj.init_pos.xy
-                    obj.move_rect(option_x, option_y, self._win_ratio_w, self._win_ratio_h)
-
-                    x_change, y_change = obj.init_pos.x - prev_init_x, obj.init_pos.y - prev_init_y
-                    is_first = False
+                        change_x = obj.init_pos.x - prev_init_x
+                        change_y = obj.init_pos.y - prev_init_y
+                        is_first = False
 
                 if hasattr(obj, "objs_info"):
-                    option_sub_objs.extend(info.obj for info in obj.objs_info)
+                    option_objs.extend(info.obj for info in obj.objs_info)
 
             option_y += int(option.rect.h / self._win_ratio_h)
 
@@ -234,7 +235,7 @@ class PaletteManager:
                 if not self.values:
                     self.values = [BLACK]
                 self._colors.remove(
-                    self._dropdown_i, get_color_info(self.values[0]),
+                    self._dropdown_i, _get_color_info(self.values[0]),
                     self._win_ratio_w, self._win_ratio_h
                 )
 
@@ -249,7 +250,7 @@ class PaletteManager:
                 if not self.values:
                     self.values = [BLACK]
                 self._colors.remove(
-                    self._dropdown_i, get_color_info(self.values[0]),
+                    self._dropdown_i, _get_color_info(self.values[0]),
                     self._win_ratio_w, self._win_ratio_h
                 )
 

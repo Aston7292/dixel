@@ -106,7 +106,7 @@ class Clickable(ABC):
         Args:
             mouse position
         Returns:
-            hovered object (can be None), hovered object's layer
+            hovered object (can be None), hovered object layer
         """
 
         return self if self.rect.collidepoint(mouse_pos) else None, self._layer

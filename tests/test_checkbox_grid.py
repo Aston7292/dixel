@@ -11,7 +11,7 @@ from src.classes.checkbox_grid import LockedCheckbox
 from src.classes.clickable import Clickable
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos
+from src.utils import RectPos, MouseInfo
 
 from tests.test_clickable import cmp_hovering_text
 
@@ -40,7 +40,7 @@ class TestLockedCheckbox(unittest.TestCase):
     @mock.patch.object(Clickable, '__init__', autospec=True, wraps=Clickable.__init__)
     def test_init(self, mock_clickable_init: mock.Mock) -> None:
         """
-        Tests the init method (mocks the Clickable.__init__ method)
+        Tests the init method, mocks the Clickable.__init__ method
         """
 
         test_locked_checkbox: LockedCheckbox = LockedCheckbox(
@@ -55,7 +55,7 @@ class TestLockedCheckbox(unittest.TestCase):
     @mock.patch.object(Clickable, "_base_blit", autospec=True, wraps=Clickable._base_blit)
     def test_blit(self, mock_base_blit: mock.Mock) -> None:
         """
-        Tests the blit method (mocks the Clickable._base_blit method)
+        Tests the blit method, mocks the Clickable._base_blit method
         """
 
         self.locked_checkbox.blit()
@@ -74,7 +74,7 @@ class TestLockedCheckbox(unittest.TestCase):
     @mock.patch.object(TextLabel, 'set_text', autospec=True, wraps=TextLabel.set_text)
     def test_set_info(self, mock_set_text: mock.Mock) -> None:
         """
-        Tests the set_info method (mocks the TextLabel.set_text method)
+        Tests the set_info method, mocks the TextLabel.set_text method
         """
 
         self.locked_checkbox.set_info((IMG_2, IMG_1), "world")
@@ -86,3 +86,29 @@ class TestLockedCheckbox(unittest.TestCase):
         self.assertTrue(cmp_hovering_text(
             self.expected_hovering_text_h, "world", self.locked_checkbox._hovering_text_imgs
         ))
+
+    @mock.patch.object(pg.mouse, 'set_cursor')
+    def test_upt(self, mock_set_cursor: mock.Mock) -> None:
+        """
+        Tests the upt method, mocks the pygame.mouse.set_cursor method
+        """
+
+        mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (True,) * 5)
+
+        # Leave hover
+        self.locked_checkbox._is_hovering = True
+        self.assertFalse(self.locked_checkbox.upt(None, mouse_info))
+        self.assertFalse(self.locked_checkbox._is_hovering)
+        mock_set_cursor.assert_called_once_with(pg.SYSTEM_CURSOR_ARROW)
+
+        # Enter hover and check twice
+        self.assertTrue(self.locked_checkbox.upt(self.locked_checkbox, mouse_info))
+        self.assertTrue(self.locked_checkbox.is_checked)
+        self.assertTrue(self.locked_checkbox.upt(self.locked_checkbox, mouse_info))
+        self.assertTrue(self.locked_checkbox.is_checked)
+        self.assertTrue(self.locked_checkbox._is_hovering)
+        mock_set_cursor.assert_called_with(pg.SYSTEM_CURSOR_HAND)
+
+        # Hover and don't click
+        blank_mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (False,) * 5)
+        self.assertFalse(self.locked_checkbox.upt(self.locked_checkbox, blank_mouse_info))

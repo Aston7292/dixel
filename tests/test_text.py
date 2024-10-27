@@ -36,7 +36,7 @@ class TestText(unittest.TestCase):
     @mock.patch.object(TextLabel, "_get_rects")
     def test_init(self, mock_get_rects: mock.Mock) -> None:
         """
-        Tests the init method  (mocks the get_rects method)
+        Tests the init method, mocks the get_rects method
         """
 
         text_label: TextLabel = TextLabel(RectPos(1, 2, 'center'), "hello\n!", 1, 30)
@@ -73,7 +73,7 @@ class TestText(unittest.TestCase):
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_a_resize(self, mock_get_rects: mock.Mock) -> None:
         """
-        Tests the resize method as first (mocks the get_rects method)
+        Tests the resize method as first, mocks the get_rects method
         """
 
         self.__class__.renderer = pg.font.SysFont("helvetica", 60)
@@ -100,7 +100,7 @@ class TestText(unittest.TestCase):
         line_rect_y: int = expected_rect.y
         for img in self.text_label._imgs:
             line_rect: pg.Rect = img.get_rect(topleft=(expected_rect.x, line_rect_y))
-            line_rect.x += round((expected_rect.w - line_rect.w) / 2)
+            line_rect.x += round((expected_rect.w - line_rect.w) / 2.0)
             expected_rects.append(line_rect)
             line_rect_y += expected_rects[-1].h
 
@@ -111,7 +111,7 @@ class TestText(unittest.TestCase):
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_move_rect(self, mock_get_rects: mock.Mock) -> None:
         """
-        Tests the move_rect method (mocks the get_rects method)
+        Tests the move_rect method, mocks the get_rects method
         """
 
         self.text_label.move_rect(2, 3, 2.1, 3.2)
@@ -125,7 +125,7 @@ class TestText(unittest.TestCase):
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_set_text(self, mock_get_rects: mock.Mock) -> None:
         """
-        Tests the set_text method (mocks the get_rects method)
+        Tests the set_text method, mocks the get_rects method
         """
 
         expected_img: pg.Surface

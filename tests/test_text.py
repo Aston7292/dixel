@@ -1,15 +1,14 @@
-"""
-Tests for the text file
-"""
+"""Tests for the text file."""
 
-import pygame as pg
 import unittest
 from unittest import mock
 from itertools import zip_longest
 
+import pygame as pg
+
 from src.classes.text_label import TextLabel, renderers_cache
 
-from src.utils import RectPos
+from src.utils import RectPos, Ratio
 from src.type_utils import LayeredBlitSequence
 from src.consts import WHITE, TEXT_LAYER
 
@@ -17,27 +16,21 @@ from tests.utils import cmp_imgs
 
 
 class TestText(unittest.TestCase):
-    """
-    Tests for the text class
-    """
+    """Tests for the text class."""
 
     text_label: TextLabel
     renderer: pg.Font
 
     @classmethod
     def setUpClass(cls: type["TestText"]) -> None:
-        """
-        Creates the text and a model renderer
-        """
+        """Creates the text and a model renderer."""
 
         cls.text_label = TextLabel(RectPos(1, 2, 'center'), "hello\n!", 1, 30)
         cls.renderer = pg.font.SysFont("helvetica", 30)
 
     @mock.patch.object(TextLabel, "_get_rects")
     def test_init(self, mock_get_rects: mock.Mock) -> None:
-        """
-        Tests the init method, mocks the get_rects method
-        """
+        """Tests the init method, mocks the get_rects method."""
 
         text_label: TextLabel = TextLabel(RectPos(1, 2, 'center'), "hello\n!", 1, 30)
 
@@ -59,9 +52,7 @@ class TestText(unittest.TestCase):
         mock_get_rects.assert_called_once_with((1, 2))
 
     def test_blit(self) -> None:
-        """
-        Tests the blit method
-        """
+        """Tests the blit method."""
 
         expected_sequence: LayeredBlitSequence = [
             (img, rect.topleft, self.text_label._layer)
@@ -72,12 +63,10 @@ class TestText(unittest.TestCase):
 
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_a_resize(self, mock_get_rects: mock.Mock) -> None:
-        """
-        Tests the resize method as first, mocks the get_rects method
-        """
+        """Tests the resize method as first, mocks the get_rects method."""
 
         self.__class__.renderer = pg.font.SysFont("helvetica", 60)
-        self.text_label.resize((2.0, 3.0))
+        self.text_label.resize(Ratio(2.0, 3.0))
 
         self.assertIs(renderers_cache[60], self.text_label._renderer)
 
@@ -87,9 +76,7 @@ class TestText(unittest.TestCase):
         mock_get_rects.assert_called_once_with(self.text_label, (2, 6))
 
     def test_get_rects(self) -> None:
-        """
-        Tests the get_rects method
-        """
+        """Tests the get_rects method."""
 
         rect_w: int = max(img.get_width() for img in self.text_label._imgs)
         rect_h: int = sum(img.get_height() for img in self.text_label._imgs)
@@ -110,23 +97,18 @@ class TestText(unittest.TestCase):
 
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_move_rect(self, mock_get_rects: mock.Mock) -> None:
-        """
-        Tests the move_rect method, mocks the get_rects method
-        """
+        """Tests the move_rect method, mocks the get_rects method."""
 
-        self.text_label.move_rect(2, 3, 2.1, 3.2)
+        self.text_label.move_rect(2, 3, Ratio(2.1, 3.2))
 
         self.assertEqual(
             self.text_label.init_pos, RectPos(2, 3, self.text_label.init_pos.coord_type)
         )
-        # Also makes sure round was used
-        mock_get_rects.assert_called_once_with(self.text_label, (4, 10))
+        mock_get_rects.assert_called_once_with(self.text_label, (4, 10))  # See if round was used
 
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_set_text(self, mock_get_rects: mock.Mock) -> None:
-        """
-        Tests the set_text method, mocks the get_rects method
-        """
+        """Tests the set_text method, mocks the get_rects method."""
 
         expected_img: pg.Surface
 
@@ -137,8 +119,8 @@ class TestText(unittest.TestCase):
         for img, line in zip_longest(self.text_label._imgs, self.text_label._lines):
             expected_img = self.renderer.render(line, True, WHITE)
             self.assertTrue(cmp_imgs(img, expected_img))
-        pos: tuple[int, int] = getattr(self.text_label.rect, self.text_label.init_pos.coord_type)
-        mock_get_rects.assert_called_once_with(self.text_label, pos)
+        xy: tuple[int, int] = getattr(self.text_label.rect, self.text_label.init_pos.coord_type)
+        mock_get_rects.assert_called_once_with(self.text_label, xy)
 
         self.text_label.set_text("hello\n!")
 
@@ -149,13 +131,11 @@ class TestText(unittest.TestCase):
             self.assertTrue(cmp_imgs(img, expected_img))
 
     def test_get_pos_at(self) -> None:
-        """
-        Tests the get_pos_at method
-        """
+        """Tests the get_pos_at method."""
 
         start_x: int = self.text_label.rects[0].x
 
-        # Also makes sure the render with antialiasing has the same width as the one without
+        # See if the render with antialiasing has the same width as the one without (font specific)
         x_2: int = start_x + self.renderer.render("he", True, WHITE).get_width()
         x_5: int = start_x + self.renderer.render("hello", True, WHITE).get_width()
 
@@ -164,18 +144,16 @@ class TestText(unittest.TestCase):
         self.assertEqual(self.text_label.get_pos_at(5), x_5)
 
     def test_get_closest_to(self) -> None:
-        """
-        Tests the get_closest_to method
-        """
+        """Tests the get_closest_to method."""
 
         pos_2: int = (
             self.text_label.rects[0].x + self.renderer.render("he", True, WHITE).get_width()
         )
-        turning_point: int = pos_2 + (self.renderer.render("l", True, WHITE).get_width() // 2)
+        turning_x: int = pos_2 + (self.renderer.render("l", True, WHITE).get_width() // 2)
 
         self.assertEqual(self.text_label.get_closest_to(self.text_label.rect.x), 0)
         self.assertEqual(self.text_label.get_closest_to(pos_2 - 1), 2)
         self.assertEqual(self.text_label.get_closest_to(pos_2 + 1), 2)
-        self.assertEqual(self.text_label.get_closest_to(turning_point), 2)
-        self.assertEqual(self.text_label.get_closest_to(turning_point + 1), 3)
+        self.assertEqual(self.text_label.get_closest_to(turning_x), 2)
+        self.assertEqual(self.text_label.get_closest_to(turning_x + 1), 3)
         self.assertEqual(self.text_label.get_closest_to(1_000), 5)

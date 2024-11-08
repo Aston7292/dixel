@@ -1,15 +1,14 @@
-"""
-Abstract class to create a default UI with a title, confirm and exit buttons
-"""
+"""Abstract class to create a default UI with a title, confirm and exit buttons."""
 
-import pygame as pg
 from abc import ABC, abstractmethod
 from typing import Final, Any
+
+import pygame as pg
 
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, ObjInfo, MouseInfo, get_img, resize_obj
+from src.utils import RectPos, Ratio, ObjInfo, MouseInfo, get_img, resize_obj
 from src.type_utils import LayeredBlitSequence
 from src.consts import UI_LAYER
 
@@ -27,7 +26,7 @@ CHECKBOX_2_IMG: Final[pg.Surface] = get_img("sprites", "checkbox_on.png")
 
 class UI(ABC):
     """
-    Abstract class to create a default UI with a title, confirm and exit buttons
+    Abstract class to create a default UI with a title, confirm and exit buttons.
 
     Includes:
         blit() -> PriorityBlitSequence
@@ -45,7 +44,8 @@ class UI(ABC):
 
     def __init__(self, pos: RectPos, title: str) -> None:
         """
-        Initializes the interface
+        Initializes the interface.
+
         Args:
             position and title
         """
@@ -54,7 +54,9 @@ class UI(ABC):
         self._init_img: pg.Surface = INTERFACE_IMG
 
         self._img: pg.Surface = self._init_img
-        self._rect: pg.Rect = self._img.get_rect(**{self._init_pos.coord_type: self._init_pos.xy})
+        self._rect: pg.Rect = self._img.get_rect(
+            **{self._init_pos.coord_type: (self._init_pos.x, self._init_pos.y)}
+        )
 
         self._base_layer: int = UI_LAYER
 
@@ -79,31 +81,35 @@ class UI(ABC):
 
     def blit(self) -> LayeredBlitSequence:
         """
+        Returns the objects to blit.
+
         Returns:
             sequence to add in the main blit sequence
         """
 
         return [(self._img, self._rect.topleft, self._base_layer)]
 
-    def resize(self, win_ratio: tuple[float, float]) -> None:
+    def resize(self, win_ratio: Ratio) -> None:
         """
-        Resizes the object
+        Resizes the object.
+
         Args:
             window size ratio
         """
 
-        pos: tuple[int, int]
-        size: tuple[int, int]
-        pos, size = resize_obj(self._init_pos, *self._init_img.get_size(), *win_ratio)
+        xy: tuple[int, int]
+        wh: tuple[int, int]
+        xy, wh = resize_obj(self._init_pos, *self._init_img.get_size(), win_ratio)
 
-        self._img = pg.transform.scale(self._init_img, size)
-        self._rect = self._img.get_rect(**{self._init_pos.coord_type: pos})
+        self._img = pg.transform.scale(self._init_img, wh)
+        self._rect = self._img.get_rect(**{self._init_pos.coord_type: xy})
 
     def _base_upt(
             self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]
     ) -> tuple[bool, bool]:
         """
-        Handles the base behavior
+        Checks if the exit or confirm button were pressed.
+
         Args:
             hovered object, mouse info, keys
         Returns:
@@ -123,7 +129,8 @@ class UI(ABC):
     @abstractmethod
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]) -> tuple[bool, Any]:
         """
-        Should implement a way to make the object interactable
+        Should implement a way to make the object interactable.
+
         Args:
             hovered object (can be None), mouse info, keys
         Returns:

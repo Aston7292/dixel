@@ -1,7 +1,7 @@
 # Dixel
 
 Drawing program for pixel art
-Requires pygame-ce, numpy and Pillow
+Requires pygame-ce and numpy
 
 ## Features
 
@@ -23,13 +23,13 @@ Requires pygame-ce, numpy and Pillow
 
 ## Keyboard Shortcuts
 
-- **CTRL A**: Go to add color ui
-- **CTRL M**: Go to modify grid ui
+- **CTRL A**: Go to add color UI
+- **CTRL M**: Go to modify grid UI
 - **CTRL S**: Save file with name
 - **CTRL O**: Open file
 - **CTRL Q**: Close file
-- **CTRL Backspace**: Exit in ui
-- **CTRL Enter**: Confirm in ui
+- **CTRL Backspace**: Exit in UI
+- **CTRL Enter**: Confirm in UI
 
 - **ALT arrows**: move selected pixel by brush size
 - **SHIFT arrows**: move selected pixel by visible area
@@ -43,8 +43,8 @@ Requires pygame-ce, numpy and Pillow
 - **CTRL Del**: delete selected color
 
 - **CTRL left/right**: go to end of text in input box
-- **CTRL ALT left/right**: switch between scrollbar and input box in color picking ui
-- **CTRL K**: toggle checkbox in grid ui
+- **CTRL ALT left/right**: switch between scrollbar and input box in color picking UI
+- **CTRL K**: toggle checkbox in grid UI
 
 ## Screenshots
 
@@ -54,7 +54,7 @@ Requires pygame-ce, numpy and Pillow
 
 ### Color Picker
 
-![Choosing Color](screenshots/color_picker.png)
+![Choosing Color](screenshots/color_ui.png)
 
 ### Grid UI
 

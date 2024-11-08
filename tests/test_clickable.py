@@ -1,18 +1,17 @@
-"""
-Tests for the clickable file
-"""
+"""Tests for the clickable file."""
 
-import pygame as pg
 import unittest
 from unittest import mock
 from itertools import zip_longest
 from collections.abc import Iterator
 from typing import Final, Optional, Any
 
+import pygame as pg
+
 from src.classes.clickable import Clickable, Checkbox, Button
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, ObjInfo, MouseInfo
+from src.utils import RectPos, Ratio, ObjInfo, MouseInfo
 from src.type_utils import LayeredBlitInfo, LayeredBlitSequence
 from src.consts import ELEMENT_LAYER, TOP_LAYER
 
@@ -28,11 +27,12 @@ def cmp_hovering_text(
         hovering_text_imgs: tuple[pg.Surface, ...]
 ) -> bool:
     """
-    Compares hovering texts
+    Compares hovering texts.
+
     Args:
         expected hovering text height, expected hovering text, hovering text images
     Returns:
-        True if the surfaces are the same else False
+        True if the images are the same else False
     """
 
     expected_hovering_text_label: TextLabel = TextLabel(
@@ -45,8 +45,8 @@ def cmp_hovering_text(
     expected_hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip_longest(
         expected_hovering_text_imgs, expected_hovering_text_label.blit()
     )
-    for target_img, (text_img, _, _) in expected_hovering_text_info:
-        target_img.blit(text_img)
+    for img, (text_img, _, _) in expected_hovering_text_info:
+        img.blit(text_img)
 
     hovering_text_label_comparison: Iterator[tuple[pg.Surface, pg.Surface]] = zip_longest(
         hovering_text_imgs, expected_hovering_text_imgs
@@ -58,32 +58,27 @@ def cmp_hovering_text(
 
 
 class TestCheckbox(unittest.TestCase):
-    """
-    Tests for the checkbox class
-    """
+    """Tests for the checkbox class."""
 
     checkbox: Checkbox
 
     @classmethod
     def setUpClass(cls: type["TestCheckbox"]) -> None:
-        """
-        Creates the checkbox
-        """
+        """Creates the checkbox."""
 
         cls.checkbox = Checkbox(RectPos(1, 2, 'center'), (IMG_1, IMG_2), "hello", "world\n!", 1)
 
     @mock.patch.object(TextLabel, '__init__', autospec=True, wraps=TextLabel.__init__)
     def test_init(self, mock_text_label_init: mock.Mock) -> None:
-        """
-        Tests the init method, mocks the TextLabel.__init__ method
-        """
+        """Tests the init method, mocks the TextLabel.__init__ method."""
+
+        # Also tests the Clickable abstract class
 
         test_checkbox: Checkbox = Checkbox(
             RectPos(1, 2, 'center'), (IMG_1, IMG_2), "hello", "world\n!", 1
         )
         text_label_init_args: tuple[Any, ...] = mock_text_label_init.call_args[0]
 
-        # Also tests the Clickable abstract class
         self.assertEqual(test_checkbox.init_pos, RectPos(1, 2, 'center'))
         self.assertTupleEqual(test_checkbox._init_imgs, (IMG_1, IMG_2))
 
@@ -117,9 +112,7 @@ class TestCheckbox(unittest.TestCase):
         self.assertListEqual(test_checkbox.objs_info, [ObjInfo(text_label)])
 
     def test_base_blit(self) -> None:
-        """
-        Tests the base_blit method
-        """
+        """Tests the base_blit method."""
 
         expected_sequence_0: LayeredBlitSequence = [
             (self.checkbox._imgs[0], self.checkbox.rect.topleft, self.checkbox._layer)
@@ -145,9 +138,7 @@ class TestCheckbox(unittest.TestCase):
         self.checkbox._is_hovering = False
 
     def test_check_hovering(self) -> None:
-        """
-        Tests the check_hovering method
-        """
+        """Tests the check_hovering method."""
 
         hovered_obj: Optional[Checkbox]
         layer: int
@@ -159,18 +150,14 @@ class TestCheckbox(unittest.TestCase):
         self.assertIsNone(hovered_obj)
 
     def test_leave(self) -> None:
-        """
-        Tests the leave method
-        """
+        """Tests the leave method."""
 
         self.checkbox._is_hovering = True
         self.checkbox.leave()
         self.assertFalse(self.checkbox._is_hovering)
 
     def test_a_resize(self) -> None:
-        """
-        Tests the resize method as first
-        """
+        """Tests the resize method as first."""
 
         expected_imgs: tuple[pg.Surface, ...] = tuple(
             pg.transform.scale(img, (30, 22)) for img in self.checkbox._init_imgs
@@ -179,7 +166,7 @@ class TestCheckbox(unittest.TestCase):
             **{self.checkbox.init_pos.coord_type: (3, 4)}
         )
 
-        self.checkbox.resize((3.0, 2.0))
+        self.checkbox.resize(Ratio(3.0, 2.0))
         for img, expected_img in zip_longest(self.checkbox._imgs, expected_imgs):
             self.assertTrue(cmp_imgs(img, expected_img))
         self.assertEqual(self.checkbox.rect, expected_rect)
@@ -187,20 +174,17 @@ class TestCheckbox(unittest.TestCase):
         self.assertTrue(cmp_hovering_text(24, "world\n!", self.checkbox._hovering_text_imgs))
 
     def test_move_rect(self) -> None:
-        """
-        Tests the move_rect method
-        """
+        """Tests the move_rect method."""
 
-        self.checkbox.move_rect(2, 3, 2.0, 3.0)
-        self.assertTupleEqual(self.checkbox.init_pos.xy, (2, 3))
-        pos: tuple[int, int] = getattr(self.checkbox.rect, self.checkbox.init_pos.coord_type)
-        self.assertTupleEqual(pos, (4, 9))
+        self.checkbox.move_rect(2, 3, Ratio(2.0, 3.0))
+        self.assertEqual(self.checkbox.init_pos.x, 2)
+        self.assertEqual(self.checkbox.init_pos.y, 3)
+        xy: tuple[int, int] = getattr(self.checkbox.rect, self.checkbox.init_pos.coord_type)
+        self.assertTupleEqual(xy, (4, 9))
 
     @mock.patch.object(Clickable, "_base_blit", autospec=True, wraps=Clickable._base_blit)
     def test_blit(self, mock_base_blit: mock.Mock) -> None:
-        """
-        Tests the blit method, mocks the Clickable._base_blit method
-        """
+        """Tests the blit method, mocks the Clickable._base_blit method."""
 
         self.checkbox.blit()
         mock_base_blit.assert_called_with(self.checkbox, 0)
@@ -212,9 +196,7 @@ class TestCheckbox(unittest.TestCase):
 
     @mock.patch.object(pg.mouse, 'set_cursor')
     def test_upt(self, mock_set_cursor: mock.Mock) -> None:
-        """
-        Tests the upt method, mocks the pygame.mouse.set_cursor method
-        """
+        """Tests the upt method, mocks the pygame.mouse.set_cursor method."""
 
         mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (True,) * 5)
 
@@ -244,26 +226,20 @@ class TestCheckbox(unittest.TestCase):
 
 
 class TestButton(unittest.TestCase):
-    """
-    Tests for the button class
-    """
+    """Tests for the button class."""
 
     button: Button
 
     @classmethod
     def setUpClass(cls: type["TestButton"]) -> None:
-        """
-        Creates the button
-        """
+        """Creates the button."""
 
         cls.button = Button(RectPos(1, 2, 'center'), (IMG_1, IMG_2), "hello", "world\n!", 1, 10)
 
     @mock.patch.object(TextLabel, '__init__', autospec=True, wraps=TextLabel.__init__)
     @mock.patch.object(Clickable, '__init__', autospec=True, wraps=Clickable.__init__)
     def test_init(self, mock_clickable_init: mock.Mock, mock_text_label_init: mock.Mock) -> None:
-        """
-        Tests the init method, mocks the Clickable.__init__ and TextLabel.__init__ methods
-        """
+        """Tests the init method, mocks the Clickable.__init__ and TextLabel.__init__ methods."""
 
         test_button: Button = Button(
             RectPos(1, 2, 'center'), (IMG_1, IMG_2), "hello", "world\n!", 1, 10
@@ -288,9 +264,7 @@ class TestButton(unittest.TestCase):
 
     @mock.patch.object(Clickable, "_base_blit", autospec=True, wraps=Clickable._base_blit)
     def test_blit(self, mock_base_blit: mock.Mock) -> None:
-        """
-        Tests the blit method, mocks the Clickable._base_blit method
-        """
+        """Tests the blit method, mocks the Clickable._base_blit method."""
 
         self.button.blit()
         mock_base_blit.assert_called_with(self.button, 0)
@@ -302,9 +276,7 @@ class TestButton(unittest.TestCase):
 
     @mock.patch.object(pg.mouse, 'set_cursor')
     def test_upt(self, mock_set_cursor: mock.Mock) -> None:
-        """
-        Tests the upt method, mocks the pygame.mouse.set_cursor method
-        """
+        """Tests the upt method, mocks the pygame.mouse.set_cursor method."""
 
         mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (True,) * 5)
 

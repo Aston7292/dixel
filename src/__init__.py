@@ -1,3 +1,1 @@
-"""
-Marks the src folder as package
-"""
+"""Marks the src folder as package."""

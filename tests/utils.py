@@ -1,6 +1,4 @@
-"""
-Functions shared between tests
-"""
+"""Functions shared between tests."""
 
 import pygame as pg
 import numpy as np
@@ -9,9 +7,10 @@ from numpy.typing import NDArray
 
 def cmp_imgs(img_1: pg.Surface, img_2: pg.Surface, cmp_alpha: bool = True) -> bool:
     """
-    Compares two images
+    Compares two images.
+
     Args:
-        image 1, image 2, compare alpha boolean (default = True)
+        image 1, image 2, compare alpha flag (default = True)
     Returns:
         True if the images have the same pixels else False
     """

@@ -1,10 +1,8 @@
-"""
-Class to simplify text rendering, renderers are cached
-"""
+"""Class to simplify text rendering, renderers are cached."""
 
 import pygame as pg
 
-from src.utils import RectPos, resize_obj
+from src.utils import RectPos, Ratio, resize_obj
 from src.type_utils import LayeredBlitSequence
 from src.consts import WHITE, BG_LAYER, TEXT_LAYER
 
@@ -12,9 +10,7 @@ renderers_cache: dict[int, pg.Font] = {}
 
 
 class TextLabel:
-    """
-    Class to simplify text rendering
-    """
+    """Class to simplify text rendering."""
 
     __slots__ = (
         'init_pos', '_init_h', '_renderer', 'text', '_lines', '_imgs', 'rect', 'rects', '_layer'
@@ -24,7 +20,8 @@ class TextLabel:
             self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 24
     ) -> None:
         """
-        Creates the text images
+        Creates the text images.
+
         Args:
             position, text, base_layer (default = BG_LAYER), height (default = 24)
         """
@@ -47,24 +44,27 @@ class TextLabel:
 
         self._layer: int = base_layer + TEXT_LAYER
 
-        self._get_rects(self.init_pos.xy)
+        self._get_rects((self.init_pos.x, self.init_pos.y))
 
     def blit(self) -> LayeredBlitSequence:
         """
+        Returns the objects to blit.
+
         Returns:
             sequence to add in the main blit sequence
         """
 
         return [(img, rect.topleft, self._layer) for img, rect in zip(self._imgs, self.rects)]
 
-    def resize(self, win_ratio: tuple[float, float]) -> None:
+    def resize(self, win_ratio: Ratio) -> None:
         """
-        Resizes the object
+        Resizes the object.
+
         Args:
             window size ratio
         """
 
-        pos, (_, h) = resize_obj(self.init_pos, 0.0, self._init_h, *win_ratio, True)
+        pos, (_, h) = resize_obj(self.init_pos, 0.0, self._init_h, win_ratio, True)
 
         if h not in renderers_cache:
             renderers_cache[h] = pg.font.SysFont("helvetica", h)
@@ -73,9 +73,12 @@ class TextLabel:
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
         self._get_rects(pos)
 
-    def _get_rects(self, pos: tuple[int, int]) -> None:
+    def _get_rects(self, xy: tuple[int, int]) -> None:
         """
-        Calculates the rects and rect depending on the position coordinate
+        Calculates the rects and rect depending on the position coordinate.
+
+        Args:
+            position
         """
 
         self.rects = []
@@ -83,7 +86,7 @@ class TextLabel:
         rect_w: int = max(img.get_width() for img in self._imgs)
         rect_h: int = sum(img.get_height() for img in self._imgs)
         self.rect = pg.Rect(0, 0, rect_w, rect_h)
-        setattr(self.rect, self.init_pos.coord_type, pos)
+        setattr(self.rect, self.init_pos.coord_type, xy)
 
         line_rect_y: int = self.rect.y
         for img in self._imgs:
@@ -97,20 +100,22 @@ class TextLabel:
             self.rects.append(line_rect)
             line_rect_y += self.rects[-1].h
 
-    def move_rect(self, x: int, y: int, win_ratio_w: float, win_ratio_h: float) -> None:
+    def move_rect(self, x: int, y: int, win_ratio: Ratio) -> None:
         """
-        Moves the rects and rect to a specific coordinate
+        Moves the rects and rect to a specific coordinate.
+
         Args:
-            x, y, window width ratio, window height ratio
+            x, y, window size ratio
         """
 
         self.init_pos.x, self.init_pos.y = x, y
-        pos: tuple[int, int] = (round(x * win_ratio_w), round(y * win_ratio_h))
-        self._get_rects(pos)
+        xy: tuple[int, int] = (round(x * win_ratio.w), round(y * win_ratio.h))
+        self._get_rects(xy)
 
     def set_text(self, text: str) -> None:
         """
-        Sets the text and adjusts its position
+        Sets the text and adjusts its position.
+
         Args:
             text
         """
@@ -119,12 +124,13 @@ class TextLabel:
         self._lines = tuple(self.text.split('\n'))
 
         self._imgs = tuple(self._renderer.render(line, True, WHITE) for line in self._lines)
-        pos: tuple[int, int] = getattr(self.rect, self.init_pos.coord_type)
-        self._get_rects(pos)
+        xy: tuple[int, int] = getattr(self.rect, self.init_pos.coord_type)
+        self._get_rects(xy)
 
     def get_pos_at(self, char_i: int) -> int:
         """
-        Gets the x position of the character at a given index (only for single line text)
+        Gets the x position of the character at a given index (only for single line text).
+
         Args:
             index
         Returns:
@@ -137,7 +143,8 @@ class TextLabel:
 
     def get_closest_to(self, x: int) -> int:
         """
-        Calculates the index of the closest character to a given x (only for single line text)
+        Calculates the index of the closest character to a given x (only for single line text).
+
         Args:
             x
         Returns:

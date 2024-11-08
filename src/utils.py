@@ -1,14 +1,13 @@
-"""
-Functions and dataclasses shared between files
-"""
+"""Functions and dataclasses shared between files."""
 
-import pygame as pg
-import numpy as np
-from numpy.typing import NDArray
 from pathlib import Path
 from dataclasses import dataclass, field
 from math import ceil
 from typing import Any
+
+import pygame as pg
+import numpy as np
+from numpy.typing import NDArray
 
 from src.type_utils import ColorType
 
@@ -16,7 +15,8 @@ from src.type_utils import ColorType
 @dataclass(slots=True)
 class Point:
     """
-    Dataclass for representing a point
+    Dataclass for representing a point.
+
     Args:
         x, y
     """
@@ -24,20 +24,12 @@ class Point:
     x: int
     y: int
 
-    @property
-    def xy(self) -> tuple[int, int]:
-        """
-        Returns:
-            x, y
-        """
-
-        return self.x, self.y
-
 
 @dataclass(slots=True)
 class Size:
     """
-    Dataclass for representing a size
+    Dataclass for representing a size.
+
     Args:
         width, height
     """
@@ -45,20 +37,25 @@ class Size:
     w: int
     h: int
 
-    @property
-    def wh(self) -> tuple[int, int]:
-        """
-        Returns:
-            width, height
-        """
 
-        return self.w, self.h
+@dataclass(slots=True)
+class Ratio:
+    """
+    Dataclass for representing a ratio.
+
+    Args:
+        width ratio, height ratio
+    """
+
+    w: float
+    h: float
 
 
 @dataclass(slots=True)
 class RectPos:
     """
-    Dataclass for representing a rect position
+    Dataclass for representing a rect position.
+
     Args:
         x, y, coordinate type (e.g. topleft)
     """
@@ -67,33 +64,26 @@ class RectPos:
     y: int
     coord_type: str
 
-    @property
-    def xy(self) -> tuple[int, int]:
-        """
-        Returns:
-            x, y
-        """
-
-        return self.x, self.y
-
 
 def get_img(*path_sections: str) -> pg.Surface:
     """
-    Loads an image with transparency
+    Loads an image with transparency.
+
     Args:
         path sections (args)
     Returns:
         image
     """
 
-    constructed_path: Path = Path(*path_sections)
+    file_obj: Path = Path(*path_sections)
 
-    return pg.image.load(constructed_path).convert_alpha()
+    return pg.image.load(file_obj).convert_alpha()
 
 
 def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
     """
-    Gets the rgba values of the pixels in an image
+    Gets the rgba values of the pixels in an image.
+
     Args:
         image
     Returns:
@@ -109,49 +99,49 @@ def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
 
 def add_border(img: pg.Surface, border_color: ColorType) -> pg.Surface:
     """
-    Adds a border to an image
+    Adds a border to an image.
+
     Args:
         image, border color
     Returns:
-        image with border
+        image
     """
 
-    img_with_border: pg.Surface = img.copy()
+    local_img: pg.Surface = img.copy()
+    border_dim: int = round(min(local_img.get_size()) / 10.0)
+    pg.draw.rect(local_img, border_color, local_img.get_rect(), border_dim)
 
-    border_dim: int = round(min(img_with_border.get_size()) / 10.0)
-    pg.draw.rect(img_with_border, border_color, img_with_border.get_rect(), border_dim)
-
-    return img_with_border
+    return local_img
 
 
 def resize_obj(
-        pos: RectPos, w: float, h: float, win_ratio_w: float, win_ratio_h: float,
-        keep_size_ratio: bool = False
+        pos: RectPos, w: float, h: float, win_ratio: Ratio, keep_size_ratio: bool = False
 ) -> tuple[tuple[int, int], tuple[int, int]]:
     """
-    Scales position and size of an object without creating gaps between attached objects
+    Scales position and size of an object without creating gaps between attached objects.
+
     Args:
-        x, y, width, height, window width ratio, window height ratio,
-        keep size ratio boolean (default = False)
+        position, width, height, window size ratio, keep size ratio flag (default = False)
     Returns:
         position, size
     """
 
-    img_ratio_w: float = win_ratio_w
-    img_ratio_h: float = win_ratio_h
+    img_ratio_w: float = win_ratio.w
+    img_ratio_h: float = win_ratio.h
     if keep_size_ratio:
-        img_ratio_w = img_ratio_h = min(win_ratio_w, win_ratio_h)
+        img_ratio_w = img_ratio_h = min(win_ratio.w, win_ratio.h)
 
-    resized_pos: tuple[int, int] = (round(pos.x * win_ratio_w), round(pos.y * win_ratio_h))
-    resized_size: tuple[int, int] = (ceil(w * img_ratio_w), ceil(h * img_ratio_h))
+    resized_xy: tuple[int, int] = (round(pos.x * win_ratio.w), round(pos.y * win_ratio.h))
+    resized_wh: tuple[int, int] = (ceil(w * img_ratio_w), ceil(h * img_ratio_h))
 
-    return resized_pos, resized_size
+    return resized_xy, resized_wh
 
 
 @dataclass(slots=True)
 class ObjInfo:
     """
-    Dataclass for storing a name, object and active boolean
+    Dataclass for storing a name, object and active flag.
+
     Args:
         object
     """
@@ -161,9 +151,10 @@ class ObjInfo:
 
     def set_active(self, is_active: bool) -> None:
         """
-        Sets the active flag for the object and its sub objects
+        Sets the active flag for the object and its sub objects.
+
         Args:
-            active boolean
+            active flag
         """
 
         objs_info: list[ObjInfo] = [self]
@@ -178,7 +169,8 @@ class ObjInfo:
 @dataclass(frozen=True, slots=True)
 class MouseInfo:
     """
-    Dataclass for storing mouse info
+    Dataclass for storing mouse info.
+
     Args:
         x, y, pressed buttons, recently released buttons
     """
@@ -187,12 +179,3 @@ class MouseInfo:
     y: int
     pressed: tuple[bool, bool, bool]
     released: tuple[bool, bool, bool, bool, bool]
-
-    @property
-    def xy(self) -> tuple[int, int]:
-        """
-        Returns:
-            x, y
-        """
-
-        return self.x, self.y

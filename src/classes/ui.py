@@ -67,7 +67,7 @@ class UI(ABC):
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10, self._rect.y + 10, 'topright'),
-            (CLOSE_1_IMG, CLOSE_2_IMG), '', "(CTRL+BACKSPACE)", self._base_layer
+            (CLOSE_1_IMG, CLOSE_2_IMG), None, "(CTRL+BACKSPACE)", self._base_layer
         )
         self._confirm: Button = Button(
             RectPos(self._rect.right - 10, self._rect.bottom - 10, 'bottomright'),

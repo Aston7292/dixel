@@ -9,7 +9,7 @@ from src.classes.ui import UI
 from src.classes.text_label import TextLabel
 
 from src.utils import Point, RectPos, Ratio, Size, ObjInfo, MouseInfo, resize_obj
-from src.type_utils import ColorType, BlitSequence, LayeredBlitSequence
+from src.type_utils import OptColor, BlitSequence, LayeredBlitSequence
 from src.consts import BG_LAYER, ELEMENT_LAYER
 
 SelectionType = Union["Scrollbar", NumInputBox]
@@ -30,7 +30,7 @@ class Scrollbar:
     )
 
     def __init__(
-            self, pos: RectPos, channel: int, color: ColorType, base_layer: int = BG_LAYER
+            self, pos: RectPos, channel: int, color: list[int], base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the bar, slider and text.
@@ -151,7 +151,7 @@ class Scrollbar:
             **{self._slider_init_pos.coord_type: slider_xy}
         )
 
-    def set_bar(self, color: ColorType) -> None:
+    def set_bar(self, color: list[int]) -> None:
         """
         Draws a gradient on the bar.
 
@@ -165,7 +165,7 @@ class Scrollbar:
         self._bar_img = pg.Surface((255, self._bar_init_size.h))  # A smaller one is more accurate
         unit_img: pg.Surface = pg.Surface((1, self._bar_init_size.h))
 
-        unit_color: list[int] = list(color)
+        unit_color: list[int] = color.copy()
         for i in range(256):
             unit_color[self._channel] = i
             unit_img.fill(unit_color)
@@ -174,7 +174,7 @@ class Scrollbar:
 
         self._bar_img = pg.transform.scale(self._bar_img, bar_wh)
 
-    def set_value(self, color: ColorType) -> None:
+    def set_value(self, color: list[int]) -> None:
         """
         Sets the bar on a specif value.
 
@@ -302,7 +302,7 @@ class ColorPicker(UI):
         '_preview_layer', '_channels', '_objs', '_selection_i', '_hex_text_label'
     )
 
-    def __init__(self, pos: RectPos, color: ColorType) -> None:
+    def __init__(self, pos: RectPos, color: list[int]) -> None:
         """
         Initializes the interface.
 
@@ -312,7 +312,7 @@ class ColorPicker(UI):
 
         super().__init__(pos, "CHOOSE A COLOR")
 
-        self._color: ColorType = color
+        self._color: list[int] = color
 
         self._preview_init_pos: RectPos = RectPos(*self._rect.center, 'midtop')
 
@@ -403,7 +403,7 @@ class ColorPicker(UI):
         hex_text: str = "#" + ''.join(f"{channel:02x}" for channel in self._color)
         self._hex_text_label.set_text(hex_text)
 
-    def set_color(self, color: ColorType) -> None:
+    def set_color(self, color: list[int]) -> None:
         """
         Sets the UI on a specific color.
 
@@ -468,7 +468,7 @@ class ColorPicker(UI):
 
     def upt(
             self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]
-    ) -> tuple[bool, Optional[ColorType]]:
+    ) -> tuple[bool, OptColor]:
         """
         Allows to select a color with 3 scrollbars and view its preview.
 
@@ -483,9 +483,9 @@ class ColorPicker(UI):
             upt_scrollbars = self._move_with_keys(keys)
 
         if upt_scrollbars:
-            prev_color: ColorType = self._color
+            prev_color: list[int] = self._color.copy()
             self._upt_scrollbars(hovered_obj, mouse_info, keys)
-            self._color = tuple(channel.value for channel in self._channels)
+            self._color = [channel.value for channel in self._channels]
 
             if self._color != prev_color:
                 self._upt_info()

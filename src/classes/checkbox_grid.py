@@ -8,7 +8,7 @@ import pygame as pg
 from src.classes.clickable import Clickable
 
 from src.utils import Point, RectPos, Size, Ratio, ObjInfo, MouseInfo, add_border
-from src.type_utils import LayeredBlitInfo, LayeredBlitSequence
+from src.type_utils import CheckboxInfo, LayeredBlitInfo, LayeredBlitSequence
 from src.consts import WHITE, BG_LAYER
 
 
@@ -20,14 +20,14 @@ class LockedCheckbox(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], hovering_text: str,
+            self, pos: RectPos, imgs: tuple[pg.Surface, ...], hovering_text: Optional[str],
             base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the checkbox.
 
         Args:
-            position, two images, hovering text, base layer (default = BG_LAYER)
+            position, two images, hovering text (can be None), base layer (default = BG_LAYER)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
@@ -46,7 +46,7 @@ class LockedCheckbox(Clickable):
 
         return self._base_blit(img_i)
 
-    def set_info(self, imgs: tuple[pg.Surface, pg.Surface], text: str) -> None:
+    def set_info(self, imgs: tuple[pg.Surface, ...], text: str) -> None:
         """
         Sets the images and text.
 
@@ -55,17 +55,19 @@ class LockedCheckbox(Clickable):
         """
 
         self._init_imgs = self._imgs = imgs
-        if self._hovering_text_label:
-            self._hovering_text_label.set_text(text)
-            self._hovering_text_imgs = tuple(
-                pg.Surface(rect.size) for rect in self._hovering_text_label.rects
-            )
+        if not self._hovering_text_label:
+            return
 
-            hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
-                self._hovering_text_imgs, self._hovering_text_label.blit()
-            )
-            for img, (text_img, _, _) in hovering_text_info:
-                img.blit(text_img)
+        self._hovering_text_label.set_text(text)
+        self._hovering_text_imgs = tuple(
+            pg.Surface(rect.size) for rect in self._hovering_text_label.rects
+        )
+
+        hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
+            self._hovering_text_imgs, self._hovering_text_label.blit()
+        )
+        for img, (text_img, _, _) in hovering_text_info:
+            img.blit(text_img)
 
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo) -> bool:
         """
@@ -101,14 +103,14 @@ class CheckboxGrid:
     )
 
     def __init__(
-            self, pos: RectPos, checkboxes_info: tuple[tuple[pg.Surface, str], ...], cols: int,
+            self, pos: RectPos, checkboxes_info: tuple[CheckboxInfo, ...], cols: int,
             inverted_axes: tuple[bool, bool], base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates all the checkboxes.
 
         Args:
-            position, checkboxes images and texts, columns, inverted axes,
+            position, checkboxes info, columns, inverted axes,
             base layer (default = BG_LAYER)
         """
 
@@ -169,14 +171,12 @@ class CheckboxGrid:
         self.clicked_i = clicked_i
         self.checkboxes[self.clicked_i].is_checked = True
 
-    def set_grid(
-            self, checkboxes_info: tuple[tuple[pg.Surface, str], ...], win_ratio: Ratio
-    ) -> None:
+    def set_grid(self, checkboxes_info: tuple[CheckboxInfo, ...], win_ratio: Ratio) -> None:
         """
         Clears the grid and creates a new one.
 
         Args:
-            checkboxes images and texts, window size ratio
+            checkboxes info, window size ratio
         """
 
         local_init_pos: RectPos = self._init_pos
@@ -197,7 +197,7 @@ class CheckboxGrid:
             local_checkboxes.append(checkbox)
 
             local_last_point.x += local_increment.w
-            if (i + 1) % local_cols == 0:
+            if not (i + 1) % local_cols:
                 local_last_point.x = local_init_pos.x
                 local_last_point.y += local_increment.h
 
@@ -212,8 +212,8 @@ class CheckboxGrid:
 
         self.check(0)
 
-    def insert(
-            self, insert_i: Optional[int], img: pg.Surface, hovering_text: str, win_ratio: Ratio
+    def replace(
+            self, replace_i: Optional[int], img: pg.Surface, hovering_text: str, win_ratio: Ratio
     ) -> None:
         """
         Inserts a checkbox at an index.
@@ -222,9 +222,9 @@ class CheckboxGrid:
             index (appends if None), checkbox image, checkbox text, window size ratio
         """
 
-        if insert_i is not None:
-            self.checkboxes[insert_i].set_info((img, add_border(img, WHITE)), hovering_text)
-            self.checkboxes[insert_i].resize(win_ratio)
+        if replace_i is not None:
+            self.checkboxes[replace_i].set_info((img, add_border(img, WHITE)), hovering_text)
+            self.checkboxes[replace_i].resize(win_ratio)
         else:
             checkbox: LockedCheckbox = LockedCheckbox(
                 RectPos(self._last_point.x, self._last_point.y, self._init_pos.coord_type),
@@ -234,7 +234,7 @@ class CheckboxGrid:
             self.checkboxes.append(checkbox)
 
             self._last_point.x += self._increment.w
-            if len(self.checkboxes) % self._cols == 0:
+            if not len(self.checkboxes) % self._cols:
                 self._last_point.x = self._init_pos.x
                 self._last_point.y += self._increment.h
 
@@ -274,16 +274,16 @@ class CheckboxGrid:
                     is_first = False
 
             if hasattr(obj, "objs_info"):
-                checkbox_objs.extend(info.obj for info in obj.objs_info)
+                checkbox_objs.extend(obj_info.obj for obj_info in obj.objs_info)
 
     def _get_grid_from_fallback(
-            self, img: pg.Surface, hovering_text: str, win_ratio: Ratio
+            self, img: pg.Surface, hovering_text: Optional[str], win_ratio: Ratio
     ) -> None:
         """
         Makes the grid out of the fallback info if all checkboxes were removed.
 
         Args:
-            checkbox image, checkbox text, window size ratio
+            checkbox image, checkbox text (can be None), window size ratio
         """
 
         checkbox = LockedCheckbox(
@@ -301,13 +301,13 @@ class CheckboxGrid:
             self._last_point.y = self._init_pos.y
 
     def remove(
-            self, remove_i: int, fallback_info: tuple[pg.Surface, str], win_ratio: Ratio
+            self, remove_i: int, fallback_info: CheckboxInfo, win_ratio: Ratio
     ) -> None:
         """
         Removes a checkbox at an index.
 
         Args:
-            index, fallback image and text, window size ratio
+            index, fallback info, window size ratio
         """
 
         local_init_pos: RectPos = self._init_pos
@@ -327,7 +327,7 @@ class CheckboxGrid:
         for i in range(remove_i, len(self.checkboxes)):
             self._move_to_last(i, win_ratio)
             local_last_point.x += local_increment.w
-            if (i + 1) % local_cols == 0:
+            if not (i + 1) % local_cols:
                 local_last_point.x = local_init_pos.x
                 local_last_point.y += local_increment.h
 

@@ -9,8 +9,6 @@ import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
 
-from src.type_utils import ColorType
-
 
 @dataclass(slots=True)
 class Point:
@@ -97,7 +95,7 @@ def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
     return np.transpose(pixels, (1, 0, 2))  # Swaps columns and rows
 
 
-def add_border(img: pg.Surface, border_color: ColorType) -> pg.Surface:
+def add_border(img: pg.Surface, border_color: list[int]) -> pg.Surface:
     """
     Adds a border to an image.
 

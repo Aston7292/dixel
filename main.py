@@ -58,7 +58,6 @@ Interacting with elements:
     it contains a high level implementation of it's behavior.
 
 ----------TODO----------
-- save current colors along with the image
 - slider is faster when moving the mouse faster
 - draw only part of the palette if it's too big
 - option to change the palette to match the current colors/multiple palettes
@@ -102,9 +101,11 @@ optimizations:
 
 from tkinter import Tk, filedialog
 from pathlib import Path
+from os import path
 from sys import argv
 from typing import Final, Optional, Any, NoReturn
 
+import json
 import pygame as pg
 
 from src.classes.grid_manager import GridManager
@@ -114,7 +115,10 @@ from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, Size, Ratio, ObjInfo, MouseInfo, get_img, get_pixels
-from src.type_utils import ColorType, ToolInfo, BlitSequence, LayeredBlitInfo, LayeredBlitSequence
+from src.file_utils import has_file_access, create_file, create_nested_file
+from src.type_utils import (
+    OptColor, CheckboxInfo, ToolInfo, BlitSequence, LayeredBlitInfo, LayeredBlitSequence
+)
 from src.consts import CHR_LIMIT, INIT_WIN_SIZE, BLACK
 
 pg.font.init()
@@ -173,7 +177,7 @@ GRID_MANAGER: Final[GridManager] = GridManager(
     RectPos(INIT_WIN_SIZE.w - 10, 10, 'topright')
 )
 
-BRUSH_SIZES_INFO: tuple[tuple[pg.Surface, str], ...] = tuple(
+BRUSH_SIZES_INFO: Final[tuple[CheckboxInfo, ...]] = tuple(
     (get_img("sprites", f"size_{n}_off.png"), f"{n}px\n(CTRL+{n})") for n in range(1, 6)
 )
 BRUSH_SIZES: Final[CheckboxGrid] = CheckboxGrid(
@@ -226,26 +230,55 @@ pg.event.set_blocked(None)
 pg.event.set_allowed((pg.QUIT, pg.VIDEORESIZE, pg.MOUSEWHEEL, pg.KEYDOWN, pg.KEYUP, FPSUPDATE))
 
 
-def _handle_path_from_argv() -> Path:
+def _handle_argv() -> tuple[Path, str]:
     """
-    Handles file opening with cmd args.
+    Gets and validate info from argv.
 
     Returns:
-        file object
+        file object, flag
+    Raises:
+        SystemExit
     """
 
-    joined_path: str = ' '.join(argv[1:])
-    file_obj: Path = Path(joined_path).with_suffix('.png')
-    if not file_obj.is_file():
-        if not file_obj.parent.is_dir():
-            print("Invalid directory.")
-        else:
-            try:
-                GRID_MANAGER.save_to_file(str(file_obj))
-            except PermissionError:
-                print("Permission denied.")
+    file_obj: Path
+    flag: str = argv[2].lower() if len(argv) > 2 else ''
 
-    return file_obj
+    should_exit: bool = False
+    if argv[1].lower() == "help" or flag not in ('', "--mk-file", "--mk-dir"):
+        print(
+            "Usage: program <file path> <optional flags>\n"
+            "Example: program test (.png is not required)\n"
+            "FLAGS:\n"
+            "\t--mk-file: create file (program new_file --mk-file)\n"
+            "\t--mk-dir: create directory (program new_dir/new_file --mk-dir)"
+        )
+        should_exit = True
+    else:
+        try:
+            file_obj = Path(argv[1]).with_suffix('.png')
+            if path.isreserved(file_obj):
+                print("Invalid name.")
+                should_exit = True
+        except ValueError:
+            print("Invalid path.")
+            should_exit = True
+
+    if should_exit:
+        raise SystemExit
+    return file_obj, flag
+
+
+def _get_hex_colors() -> list[str]:
+    """
+    Gets the used colors as hexadecimal.
+
+    Returns:
+        colors
+    """
+
+    return [
+        ''.join(hex(channel)[2:].zfill(2) for channel in color) for color in PALETTE_MANAGER.values
+    ]
 
 
 class Dixel:
@@ -254,7 +287,7 @@ class Dixel:
     __slots__ = (
         '_is_fullscreen', '_mouse_info', '_pressed_keys', '_timed_keys', '_last_k_input',
         '_alt_k', '_kmod_ctrl', '_state', '_active_objs', '_inactive_objs', '_hovered_obj',
-        '_data_file_obj', '_file_path', '_is_opening_file'
+        '_data_file_obj', '_is_opening_file', '_data'
     )
 
     def __init__(self) -> None:
@@ -281,24 +314,77 @@ class Dixel:
         self._inactive_objs: list[list[Any]] = []
         self._hovered_obj: Any = None
 
-        self._data_file_obj: Path = Path("data.txt")
-        self._file_path: str = ''
+        self._data_file_obj: Path = Path("data.json")
         self._is_opening_file: bool = False
 
-        file_obj: Path
-        if len(argv) != 1:
-            file_obj = _handle_path_from_argv()
-        elif self._data_file_obj.is_file():
-            with self._data_file_obj.open(encoding='utf-8') as f:
-                file_obj = Path(f.read())
+        self._data: dict[str, Any] = {
+            "file": '',
+            "colors": _get_hex_colors()  # Updated on save
+        }
 
+        if self._data_file_obj.exists():
+            with self._data_file_obj.open(encoding='utf-8') as f:
+                self._data = json.load(f)
+
+            file_obj: Path = Path(self._data["file"])
+            if not (file_obj.is_file() and has_file_access(file_obj)):
+                self._data["file"] = ''
+
+        if len(argv) > 1:
+            self._handle_path_from_argv()
+
+        rgb_colors: list[list[int]] = [
+            [int(color[i:i + 2], 16) for i in range(0, 6, 2)] for color in self._data["colors"]
+        ]
+        GRID_MANAGER.set_from_path(self._data["file"], GRID_MANAGER.grid.area)
+        PALETTE_MANAGER.set_colors(rgb_colors)
+
+    def _handle_path_from_argv(self) -> None:
+        """
+        Handles file opening with cmd args.
+
+        Raises:
+            SystemExit
+        """
+
+        file_obj: Path
+        flag: str
+        file_obj, flag = _handle_argv()
+
+        file_path: str = str(file_obj)
+        should_exit: bool = False
         if file_obj.is_file():
-            self._file_path = str(file_obj)
-        GRID_MANAGER.set_from_path(self._file_path, GRID_MANAGER.grid.area)
-        PALETTE_MANAGER.set_colors(GRID_MANAGER.grid.tiles)
+            if not has_file_access(file_obj):
+                print("Permission denied.")
+                should_exit = True
+        else:
+            if file_obj.parent.is_dir():
+                should_exit = create_file(file_path, flag)
+            else:
+                should_exit = create_nested_file(file_path, flag)
+
+            if not should_exit:
+                GRID_MANAGER.save_to_file(file_path)
+
+        if should_exit:
+            raise SystemExit
+
+        self._data["file"] = file_path
 
     def _draw(self) -> None:
         """Draws every object with the blit method to the screen."""
+
+        def get_layer(sequence: LayeredBlitInfo) -> int:
+            """
+            Gets the layer from a layered blit info.
+
+            Args:
+                sequence
+            Returns:
+                layer
+            """
+
+            return sequence[2]
 
         main_sequence: LayeredBlitSequence = []
 
@@ -310,9 +396,6 @@ class Dixel:
             if hasattr(obj, "blit"):
                 main_sequence.extend(obj.blit())
 
-        def get_layer(layered_blit_info: LayeredBlitInfo) -> int:
-            return layered_blit_info[2]
-
         main_sequence.sort(key=get_layer)
         blit_sequence: BlitSequence = [(img, pos) for img, pos, _ in main_sequence]
 
@@ -321,7 +404,7 @@ class Dixel:
         WIN.flip()
 
     def _get_objs(self) -> None:
-        """Gets active and inactive objects and sub objects."""
+        """Gets objects and sub objects."""
 
         objs_info: list[list[ObjInfo]] = []
         for state_info in MAIN_OBJS_INFO:
@@ -363,10 +446,13 @@ class Dixel:
             SystemExit
         """
 
-        if self._file_path:
-            GRID_MANAGER.save_to_file(self._file_path)
+        if self._data["file"]:
+            GRID_MANAGER.save_to_file(self._data["file"])
+
+        self._data["colors"] = _get_hex_colors()
+
         with self._data_file_obj.open('w', encoding='utf-8') as f:
-            f.write(self._file_path)
+            json.dump(self._data, f, indent=4)
 
         raise SystemExit
 
@@ -431,6 +517,7 @@ class Dixel:
             if self._is_fullscreen:
                 WIN.set_windowed()
                 self._is_fullscreen = False
+
             self._resize_objs()
         elif k == pg.K_F11:
             # Triggers the VIDEORESIZE event, calling resize is unnecessary
@@ -564,16 +651,16 @@ class Dixel:
             tk_root.destroy()
 
             if file_path:
-                self._file_path = file_path
-                GRID_MANAGER.save_to_file(self._file_path)
+                self._data["file"] = file_path
+                GRID_MANAGER.save_to_file(self._data["file"])
 
     def _handle_file_opening(self) -> None:
         """Handles the open file button."""
 
         ctrl_o: bool = bool(self._kmod_ctrl and pg.K_o in self._timed_keys)
         if OPEN.upt(self._hovered_obj, self._mouse_info) or ctrl_o:
-            if self._file_path:
-                GRID_MANAGER.save_to_file(self._file_path)
+            if self._data["file"]:
+                GRID_MANAGER.save_to_file(self._data["file"])
 
             self._leave_state(self._state)
             self._draw()  # Applies the leave method changes since tkinter stops the execution
@@ -586,10 +673,10 @@ class Dixel:
             tk_root.destroy()
 
             if file_path:
-                self._file_path = file_path
+                self._data["file"] = file_path
 
                 self._state = 2
-                img: pg.Surface = get_img(self._file_path)
+                img: pg.Surface = get_img(self._data["file"])
                 GRID_UI.set_info(GRID_MANAGER.grid.area, get_pixels(img))
                 self._is_opening_file = True
 
@@ -597,13 +684,12 @@ class Dixel:
         """Handles the close file button."""
 
         ctrl_q: bool = bool(self._kmod_ctrl and pg.K_q in self._timed_keys)
-        if (CLOSE.upt(self._hovered_obj, self._mouse_info) or ctrl_q) and self._file_path:
-            GRID_MANAGER.save_to_file(self._file_path)
+        if (CLOSE.upt(self._hovered_obj, self._mouse_info) or ctrl_q) and self._data["file"]:
+            GRID_MANAGER.save_to_file(self._data["file"])
             self._leave_state(self._state)
 
-            self._file_path = ''
-            GRID_MANAGER.set_from_path(self._file_path, GRID_MANAGER.grid.area)
-            PALETTE_MANAGER.set_colors(GRID_MANAGER.grid.tiles)
+            self._data["file"] = ''
+            GRID_MANAGER.set_from_path(self._data["file"], GRID_MANAGER.grid.area)
 
     def _crash(self, exception: Exception) -> NoReturn:
         """
@@ -615,17 +701,19 @@ class Dixel:
             exception
         """
 
-        if not self._file_path:
+        if not self._data["file"]:
             duplicate_name_counter: int = 0
             file_name: str = "new_file.png"
             while Path(file_name).exists():
                 duplicate_name_counter += 1
                 file_name = f"new_file_{duplicate_name_counter}.png"
-            self._file_path = file_name
 
-        GRID_MANAGER.save_to_file(self._file_path)
+            self._data["file"] = file_name
+        self._data["colors"] = _get_hex_colors()
+
+        GRID_MANAGER.save_to_file(self._data["file"])
         with self._data_file_obj.open('w', encoding='utf-8') as f:
-            f.write(self._file_path)
+            json.dump(self._data, f, indent=4)
 
         raise exception
 
@@ -636,8 +724,8 @@ class Dixel:
             self._hovered_obj, self._mouse_info, self._timed_keys
         ) + 1
 
-        color: ColorType
-        color_to_edit: Optional[ColorType]
+        color: list[int]
+        color_to_edit: OptColor
         color, color_to_edit = PALETTE_MANAGER.upt(
             self._hovered_obj, self._mouse_info, self._timed_keys
         )
@@ -666,7 +754,7 @@ class Dixel:
         """Handles the color UI."""
 
         is_ui_closed: bool
-        future_color: Optional[ColorType]
+        future_color: OptColor
         is_ui_closed, future_color = COLOR_PICKER.upt(
             self._hovered_obj, self._mouse_info, self._timed_keys
         )
@@ -686,8 +774,7 @@ class Dixel:
             if not self._is_opening_file:
                 GRID_MANAGER.set_size(future_area)
             else:
-                GRID_MANAGER.set_from_path(self._file_path, future_area)
-                PALETTE_MANAGER.set_colors(GRID_MANAGER.grid.tiles)
+                GRID_MANAGER.set_from_path(self._data["file"], future_area)
                 self._is_opening_file = False
             self._state = 0
 

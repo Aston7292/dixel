@@ -35,14 +35,14 @@ class Clickable(ABC):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], hovering_text: str,
+            self, pos: RectPos, imgs: tuple[pg.Surface, ...], hovering_text: Optional[str],
             base_layer: int
     ) -> None:
         """
         Creates the object.
 
         Args:
-            position, two images, hovering text, base layer
+            position, two images, hovering text (can be None), base layer
         """
 
         self.init_pos: RectPos = pos
@@ -60,7 +60,7 @@ class Clickable(ABC):
 
         self._hovering_text_label: Optional[TextLabel] = None
         self._hovering_text_imgs: tuple[pg.Surface, ...] = ()
-        if hovering_text:
+        if hovering_text is not None:
             # By blitting the hovering text here its attributes aren't modified every blit call.
             # It can't be done with other images since blitting something would change them,
             # it would be noticeable when resized but, these images get recalculated every time
@@ -123,6 +123,8 @@ class Clickable(ABC):
             window size ratio
         """
 
+        pos: tuple[int, int]
+        size: tuple[int, int]
         pos, size = resize_obj(self.init_pos, *self._init_imgs[0].get_size(), win_ratio)
 
         self._imgs = tuple(pg.transform.scale(img, size) for img in self._init_imgs)
@@ -182,14 +184,15 @@ class Checkbox(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], text: str,
-            hovering_text: str, base_layer: int = BG_LAYER
+            self, pos: RectPos, imgs: tuple[pg.Surface, ...], text: str,
+            hovering_text: Optional[str], base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the checkbox and text.
 
         Args:
-            position, two images, text, hovering text, base layer (default = BG_LAYER)
+            position, two images, text, hovering text (can be None),
+            base layer (default = BG_LAYER)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
@@ -214,7 +217,7 @@ class Checkbox(Clickable):
 
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo, did_shortcut: bool = False) -> bool:
         """
-        Changes the checkbox image when clicked.
+        Changes the checkbox image when checked.
 
         Args:
             hovered object (can be None), mouse info, shortcut flag (default = False)
@@ -245,22 +248,22 @@ class Button(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: tuple[pg.Surface, pg.Surface], text: str,
-            hovering_text: str, base_layer: int = BG_LAYER, text_h: int = 24
+            self, pos: RectPos, imgs: tuple[pg.Surface, ...], text: Optional[str],
+            hovering_text: Optional[str], base_layer: int = BG_LAYER, text_h: int = 24
     ) -> None:
         """
         Creates the button and text.
 
         Args:
-            position, two images, text, hovering text, base layer (default = BG_LAYER),
-            text height (default = 24)
+            position, two images, text (can be None), hovering text (can be None),
+            base layer (default = BG_LAYER), text height (default = 24)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
 
         self.objs_info: list[ObjInfo] = []
 
-        if text:
+        if text is not None:
             text_label: TextLabel = TextLabel(
                 RectPos(*self.rect.center, 'center'), text, base_layer, text_h
             )

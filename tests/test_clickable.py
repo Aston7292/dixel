@@ -1,9 +1,7 @@
 """Tests for the clickable file."""
 
-import unittest
-from unittest import mock
+from unittest import TestCase, mock
 from itertools import zip_longest
-from collections.abc import Iterator
 from typing import Final, Optional, Any
 
 import pygame as pg
@@ -11,54 +9,19 @@ import pygame as pg
 from src.classes.clickable import Clickable, Checkbox, Button
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, Ratio, ObjInfo, MouseInfo
-from src.type_utils import LayeredBlitInfo, LayeredBlitSequence
+from src.utils import RectPos, Ratio, ObjInfo, MouseInfo, resize_obj
+from src.type_utils import LayeredBlitSequence
 from src.consts import ELEMENT_LAYER, TOP_LAYER
 
-from tests.utils import cmp_imgs
+from tests.utils import cmp_imgs, cmp_hovering_text, RESIZING_RATIO
 
 IMG_1: Final[pg.Surface] = pg.Surface((10, 11), pg.SRCALPHA)
 IMG_2: Final[pg.Surface] = IMG_1.copy()
 IMG_2.fill((0, 0, 1, 0))
 
 
-def cmp_hovering_text(
-        expected_hovering_text_h: int, expected_hovering_text: str,
-        hovering_text_imgs: tuple[pg.Surface, ...]
-) -> bool:
-    """
-    Compares hovering texts.
-
-    Args:
-        expected hovering text height, expected hovering text, hovering text images
-    Returns:
-        True if the images are the same else False
-    """
-
-    expected_hovering_text_label: TextLabel = TextLabel(
-        RectPos(0, 0, 'topleft'), expected_hovering_text, h=expected_hovering_text_h
-    )
-    expected_hovering_text_imgs: tuple[pg.Surface, ...] = tuple(
-        pg.Surface(rect.size) for rect in expected_hovering_text_label.rects
-    )
-
-    expected_hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip_longest(
-        expected_hovering_text_imgs, expected_hovering_text_label.blit()
-    )
-    for img, (text_img, _, _) in expected_hovering_text_info:
-        img.blit(text_img)
-
-    hovering_text_label_comparison: Iterator[tuple[pg.Surface, pg.Surface]] = zip_longest(
-        hovering_text_imgs, expected_hovering_text_imgs
-    )
-
-    return all(
-        cmp_imgs(img, expected_img, False) for img, expected_img in hovering_text_label_comparison
-    )
-
-
-class TestCheckbox(unittest.TestCase):
-    """Tests for the checkbox class."""
+class TestCheckbox(TestCase):
+    """Tests for the Checkbox class."""
 
     checkbox: Checkbox
 
@@ -68,8 +31,29 @@ class TestCheckbox(unittest.TestCase):
 
         cls.checkbox = Checkbox(RectPos(1, 2, 'center'), (IMG_1, IMG_2), "hello", "world\n!", 1)
 
+    def copy_checkbox(self) -> Checkbox:
+        """
+        Creates a copy of the checkbox.
+
+        Returns:
+            copy
+        """
+
+        text: str = self.checkbox.objs_info[0].obj.text
+        hovering_text: Optional[str] = None
+        if self.checkbox._hovering_text_label:
+            hovering_text = self.checkbox._hovering_text_label.text
+        layer: int = self.checkbox._layer - ELEMENT_LAYER
+
+        checkbox_copy: Checkbox = Checkbox(
+            self.checkbox.init_pos, self.checkbox._init_imgs, text, hovering_text, layer
+        )
+        checkbox_copy.resize(RESIZING_RATIO)
+
+        return checkbox_copy
+
     @mock.patch.object(TextLabel, '__init__', autospec=True, wraps=TextLabel.__init__)
-    def test_init(self, mock_text_label_init: mock.Mock) -> None:
+    def test_init(self, text_label_init_mock: mock.Mock) -> None:
         """Tests the init method, mocks the TextLabel.__init__ method."""
 
         # Also tests the Clickable abstract class
@@ -77,13 +61,12 @@ class TestCheckbox(unittest.TestCase):
         test_checkbox: Checkbox = Checkbox(
             RectPos(1, 2, 'center'), (IMG_1, IMG_2), "hello", "world\n!", 1
         )
-        text_label_init_args: tuple[Any, ...] = mock_text_label_init.call_args[0]
 
         self.assertEqual(test_checkbox.init_pos, RectPos(1, 2, 'center'))
         self.assertTupleEqual(test_checkbox._init_imgs, (IMG_1, IMG_2))
 
-        self.assertTupleEqual(test_checkbox._imgs, (IMG_1, IMG_2))
-        expected_rect: pg.Rect = IMG_1.get_rect(**{self.checkbox.init_pos.coord_type: (1, 2)})
+        self.assertTupleEqual(test_checkbox._imgs, test_checkbox._init_imgs)
+        expected_rect: pg.Rect = IMG_1.get_rect(**{test_checkbox.init_pos.coord_type: (1, 2)})
         self.assertEqual(test_checkbox.rect, expected_rect)
 
         self.assertFalse(test_checkbox._is_hovering)
@@ -94,48 +77,49 @@ class TestCheckbox(unittest.TestCase):
         self.assertTrue(cmp_hovering_text(12, "world\n!", test_checkbox._hovering_text_imgs))
 
         no_hovering_text_checkbox: Checkbox = Checkbox(
-            RectPos(0, 0, 'topleft'), (IMG_1, IMG_2), "hello", ''
+            RectPos(0, 0, 'topleft'), (IMG_1, IMG_2), "hello", None
         )
         self.assertIsNone(no_hovering_text_checkbox._hovering_text_label)
         self.assertTupleEqual(no_hovering_text_checkbox._hovering_text_imgs, ())
 
+        # Checkbox attrs
+
         self.assertFalse(test_checkbox.is_checked)
 
-        text_label_used_args: tuple[Any, ...] = text_label_init_args[1:]
-        expected_text_label_used_args: tuple[Any, ...] = (
-            RectPos(test_checkbox.rect.centerx, test_checkbox.rect.y - 5, 'midbottom'), "hello",
-            1, 16
-        )
-        self.assertTupleEqual(text_label_used_args, expected_text_label_used_args)
-
+        text_label_init_args: tuple[Any, ...] = text_label_init_mock.call_args_list[1][0]
         text_label: TextLabel = text_label_init_args[0]
+        expected_text_label_init_args: tuple[Any, ...] = (
+            text_label, RectPos(test_checkbox.rect.centerx, test_checkbox.rect.y - 5, 'midbottom'),
+            "hello", 1, 16
+        )
+        self.assertTupleEqual(text_label_init_args, expected_text_label_init_args)
         self.assertListEqual(test_checkbox.objs_info, [ObjInfo(text_label)])
 
     def test_base_blit(self) -> None:
         """Tests the base_blit method."""
 
-        expected_sequence_0: LayeredBlitSequence = [
-            (self.checkbox._imgs[0], self.checkbox.rect.topleft, self.checkbox._layer)
-        ]
+        checkbox_copy: Checkbox = self.copy_checkbox()
 
-        self.assertListEqual(self.checkbox._base_blit(0), expected_sequence_0)
+        expected_sequence_0: LayeredBlitSequence = [
+            (checkbox_copy._imgs[0], checkbox_copy.rect.topleft, checkbox_copy._layer)
+        ]
+        self.assertListEqual(checkbox_copy._base_blit(0), expected_sequence_0)
 
         expected_sequence_1: LayeredBlitSequence = [
-            (self.checkbox._imgs[1], self.checkbox.rect.topleft, self.checkbox._layer)
+            (checkbox_copy._imgs[1], checkbox_copy.rect.topleft, checkbox_copy._layer)
         ]
 
         expected_hovering_text_line_x: int = pg.mouse.get_pos()[0] + 15
         expected_hovering_text_line_y: int = pg.mouse.get_pos()[1]
-
-        self.checkbox._is_hovering = True
-        for img in self.checkbox._hovering_text_imgs:
+        for img in checkbox_copy._hovering_text_imgs:
             expected_sequence_1.append((
                 img, (expected_hovering_text_line_x, expected_hovering_text_line_y),
-                self.checkbox._hovering_layer
+                checkbox_copy._hovering_layer
             ))
             expected_hovering_text_line_y += img.get_height()
-        self.assertListEqual(self.checkbox._base_blit(1), expected_sequence_1)
-        self.checkbox._is_hovering = False
+
+        checkbox_copy._is_hovering = True
+        self.assertListEqual(checkbox_copy._base_blit(1), expected_sequence_1)
 
     def test_check_hovering(self) -> None:
         """Tests the check_hovering method."""
@@ -152,81 +136,109 @@ class TestCheckbox(unittest.TestCase):
     def test_leave(self) -> None:
         """Tests the leave method."""
 
-        self.checkbox._is_hovering = True
-        self.checkbox.leave()
-        self.assertFalse(self.checkbox._is_hovering)
+        checkbox_copy: Checkbox = self.copy_checkbox()
+        checkbox_copy._is_hovering = True
+        checkbox_copy.leave()
+
+        self.assertFalse(checkbox_copy._is_hovering)
 
     def test_a_resize(self) -> None:
         """Tests the resize method as first."""
 
-        expected_imgs: tuple[pg.Surface, ...] = tuple(
-            pg.transform.scale(img, (30, 22)) for img in self.checkbox._init_imgs
-        )
-        expected_rect: pg.Rect = expected_imgs[0].get_rect(
-            **{self.checkbox.init_pos.coord_type: (3, 4)}
+        self.checkbox.resize(RESIZING_RATIO)
+
+        expected_pos: tuple[int, int]
+        expected_size: tuple[int, int]
+        expected_pos, expected_size = resize_obj(
+            self.checkbox.init_pos, *self.checkbox._init_imgs[0].get_size(), RESIZING_RATIO
         )
 
-        self.checkbox.resize(Ratio(3.0, 2.0))
+        expected_imgs: tuple[pg.Surface, ...] = tuple(
+            pg.transform.scale(img, expected_size) for img in self.checkbox._init_imgs
+        )
+        expected_rect: pg.Rect = expected_imgs[0].get_rect(
+            **{self.checkbox.init_pos.coord_type: expected_pos}
+        )
+
         for img, expected_img in zip_longest(self.checkbox._imgs, expected_imgs):
             self.assertTrue(cmp_imgs(img, expected_img))
         self.assertEqual(self.checkbox.rect, expected_rect)
 
-        self.assertTrue(cmp_hovering_text(24, "world\n!", self.checkbox._hovering_text_imgs))
+        if self.checkbox._hovering_text_label:
+            local_hovering_text_label: TextLabel = self.checkbox._hovering_text_label
+            expected_hovering_text_h: int
+            _, (_, expected_hovering_text_h) = resize_obj(
+                local_hovering_text_label.init_pos, 0.0, local_hovering_text_label._init_h,
+                RESIZING_RATIO, True
+            )
+            local_hovering_text_imgs: tuple[pg.Surface, ...] = self.checkbox._hovering_text_imgs
+
+            self.assertTrue(
+                cmp_hovering_text(expected_hovering_text_h, "world\n!", local_hovering_text_imgs)
+            )
 
     def test_move_rect(self) -> None:
         """Tests the move_rect method."""
 
-        self.checkbox.move_rect(2, 3, Ratio(2.0, 3.0))
-        self.assertEqual(self.checkbox.init_pos.x, 2)
-        self.assertEqual(self.checkbox.init_pos.y, 3)
-        xy: tuple[int, int] = getattr(self.checkbox.rect, self.checkbox.init_pos.coord_type)
-        self.assertTupleEqual(xy, (4, 9))
+        checkbox_copy: Checkbox = self.copy_checkbox()
+        checkbox_copy.move_rect(3, 4, Ratio(2.1, 3.2))
 
-    @mock.patch.object(Clickable, "_base_blit", autospec=True, wraps=Clickable._base_blit)
-    def test_blit(self, mock_base_blit: mock.Mock) -> None:
+        self.assertEqual(checkbox_copy.init_pos.x, 3)
+        self.assertEqual(checkbox_copy.init_pos.y, 4)
+        xy: tuple[int, int] = getattr(checkbox_copy.rect, checkbox_copy.init_pos.coord_type)
+        self.assertTupleEqual(
+            xy, (round(checkbox_copy.init_pos.x * 2.1), round(checkbox_copy.init_pos.y * 3.2))
+        )
+
+    @mock.patch.object(Clickable, "_base_blit")
+    def test_blit(self, base_blit_mock: mock.Mock) -> None:
         """Tests the blit method, mocks the Clickable._base_blit method."""
 
-        self.checkbox.blit()
-        mock_base_blit.assert_called_with(self.checkbox, 0)
+        checkbox_copy: Checkbox = self.copy_checkbox()
 
-        self.checkbox.is_checked = True
-        self.checkbox.blit()
-        mock_base_blit.assert_called_with(self.checkbox, 1)
-        self.checkbox.is_checked = False
+        checkbox_copy.blit()
+        base_blit_mock.assert_called_with(0)
+
+        checkbox_copy.is_checked = True
+        checkbox_copy.blit()
+        base_blit_mock.assert_called_with(1)
 
     @mock.patch.object(pg.mouse, 'set_cursor')
-    def test_upt(self, mock_set_cursor: mock.Mock) -> None:
+    def test_upt(self, set_cursor_mock: mock.Mock) -> None:
         """Tests the upt method, mocks the pygame.mouse.set_cursor method."""
 
+        checkbox_copy: Checkbox = self.copy_checkbox()
         mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (True,) * 5)
+        blank_mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (False,) * 5)
+
+        # Leave hover and click
+        checkbox_copy._is_hovering = True
+        self.assertFalse(checkbox_copy.upt(None, mouse_info))
+        self.assertFalse(checkbox_copy._is_hovering)
+        set_cursor_mock.assert_called_once_with(pg.SYSTEM_CURSOR_ARROW)
+
+        # Enter hover and click twice
+        self.assertTrue(checkbox_copy.upt(checkbox_copy, mouse_info))
+        self.assertTrue(checkbox_copy.is_checked)
+        self.assertFalse(checkbox_copy.upt(checkbox_copy, mouse_info))
+        self.assertFalse(checkbox_copy.is_checked)
+        self.assertTrue(checkbox_copy._is_hovering)
+        set_cursor_mock.assert_called_with(pg.SYSTEM_CURSOR_HAND)
 
         # Check twice with shortcut
-        self.assertTrue(self.checkbox.upt(None, mouse_info, True))
-        self.assertTrue(self.checkbox.is_checked)
-        self.assertFalse(self.checkbox.upt(None, mouse_info, True))
-        self.assertFalse(self.checkbox.is_checked)
+        self.assertTrue(checkbox_copy.upt(None, mouse_info, True))
+        self.assertTrue(checkbox_copy.is_checked)
+        self.assertFalse(checkbox_copy.upt(None, mouse_info, True))
+        self.assertFalse(checkbox_copy.is_checked)
 
-        # Leave hover
-        self.checkbox._is_hovering = True
-        self.assertFalse(self.checkbox.upt(None, mouse_info))
-        self.assertFalse(self.checkbox._is_hovering)
-        mock_set_cursor.assert_called_once_with(pg.SYSTEM_CURSOR_ARROW)
-
-        # Enter hover and check twice
-        self.assertTrue(self.checkbox.upt(self.checkbox, mouse_info))
-        self.assertTrue(self.checkbox.is_checked)
-        self.assertFalse(self.checkbox.upt(self.checkbox, mouse_info))
-        self.assertFalse(self.checkbox.is_checked)
-        self.assertTrue(self.checkbox._is_hovering)
-        mock_set_cursor.assert_called_with(pg.SYSTEM_CURSOR_HAND)
-
+        # Don't hover and don't click
+        self.assertFalse(checkbox_copy.upt(None, mouse_info))
         # Hover and don't click
-        blank_mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (False,) * 5)
-        self.assertFalse(self.checkbox.upt(self.checkbox, blank_mouse_info))
+        self.assertFalse(checkbox_copy.upt(checkbox_copy, blank_mouse_info))
 
 
-class TestButton(unittest.TestCase):
-    """Tests for the button class."""
+class TestButton(TestCase):
+    """Tests for the Button class."""
 
     button: Button
 
@@ -236,62 +248,85 @@ class TestButton(unittest.TestCase):
 
         cls.button = Button(RectPos(1, 2, 'center'), (IMG_1, IMG_2), "hello", "world\n!", 1, 10)
 
+    def copy_button(self) -> Button:
+        """
+        Creates a copy of the button.
+
+        Returns:
+            copy
+        """
+
+        text: str = self.button.objs_info[0].obj.text
+        hovering_text: Optional[str] = None
+        if self.button._hovering_text_label:
+            hovering_text = self.button._hovering_text_label.text
+        layer: int = self.button._layer - ELEMENT_LAYER
+        text_h: int = self.button.objs_info[0].obj._init_h
+
+        button_copy: Button = Button(
+            self.button.init_pos, self.button._init_imgs, text, hovering_text, layer, text_h
+        )
+        button_copy.resize(RESIZING_RATIO)
+
+        return button_copy
+
     @mock.patch.object(TextLabel, '__init__', autospec=True, wraps=TextLabel.__init__)
     @mock.patch.object(Clickable, '__init__', autospec=True, wraps=Clickable.__init__)
-    def test_init(self, mock_clickable_init: mock.Mock, mock_text_label_init: mock.Mock) -> None:
-        """Tests the init method, mocks the Clickable.__init__ and TextLabel.__init__ methods."""
+    def test_init(self, clickable_init_mock: mock.Mock, text_label_init_mock: mock.Mock) -> None:
+        """Tests the init method, mocks the TextLabel.__init__ and Clickable.__init__ methods."""
 
         test_button: Button = Button(
             RectPos(1, 2, 'center'), (IMG_1, IMG_2), "hello", "world\n!", 1, 10
         )
-        mock_clickable_init.assert_called_once_with(
+        clickable_init_mock.assert_called_once_with(
             test_button, RectPos(1, 2, 'center'), (IMG_1, IMG_2), "world\n!", 1
         )
 
-        text_label_init_args: tuple[Any, ...] = mock_text_label_init.call_args[0]
-
-        text_label_used_args: tuple[Any, ...] = text_label_init_args[1:]
-        expected_text_label_used_args: tuple[Any, ...] = (
-            RectPos(*test_button.rect.center, 'center'), "hello", 1, 10
-        )
-        self.assertTupleEqual(text_label_used_args, expected_text_label_used_args)
-
+        text_label_init_args: tuple[Any, ...] = text_label_init_mock.call_args[0]
         text_label: TextLabel = text_label_init_args[0]
+        expected_text_label_init_args: tuple[Any, ...] = (
+            text_label, RectPos(*test_button.rect.center, 'center'), "hello", 1, 10
+        )
+        self.assertTupleEqual(text_label_init_args, expected_text_label_init_args)
         self.assertEqual(test_button.objs_info, [ObjInfo(text_label)])
 
-        no_text_button: Button = Button(RectPos(0, 0, 'topleft'), (IMG_1, IMG_2), '', '')
+        no_text_button: Button = Button(RectPos(0, 0, 'topleft'), (IMG_1, IMG_2), None, None)
         self.assertListEqual(no_text_button.objs_info, [])
 
-    @mock.patch.object(Clickable, "_base_blit", autospec=True, wraps=Clickable._base_blit)
-    def test_blit(self, mock_base_blit: mock.Mock) -> None:
+    @mock.patch.object(Clickable, "_base_blit")
+    def test_blit(self, base_blit_mock: mock.Mock) -> None:
         """Tests the blit method, mocks the Clickable._base_blit method."""
 
-        self.button.blit()
-        mock_base_blit.assert_called_with(self.button, 0)
+        button_copy: Button = self.copy_button()
 
-        self.button._is_hovering = True
-        self.button.blit()
-        mock_base_blit.assert_called_with(self.button, 1)
-        self.button._is_hovering = False
+        button_copy.blit()
+        base_blit_mock.assert_called_with(0)
+
+        button_copy._is_hovering = True
+        button_copy.blit()
+        base_blit_mock.assert_called_with(1)
 
     @mock.patch.object(pg.mouse, 'set_cursor')
-    def test_upt(self, mock_set_cursor: mock.Mock) -> None:
+    def test_upt(self, set_cursor_mock: mock.Mock) -> None:
         """Tests the upt method, mocks the pygame.mouse.set_cursor method."""
 
+        button_copy: Button = self.copy_button()
         mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (True,) * 5)
+        blank_mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (False,) * 5)
 
-        # Leave hover
-        self.button._is_hovering = True
-        self.assertFalse(self.button.upt(None, mouse_info))
-        self.assertFalse(self.button._is_hovering)
-        mock_set_cursor.assert_called_with(pg.SYSTEM_CURSOR_ARROW)
+        # Leave hover and click
+        button_copy._is_hovering = True
+        self.assertFalse(button_copy.upt(None, mouse_info))
+        self.assertFalse(button_copy._is_hovering)
+        set_cursor_mock.assert_called_with(pg.SYSTEM_CURSOR_ARROW)
 
         # Enter hover and click
-        self.button._is_hovering = False
-        self.assertTrue(self.button.upt(self.button, mouse_info))
-        self.assertTrue(self.button._is_hovering)
-        mock_set_cursor.assert_called_with(pg.SYSTEM_CURSOR_HAND)
+        button_copy._is_hovering = False
+        self.assertTrue(button_copy.upt(button_copy, mouse_info))
+        self.assertTrue(button_copy._is_hovering)
+        set_cursor_mock.assert_called_with(pg.SYSTEM_CURSOR_HAND)
 
+        # Don't hover and don't click
+        self.assertFalse(button_copy.upt(None, blank_mouse_info))
         # Hover and don't click
-        blank_mouse_info: MouseInfo = MouseInfo(0, 0, (False,) * 3, (False,) * 5)
-        self.assertFalse(self.button.upt(self.button, blank_mouse_info))
+        self.assertFalse(button_copy.upt(button_copy, blank_mouse_info))

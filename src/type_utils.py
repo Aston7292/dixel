@@ -1,11 +1,13 @@
 """Types shared between files."""
 
-from typing import Any
-from pygame import Surface
+from typing import Optional, Any
 
-ColorType = tuple[int, ...]
+import pygame as pg
+
+OptColor = Optional[list[int]]
+CheckboxInfo = tuple[pg.Surface, Optional[str]]
 ToolInfo = tuple[str, dict[str, Any]]
 
-BlitSequence = list[tuple[Surface, tuple[int, int]]]
-LayeredBlitInfo = tuple[Surface, tuple[int, int], int]  # Last element is the layer
+BlitSequence = list[tuple[pg.Surface, tuple[int, int]]]
+LayeredBlitInfo = tuple[pg.Surface, tuple[int, int], int]
 LayeredBlitSequence = list[LayeredBlitInfo]

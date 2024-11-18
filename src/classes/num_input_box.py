@@ -180,8 +180,8 @@ class NumInputBox:
         temp_text: str = self.text_label.text
 
         temp_text = temp_text[:self.cursor_i] + char + temp_text[self.cursor_i:]
-        max_length: int = len(str(max_limit))
-        temp_text = temp_text[:max_length]
+        max_len: int = len(str(max_limit))
+        temp_text = temp_text[:max_len]
 
         change_cursor_i: bool = True  # Better UX on edge cases
         if int(temp_text) < min_limit:

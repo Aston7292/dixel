@@ -1,7 +1,7 @@
 """Paintable pixel grid with a minimap."""
 
 from math import ceil
-from typing import Final, Optional, Any
+from typing import Optional, Any
 
 import pygame as pg
 import numpy as np
@@ -10,10 +10,8 @@ from numpy.typing import NDArray
 from src.utils import (
     Point, RectPos, Size, Ratio, ObjInfo, MouseInfo, get_img, get_pixels, resize_obj
 )
-from src.type_utils import ColorType, ToolInfo, BlitSequence, LayeredBlitSequence
+from src.type_utils import ToolInfo, BlitSequence, LayeredBlitSequence
 from src.consts import WHITE, EMPTY_TILE_IMG, BG_LAYER
-
-TRANSPARENT_GREY: Final[ColorType] = (120, 120, 120, 125)
 
 
 def _decrease_mouse_tile(mouse_coord: int, value: int, offset: int) -> tuple[int, int]:
@@ -139,9 +137,11 @@ class Grid:
 
         self._grid_init_size: Size = Size(*self.grid_rect.size)
 
+        transparent_grey: list[int] = [120, 120, 120, 125]
+
         self.tiles: NDArray[np.uint8] = np.zeros((self.area.h, self.area.w, 4), np.uint8)
         self.transparent_tile_img: pg.Surface = pg.Surface((2, 2), pg.SRCALPHA)
-        self.transparent_tile_img.fill(TRANSPARENT_GREY)
+        self.transparent_tile_img.fill(transparent_grey)
 
         self._minimap_init_pos: RectPos = minimap_pos
 
@@ -340,7 +340,8 @@ class Grid:
         self.get_grid(offset, selected_tiles)
 
     def update_section(
-            self, offset: Point, selected_tiles: list[Point], changed_tiles: list[tuple[int, int]]
+            self, offset: Point, selected_tiles: list[Point],
+            changed_tiles: tuple[tuple[int, int], ...]
     ) -> None:
         """
         Updates specific tiles on the minimap and retrieves the grid.
@@ -476,14 +477,13 @@ class Grid:
                 self.visible_area.w = self.visible_area.h = 1
             if reach_limit[1]:
                 self.visible_area.w, self.visible_area.h = self.area.w, self.area.h
+        elif self.visible_area.w == self.visible_area.h:
+            self.visible_area.w = max(min(self.visible_area.w - amount, self.area.w), 1)
+            self.visible_area.h = max(min(self.visible_area.h - amount, self.area.h), 1)
+        elif amount > 0:
+            self._decrease_largest_side(amount)
         else:
-            if self.visible_area.w == self.visible_area.h:
-                self.visible_area.w = max(min(self.visible_area.w - amount, self.area.w), 1)
-                self.visible_area.h = max(min(self.visible_area.h - amount, self.area.h), 1)
-            elif amount > 0:
-                self._decrease_largest_side(amount)
-            else:
-                self._increase_smallest_side(amount)
+            self._increase_smallest_side(amount)
 
         self.grid_tile_dim = min(
             self._grid_init_size.w / self.visible_area.w,
@@ -527,7 +527,7 @@ class GridManager:
 
         self.grid: Grid = Grid(grid_pos, minimap_pos)
 
-        self._selected_tiles: list[Point] = []  # Absolute coordinates
+        self._selected_tiles: list[Point] = []  # Absolute coordinated
         self._is_hovering: bool = False
 
         self._prev_mouse_x: int
@@ -554,11 +554,10 @@ class GridManager:
         Sets the grid size and tiles.
 
         Args:
-            path (if it's empty it creates an empty grid), area
+            path (if it's empty it creates an empty grid), area (can be None)
         """
 
         self._offset.x = self._offset.y = 0
-
         if area:
             self.grid.set_size(area)
         img: Optional[pg.Surface] = get_img(file_path) if file_path else None
@@ -618,7 +617,7 @@ class GridManager:
         Args:
             mouse info, keys, brush size
         Returns:
-            start and end
+            previous mouse tile and mouse tile
         """
 
         prev_mouse_tile: Point = Point(
@@ -699,7 +698,7 @@ class GridManager:
         ]
 
     def _draw_on_grid(
-            self, tiles: list[tuple[int, int]], color: ColorType, prev_selected_tiles: list[Point]
+            self, tiles: list[tuple[int, int]], color: list[int], prev_selected_tiles: list[Point]
     ) -> None:
         """
         Draws tiles on the grid.
@@ -710,7 +709,7 @@ class GridManager:
 
         prev_tiles: NDArray[np.uint8] = np.copy(self.grid.tiles)
 
-        unique_tiles: list[tuple[int, int]] = list(set(tiles))
+        unique_tiles: tuple[tuple[int, int], ...] = tuple(set(tiles))
         for x, y in unique_tiles:
             self.grid.tiles[y, x] = color
 
@@ -720,7 +719,7 @@ class GridManager:
             self.grid.get_grid(self._offset, self._selected_tiles)
 
     def _handle_draw(
-            self, mouse_info: MouseInfo, keys: list[int], color: ColorType, brush_size: int,
+            self, mouse_info: MouseInfo, keys: list[int], color: list[int], brush_size: int,
             tool_info: ToolInfo
     ) -> None:
         """
@@ -730,8 +729,9 @@ class GridManager:
             mouse info, keys, color, brush size, tool info
         """
 
-        prev_mouse_tile: Point  # Absolute coordinate
-        mouse_tile: Point  # Absolute coordinate
+        # Absolute coordinates
+        prev_mouse_tile: Point
+        mouse_tile: Point
         prev_mouse_tile, mouse_tile = self._get_tile_info(mouse_info, keys, brush_size)
 
         if self.grid.transparent_tile_img.get_width() != brush_size * 2:
@@ -754,7 +754,7 @@ class GridManager:
                     prev_mouse_tile, mouse_tile, is_drawing, brush_size, extra_tool_info
                 )
 
-        rgba_color: ColorType = color + (255,) if is_coloring else (0, 0, 0, 0)
+        rgba_color: list[int] = color + [255] if is_coloring else [0, 0, 0, 0]
         self._draw_on_grid(changed_tiles, rgba_color, prev_selected_tiles)
 
     def _move(self, mouse_info: MouseInfo) -> None:
@@ -792,7 +792,7 @@ class GridManager:
         Sets the grid size.
 
         Args:
-            area
+            area (can be None)
         """
 
         if not area:
@@ -854,14 +854,16 @@ class GridManager:
             path
         """
 
-        surf: pg.Surface = pg.surfarray.make_surface(self.grid.tiles[:, :, :3]).convert_alpha()
+        # Swaps columns and rows
+        tiles: NDArray[np.uint8] = np.transpose(self.grid.tiles, (1, 0, 2))
+        surf: pg.Surface = pg.surfarray.make_surface(tiles[:, :, :3]).convert_alpha()
         pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(surf)
-        pixels_alpha[:, :] = self.grid.tiles[:, :, 3]
+        pixels_alpha[:, :] = tiles[:, :, 3]
 
         pg.image.save(surf, file_path)
 
     def upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int], color: ColorType,
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int], color: list[int],
             brush_size: int, tool_info: ToolInfo
     ) -> None:
         """

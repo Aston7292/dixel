@@ -64,6 +64,8 @@ class TextLabel:
             window size ratio
         """
 
+        pos: tuple[int, int]
+        h: int
         pos, (_, h) = resize_obj(self.init_pos, 0.0, self._init_h, win_ratio, True)
 
         if h not in renderers_cache:

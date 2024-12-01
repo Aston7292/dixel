@@ -74,7 +74,7 @@ class ToolsManager:
     """Class to manage drawing tools."""
 
     __slots__ = (
-        '_names', '_tools', '_extra_infos', 'objs_info', '_dynamic_info_ranges'
+        "_names", "tools", "_extra_infos", "objs_info", "_dynamic_info_ranges"
     )
 
     def __init__(self, pos: RectPos) -> None:
@@ -89,7 +89,7 @@ class ToolsManager:
         base_infos: tuple[tuple[Surface, str], ...] = tuple(
             info["base_info"] for info in TOOLS_INFO.values()
         )
-        self._tools: CheckboxGrid = CheckboxGrid(pos, base_infos, 5, (False, True))
+        self.tools: CheckboxGrid = CheckboxGrid(pos, base_infos, 5, (False, True))
 
         raw_extra_infos: ExtraInfos = tuple(info["extra_info"] for info in TOOLS_INFO.values())
         # Added keys: obj, removed keys: type, init_args
@@ -97,7 +97,7 @@ class ToolsManager:
             self._get_extra_info(tool_raw_extra_info) for tool_raw_extra_info in raw_extra_infos
         ]
 
-        self.objs_info: list[ObjInfo] = [ObjInfo(self._tools)]
+        self.objs_info: list[ObjInfo] = [ObjInfo(self.tools)]
 
         self._dynamic_info_ranges: list[tuple[int, int]] = []
         for tool_extra_info in self._extra_infos:
@@ -109,7 +109,7 @@ class ToolsManager:
 
             self._dynamic_info_ranges.append((range_start, range_end))
 
-        active_range: tuple[int, int] = self._dynamic_info_ranges[self._tools.clicked_i]
+        active_range: tuple[int, int] = self._dynamic_info_ranges[self.tools.clicked_i]
         for i in range(self._dynamic_info_ranges[0][0], self._dynamic_info_ranges[-1][1]):
             if i < active_range[0] or i >= active_range[1]:
                 self.objs_info[i].set_active(False)
@@ -126,11 +126,11 @@ class ToolsManager:
 
         extra_info: list[dict[str, Any]] = []
 
-        obj_x: int = self._tools.rect.x + 20
-        obj_y: int = self._tools.rect.y - 20
+        obj_x: int = self.tools.rect.x + 20
+        obj_y: int = self.tools.rect.y - 20
         for raw_sub_tool_extra_info in raw_extra_info:
             obj: Any = raw_sub_tool_extra_info["type"](
-                RectPos(obj_x, obj_y, 'bottomleft'), *raw_sub_tool_extra_info["init_args"],
+                RectPos(obj_x, obj_y, "bottomleft"), *raw_sub_tool_extra_info["init_args"],
                 base_layer=SPECIAL_LAYER
             )
 
@@ -142,27 +142,31 @@ class ToolsManager:
 
         return extra_info
 
-    def _leave_tool(self, tool_i: int) -> None:
+    def refresh_tool(self, prev_tool_i: int) -> None:
         """
-        Clears all the relevant data of the previous tool.
+        Clears all the relevant data of the previous tool and activated a new one.
 
         Args:
-            index of the tool
+            index of the previous tool
         """
 
-        active_range: tuple[int, int] = self._dynamic_info_ranges[tool_i]
-        objs_info: list[ObjInfo] = self.objs_info[active_range[0]:active_range[1]]
-        for prev_info in objs_info:
+        prev_active_range: tuple[int, int] = self._dynamic_info_ranges[prev_tool_i]
+        prev_objs_info: list[ObjInfo] = self.objs_info[prev_active_range[0]:prev_active_range[1]]
+        for prev_info in prev_objs_info:
             prev_info.set_active(False)
 
-        tool_objs: list[Any] = [prev_info.obj for prev_info in objs_info]
-        while tool_objs:
-            obj: Any = tool_objs.pop()
+        prev_tool_objs: list[Any] = [prev_info.obj for prev_info in prev_objs_info]
+        while prev_tool_objs:
+            obj: Any = prev_tool_objs.pop()
 
             if hasattr(obj, "leave"):
                 obj.leave()
             if hasattr(obj, "objs_info"):
-                tool_objs.extend(obj_info.obj for obj_info in obj.objs_info)
+                prev_tool_objs.extend(obj_info.obj for obj_info in obj.objs_info)
+
+        active_range: tuple[int, int] = self._dynamic_info_ranges[self.tools.clicked_i]
+        for i in range(active_range[0], active_range[1]):
+            self.objs_info[i].set_active(True)
 
     def _upt_sub_objs(self, local_vars: dict[str, Any]) -> dict[str, Any]:
         """
@@ -175,7 +179,7 @@ class ToolsManager:
         """
 
         output_dict: dict[str, Any] = {}
-        for extra_info in self._extra_infos[self._tools.clicked_i]:
+        for extra_info in self._extra_infos[self.tools.clicked_i]:
             upt_args: tuple[Any, ...] = tuple(
                 local_vars.get(str(arg), arg) for arg in extra_info["upt_args"]
             )
@@ -198,14 +202,11 @@ class ToolsManager:
             tool name, sub options state
         """
 
-        prev_clicked_i: int = self._tools.clicked_i
-        self._tools.upt(hovered_obj, mouse_info, keys)
+        prev_clicked_i: int = self.tools.clicked_i
+        self.tools.upt(hovered_obj, mouse_info, keys)
 
-        if self._tools.clicked_i != prev_clicked_i:
-            self._leave_tool(prev_clicked_i)
-            active_range: tuple[int, int] = self._dynamic_info_ranges[self._tools.clicked_i]
-            for i in range(active_range[0], active_range[1]):
-                self.objs_info[i].set_active(True)
+        if self.tools.clicked_i != prev_clicked_i:
+            self.refresh_tool(prev_clicked_i)
         output_dict: dict[str, Any] = self._upt_sub_objs(locals())
 
-        return self._names[self._tools.clicked_i], output_dict
+        return self._names[self.tools.clicked_i], output_dict

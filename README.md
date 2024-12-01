@@ -1,7 +1,7 @@
 # Dixel
 
 Drawing program for pixel art
-Requires pygame-ce and numpy
+Requires pygame-ce, numpy and portalocker (multi-platform way to detect locked files)
 
 ## Features
 
@@ -44,7 +44,7 @@ Requires pygame-ce and numpy
 
 - **CTRL left/right**: go to end of text in input box
 - **CTRL ALT left/right**: switch between scrollbar and input box in color picking UI
-- **CTRL K**: toggle checkbox in grid UI
+- **CTRL K**: toggle keep ratio in grid UI
 
 ## Screenshots
 

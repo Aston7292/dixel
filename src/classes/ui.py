@@ -9,7 +9,7 @@ from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, Ratio, ObjInfo, MouseInfo, get_img, resize_obj
-from src.type_utils import LayeredBlitSequence
+from src.type_utils import PosPair, SizePair, LayeredBlitInfo
 from src.consts import UI_LAYER
 
 INTERFACE_IMG: Final[pg.Surface] = pg.Surface((500, 700))
@@ -29,7 +29,7 @@ class UI(ABC):
     Abstract class to create a default UI with a title, confirm and exit buttons.
 
     Includes:
-        blit() -> PriorityBlitSequence
+        blit() -> layered blit sequence
         resize(window size ratio) -> None,
         base_upt(mouse, keys) -> tuple[confirmed, exited]
 
@@ -38,8 +38,8 @@ class UI(ABC):
     """
 
     __slots__ = (
-        '_init_pos', '_init_img', '_img', '_rect', '_base_layer', '_exit', '_confirm',
-        'objs_info'
+        "_init_pos", "_init_img", "_img", "_rect", "_base_layer", "_exit", "_confirm",
+        "objs_info"
     )
 
     def __init__(self, pos: RectPos, title: str) -> None:
@@ -61,16 +61,16 @@ class UI(ABC):
         self._base_layer: int = UI_LAYER
 
         title_text_label: TextLabel = TextLabel(
-            RectPos(self._rect.centerx, self._rect.top + 10, 'midtop'), title,
+            RectPos(self._rect.centerx, self._rect.top + 10, "midtop"), title,
             self._base_layer, 32
         )
 
         self._exit: Button = Button(
-            RectPos(self._rect.right - 10, self._rect.y + 10, 'topright'),
+            RectPos(self._rect.right - 10, self._rect.y + 10, "topright"),
             (CLOSE_1_IMG, CLOSE_2_IMG), None, "(CTRL+BACKSPACE)", self._base_layer
         )
         self._confirm: Button = Button(
-            RectPos(self._rect.right - 10, self._rect.bottom - 10, 'bottomright'),
+            RectPos(self._rect.right - 10, self._rect.bottom - 10, "bottomright"),
             (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "confirm", "(CTRL+ENTER)", self._base_layer
         )
 
@@ -79,7 +79,7 @@ class UI(ABC):
             ObjInfo(self._exit), ObjInfo(self._confirm)
         ]
 
-    def blit(self) -> LayeredBlitSequence:
+    def blit(self) -> list[LayeredBlitInfo]:
         """
         Returns the objects to blit.
 
@@ -97,8 +97,8 @@ class UI(ABC):
             window size ratio
         """
 
-        xy: tuple[int, int]
-        wh: tuple[int, int]
+        xy: PosPair
+        wh: SizePair
         xy, wh = resize_obj(self._init_pos, *self._init_img.get_size(), win_ratio)
 
         self._img = pg.transform.scale(self._init_img, wh)

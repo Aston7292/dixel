@@ -4,10 +4,12 @@ from typing import Optional, Any
 
 import pygame as pg
 
-OptColor = Optional[list[int]]
+PosPair = tuple[int, int]
+SizePair = tuple[int, int]
+Color = tuple[int, ...]
+
 CheckboxInfo = tuple[pg.Surface, Optional[str]]
 ToolInfo = tuple[str, dict[str, Any]]
 
-BlitSequence = list[tuple[pg.Surface, tuple[int, int]]]
-LayeredBlitInfo = tuple[pg.Surface, tuple[int, int], int]
-LayeredBlitSequence = list[LayeredBlitInfo]
+BlitSequence = list[tuple[pg.Surface, PosPair]]
+LayeredBlitInfo = tuple[pg.Surface, PosPair, int]

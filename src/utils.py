@@ -9,6 +9,8 @@ import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
 
+from src.type_utils import PosPair, SizePair, Color
+
 
 @dataclass(slots=True)
 class Point:
@@ -95,7 +97,7 @@ def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
     return np.transpose(pixels, (1, 0, 2))  # Swaps columns and rows
 
 
-def add_border(img: pg.Surface, border_color: list[int]) -> pg.Surface:
+def add_border(img: pg.Surface, border_color: Color) -> pg.Surface:
     """
     Adds a border to an image.
 
@@ -105,16 +107,16 @@ def add_border(img: pg.Surface, border_color: list[int]) -> pg.Surface:
         image
     """
 
-    local_img: pg.Surface = img.copy()
-    border_dim: int = round(min(local_img.get_size()) / 10.0)
-    pg.draw.rect(local_img, border_color, local_img.get_rect(), border_dim)
+    copy_img: pg.Surface = img.copy()
+    border_dim: int = round(min(copy_img.get_size()) / 10.0)
+    pg.draw.rect(copy_img, border_color, copy_img.get_rect(), border_dim)
 
-    return local_img
+    return copy_img
 
 
 def resize_obj(
         pos: RectPos, w: float, h: float, win_ratio: Ratio, keep_size_ratio: bool = False
-) -> tuple[tuple[int, int], tuple[int, int]]:
+) -> tuple[PosPair, SizePair]:
     """
     Scales position and size of an object without creating gaps between attached objects.
 
@@ -129,8 +131,8 @@ def resize_obj(
     if keep_size_ratio:
         img_ratio_w = img_ratio_h = min(win_ratio.w, win_ratio.h)
 
-    resized_xy: tuple[int, int] = (round(pos.x * win_ratio.w), round(pos.y * win_ratio.h))
-    resized_wh: tuple[int, int] = (ceil(w * img_ratio_w), ceil(h * img_ratio_h))
+    resized_xy: PosPair = (round(pos.x * win_ratio.w), round(pos.y * win_ratio.h))
+    resized_wh: SizePair = (ceil(w * img_ratio_w), ceil(h * img_ratio_h))
 
     return resized_xy, resized_wh
 

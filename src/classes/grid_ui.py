@@ -13,11 +13,13 @@ from src.classes.clickable import Checkbox
 from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, Size, Ratio, ObjInfo, MouseInfo, resize_obj
-from src.type_utils import BlitSequence, LayeredBlitSequence
+from src.type_utils import PosPair, SizePair, BlitSequence, LayeredBlitInfo
 from src.consts import EMPTY_TILE_IMG, BG_LAYER, ELEMENT_LAYER
 
 SelectionType = Union["NumSlider"]
 
+MOVEMENT_THRESHOLD: Final[int] = 10
+SPEED_SCALING_FACTOR: Final[int] = MOVEMENT_THRESHOLD * 15
 MAX_DIM: Final[int] = 256
 
 
@@ -25,10 +27,12 @@ class NumSlider:
     """Class that allows picking a number in a predefined range either by sliding or typing."""
 
     __slots__ = (
-        'value', 'input_box', '_prev_mouse_x', '_traveled_x', '_is_sliding', 'objs_info'
+        "value", "input_box", "_prev_mouse_x", "_traveled_x", "_speeds", "_is_sliding", "objs_info"
     )
 
-    def __init__(self, pos: RectPos, value: int, text: str, base_layer: int = BG_LAYER) -> None:
+    def __init__(
+        self, pos: RectPos, value: int, text: str, base_layer: int = BG_LAYER
+    ) -> None:
         """
         Creates the slider and text.
 
@@ -41,10 +45,11 @@ class NumSlider:
 
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
         self._traveled_x: int = 0
+        self._speeds: list[int] = []
         self._is_sliding: bool = False
 
         extra_text_label: TextLabel = TextLabel(
-            RectPos(self.input_box.rect.x - 10, self.input_box.rect.centery, 'midright'), text,
+            RectPos(self.input_box.rect.x - 10, self.input_box.rect.centery, "midright"), text,
             base_layer
         )
 
@@ -55,6 +60,7 @@ class NumSlider:
 
         self._is_sliding = False
         self._traveled_x = 0
+        self._speeds.clear()
 
     def set_value(self, value: int) -> None:
         """
@@ -65,6 +71,7 @@ class NumSlider:
         """
 
         self._traveled_x = 0
+        self._speeds.clear()
         self.value = value
         self.input_box.text_label.set_text(str(self.value))
         self.input_box.bounded_set_cursor_i(0)
@@ -81,10 +88,12 @@ class NumSlider:
             if not mouse_info.pressed[0]:
                 self._is_sliding = False
                 self._traveled_x = 0
+                self._speeds.clear()
         else:
             self._is_sliding = mouse_info.pressed[0]
             if not mouse_info.pressed[0]:
                 self._traveled_x = 0
+                self._speeds.clear()
 
     def slide(self, mouse_info: MouseInfo, temp_input_box_text: str) -> str:
         """
@@ -94,16 +103,26 @@ class NumSlider:
             mouse info, input box text
         """
 
+        # Slide faster depending on the mouse movement speed
+
         local_temp_input_box_text: str = temp_input_box_text
 
         if self._is_sliding:
-            self._traveled_x += mouse_info.x - self._prev_mouse_x
-            if abs(self._traveled_x) >= 10:
-                units_traveled: int = int(self._traveled_x / 10.0)
-                self._traveled_x -= units_traveled * 10
+            speed: int = mouse_info.x - self._prev_mouse_x
+            if speed:
+                self._speeds.append(speed)
 
-                value: int = max(min(self.value + units_traveled, MAX_DIM), 1)
+            self._traveled_x += speed
+            if abs(self._traveled_x) >= MOVEMENT_THRESHOLD:
+                units_traveled: float = self._traveled_x / MOVEMENT_THRESHOLD
+                avg_speed: float = sum(self._speeds) / len(self._speeds)
+                scaled_avg_speed: float = max(avg_speed / SPEED_SCALING_FACTOR, 1.0)
+                scaled_units: int = int(units_traveled * scaled_avg_speed)
+                value: int = max(min(self.value + scaled_units, MAX_DIM), 1)
+
                 local_temp_input_box_text = str(value)
+                self._speeds.clear()
+                self._traveled_x -= int(units_traveled) * MOVEMENT_THRESHOLD
 
         return local_temp_input_box_text
 
@@ -143,9 +162,9 @@ class GridUI(UI):
     """Class to create an interface that allows modifying the grid, has a preview."""
 
     __slots__ = (
-        '_preview_init_pos', '_preview_img', '_preview_rect', '_preview_init_size',
-        '_preview_layer', '_h_slider', '_w_slider', '_values_ratio', '_preview_tiles',
-        '_checkbox', '_selection_i', '_min_win_ratio', '_small_preview_img'
+        "_preview_init_pos", "_preview_img", "_preview_rect", "_preview_init_size",
+        "_preview_layer", "_h_slider", "_w_slider", "values_ratio", "_preview_tiles", "checkbox",
+        "_selection_i", "_min_win_ratio", "_small_preview_img"
     )
 
     def __init__(self, pos: RectPos, area: Size) -> None:
@@ -161,11 +180,11 @@ class GridUI(UI):
         super().__init__(pos, "MODIFY GRID")
 
         self._preview_init_pos: RectPos = RectPos(
-            self._rect.centerx, self._rect.centery + 40, 'center'
+            self._rect.centerx, self._rect.centery + 40, "center"
         )
 
         self._preview_img: pg.Surface = pg.Surface((300, 300))
-        preview_xy: tuple[int, int] = (self._preview_init_pos.x, self._preview_init_pos.y)
+        preview_xy: PosPair = (self._preview_init_pos.x, self._preview_init_pos.y)
         self._preview_rect: pg.Rect = self._preview_img.get_rect(
             **{self._preview_init_pos.coord_type: preview_xy}
         )
@@ -175,22 +194,22 @@ class GridUI(UI):
         self._preview_layer: int = self._base_layer + ELEMENT_LAYER
 
         self._h_slider: NumSlider = NumSlider(
-            RectPos(self._preview_rect.x + 20, self._preview_rect.y - 25, 'bottomleft'),
+            RectPos(self._preview_rect.x + 20, self._preview_rect.y - 25, "bottomleft"),
             area.h, "height", self._base_layer
         )
         self._w_slider: NumSlider = NumSlider(
-            RectPos(self._preview_rect.x + 20, self._h_slider.input_box.rect.y - 25, 'bottomleft'),
+            RectPos(self._preview_rect.x + 20, self._h_slider.input_box.rect.y - 25, "bottomleft"),
             area.w, "width", self._base_layer
         )
-        self._values_ratio: Ratio = Ratio(1.0, 1.0)
+        self.values_ratio: Ratio = Ratio(1.0, 1.0)
 
         self._preview_tiles: NDArray[np.uint8] = np.empty(
             (self._h_slider.value, self._w_slider.value, 4), np.uint8
         )
 
         checkbox_y: int = self._h_slider.input_box.rect.centery
-        self._checkbox: Checkbox = Checkbox(
-            RectPos(self._preview_rect.right - 20, checkbox_y, 'midright'),
+        self.checkbox: Checkbox = Checkbox(
+            RectPos(self._preview_rect.right - 20, checkbox_y, "midright"),
             (CHECKBOX_1_IMG, CHECKBOX_2_IMG), "keep ratio", "(CTRL+K)", self._base_layer
         )
 
@@ -204,10 +223,10 @@ class GridUI(UI):
 
         self.objs_info.extend((
             ObjInfo(self._w_slider), ObjInfo(self._h_slider),
-            ObjInfo(self._checkbox)
+            ObjInfo(self.checkbox)
         ))
 
-    def blit(self) -> LayeredBlitSequence:
+    def blit(self) -> list[LayeredBlitInfo]:
         """
         Returns the objects to blit.
 
@@ -215,7 +234,7 @@ class GridUI(UI):
             sequence to add in the main blit sequence
         """
 
-        sequence: LayeredBlitSequence = super().blit()
+        sequence: list[LayeredBlitInfo] = super().blit()
         sequence.append((self._preview_img, self._preview_rect.topleft, self._preview_layer))
 
         return sequence
@@ -246,8 +265,8 @@ class GridUI(UI):
             self._h_slider.value * unscaled_preview_tile_dim
         )
 
-        preview_xy: tuple[int, int]
-        preview_wh: tuple[int, int]
+        preview_xy: PosPair
+        preview_wh: SizePair
         preview_xy, preview_wh = resize_obj(
             self._preview_init_pos, *unscaled_preview_wh, win_ratio, True
         )
@@ -268,13 +287,13 @@ class GridUI(UI):
         self._w_slider.set_value(area.w)
         self._h_slider.set_value(area.h)
         self._preview_tiles = tiles
-        self._values_ratio.w, self._values_ratio.h = area.h / area.w, area.w / area.h
+        self.values_ratio.w, self.values_ratio.h = area.h / area.w, area.w / area.h
 
         self._get_preview(area)
 
     def _get_full_tiles(self, area: Size) -> NDArray[np.uint8]:
         """
-        Adjust the tiles to fit the preview.
+        Adjusts the tiles to fit the preview.
 
         Args:
             area
@@ -282,21 +301,21 @@ class GridUI(UI):
             tiles
         """
 
-        local_tiles: NDArray[np.uint8] = self._preview_tiles
+        copy_tiles: NDArray[np.uint8] = self._preview_tiles
 
-        extra_rows: int = area.h - local_tiles.shape[0]
+        extra_rows: int = area.h - copy_tiles.shape[0]
         if extra_rows < 0:
-            local_tiles = local_tiles[:area.h, :, :]
+            copy_tiles = copy_tiles[:area.h, :, :]
         elif extra_rows > 0:
-            local_tiles = np.pad(local_tiles, ((0, extra_rows), (0, 0), (0, 0)), constant_values=0)
+            copy_tiles = np.pad(copy_tiles, ((0, extra_rows), (0, 0), (0, 0)), constant_values=0)
 
-        extra_cols: int = area.w - local_tiles.shape[1]
+        extra_cols: int = area.w - copy_tiles.shape[1]
         if extra_cols < 0:
-            local_tiles = local_tiles[:, :area.w, :]
+            copy_tiles = copy_tiles[:, :area.w, :]
         if extra_cols > 0:
-            local_tiles = np.pad(local_tiles, ((0, 0), (0, extra_cols), (0, 0)), constant_values=0)
+            copy_tiles = np.pad(copy_tiles, ((0, 0), (0, extra_cols), (0, 0)), constant_values=0)
 
-        return local_tiles
+        return copy_tiles
 
     def _get_preview(self, area: Size) -> None:
         """
@@ -306,14 +325,14 @@ class GridUI(UI):
             area
         """
 
-        local_tiles: NDArray[np.uint8] = self._get_full_tiles(area)
         local_empty_tile_img: pg.Surface = EMPTY_TILE_IMG
 
+        full_tiles: NDArray[np.uint8] = self._get_full_tiles(area)
         self._small_preview_img = pg.Surface((area.w * 2, area.h * 2))
         sequence: BlitSequence = []
         tile_img: pg.Surface = pg.Surface((2, 2))
         for y in range(area.h):
-            row: NDArray[np.uint8] = local_tiles[y]
+            row: NDArray[np.uint8] = full_tiles[y]
             for x in range(area.w):
                 if not row[x, -1]:
                     sequence.append((local_empty_tile_img, (x * 2, y * 2)))
@@ -325,11 +344,13 @@ class GridUI(UI):
         tile_dim: float = min(
             self._preview_init_size.w / area.w, self._preview_init_size.h / area.h
         ) * self._min_win_ratio
-        wh: tuple[int, int] = (ceil(area.w * tile_dim), ceil(area.h * tile_dim))
-        xy: tuple[int, int] = getattr(self._preview_rect, self._preview_init_pos.coord_type)
+        coord: PosPair = getattr(self._preview_rect, self._preview_init_pos.coord_type)
+        wh: SizePair = (ceil(area.w * tile_dim), ceil(area.h * tile_dim))
 
         self._preview_img = pg.transform.scale(self._small_preview_img, wh)
-        self._preview_rect = self._preview_img.get_rect(**{self._preview_init_pos.coord_type: xy})
+        self._preview_rect = self._preview_img.get_rect(
+            **{self._preview_init_pos.coord_type: coord}
+        )
 
     def _move_with_keys(self, keys: list[int]) -> None:
         """
@@ -366,25 +387,25 @@ class GridUI(UI):
         if self._h_slider.upt(hovered_obj, mouse_info, keys, selection):
             self._selection_i = 1
 
-    def _adjust_opp_slider(self, grid_area: Size, prev_grid_w: int) -> tuple[int, int]:
+    def _adjust_opp_slider(self, grid_area: Size, prev_grid_w: int) -> SizePair:
         """
         Adjusts the opposite slider when keeping their ratio.
 
         Args:
             grid area, previous grid width
         Returns:
-            grid width, grid height
+            grid area
         """
 
         opp_slider: NumSlider
         uncapped_value: int
         if grid_area.w != prev_grid_w:
             opp_slider = self._h_slider
-            uncapped_value = round(grid_area.w * self._values_ratio.w)
+            uncapped_value = round(grid_area.w * self.values_ratio.w)
             opp_slider.value = max(min(uncapped_value, MAX_DIM), 1)
         else:
             opp_slider = self._w_slider
-            uncapped_value = round(grid_area.h * self._values_ratio.h)
+            uncapped_value = round(grid_area.h * self.values_ratio.h)
             opp_slider.value = max(min(uncapped_value, MAX_DIM), 1)
         opp_slider.input_box.text_label.set_text(str(opp_slider.value))
         opp_slider.input_box.bounded_set_cursor_i()
@@ -412,14 +433,14 @@ class GridUI(UI):
         grid_area: Size = Size(self._w_slider.value, self._h_slider.value)
 
         if grid_area.w != prev_grid_w or grid_area.h != prev_grid_h:
-            if self._checkbox.is_checked:
+            if self.checkbox.is_checked:
                 grid_area.w, grid_area.h = self._adjust_opp_slider(grid_area, prev_grid_w)
             self._get_preview(grid_area)
 
         did_shortcut: bool = bool((pg.key.get_mods() & pg.KMOD_CTRL) and pg.K_k in keys)
-        if self._checkbox.upt(hovered_obj, mouse_info, did_shortcut):
-            self._values_ratio.w = grid_area.h / grid_area.w
-            self._values_ratio.h = grid_area.w / grid_area.h
+        if self.checkbox.upt(hovered_obj, mouse_info, did_shortcut):
+            self.values_ratio.w = grid_area.h / grid_area.w
+            self.values_ratio.h = grid_area.w / grid_area.h
 
         confirmed: bool
         exited: bool

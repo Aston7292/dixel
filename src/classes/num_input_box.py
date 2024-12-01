@@ -7,7 +7,7 @@ import pygame as pg
 from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, Ratio, ObjInfo, MouseInfo, resize_obj
-from src.type_utils import LayeredBlitSequence
+from src.type_utils import PosPair, SizePair, LayeredBlitInfo
 from src.consts import CHR_LIMIT, WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
 INPUT_BOX_IMG: Final[pg.Surface] = pg.Surface((60, 40))
@@ -17,9 +17,9 @@ class NumInputBox:
     """Class to choose a number in range with an input box."""
 
     __slots__ = (
-        '_init_pos', '_init_img', '_img', 'rect', 'is_hovering', '_is_selected',
-        '_layer', '_hovering_layer', 'text_label', 'cursor_i', '_cursor_img', '_cursor_rect',
-        'objs_info'
+        "_init_pos", "_init_img", "_img", "rect", "is_hovering", "_is_selected",
+        "_layer", "_hovering_layer", "text_label", "cursor_i", "_cursor_img", "_cursor_rect",
+        "objs_info"
     )
 
     def __init__(self, pos: RectPos, text: str, base_layer: int = BG_LAYER) -> None:
@@ -42,7 +42,7 @@ class NumInputBox:
         self._layer: int = base_layer + ELEMENT_LAYER
         self._hovering_layer: int = base_layer + TOP_LAYER
 
-        self.text_label = TextLabel(RectPos(*self.rect.center, 'center'), text, base_layer)
+        self.text_label = TextLabel(RectPos(*self.rect.center, "center"), text, base_layer)
         self.cursor_i: int = 0
 
         self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h))
@@ -53,7 +53,7 @@ class NumInputBox:
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self.text_label)]
 
-    def blit(self) -> LayeredBlitSequence:
+    def blit(self) -> list[LayeredBlitInfo]:
         """
         Returns the objects to blit.
 
@@ -61,13 +61,13 @@ class NumInputBox:
             sequence to add in the main blit sequence
         """
 
-        sequence: LayeredBlitSequence = [(self._img, self.rect.topleft, self._layer)]
+        sequence: list[LayeredBlitInfo] = [(self._img, self.rect.topleft, self._layer)]
         if self._is_selected:
             sequence.append((self._cursor_img, self._cursor_rect.topleft, self._hovering_layer))
 
         return sequence
 
-    def check_hovering(self, mouse_xy: tuple[int, int]) -> tuple[Optional["NumInputBox"], int]:
+    def check_hovering(self, mouse_xy: PosPair) -> tuple[Optional["NumInputBox"], int]:
         """
         Checks if the mouse is hovering any interactable part of the object.
 
@@ -93,8 +93,8 @@ class NumInputBox:
             window size ratio
         """
 
-        box_xy: tuple[int, int]
-        box_wh: tuple[int, int]
+        box_xy: PosPair
+        box_wh: SizePair
         box_xy, box_wh = resize_obj(self._init_pos, *self._init_img.get_size(), win_ratio)
 
         self._img = pg.transform.scale(self._init_img, box_wh)
@@ -117,10 +117,9 @@ class NumInputBox:
             cursor index (normal cursor index if None) (default = None)
         """
 
-        if cursor_i is None:
-            self.cursor_i = min(self.cursor_i, len(self.text_label.text))
-        else:
-            self.cursor_i = min(cursor_i, len(self.text_label.text))
+        if cursor_i is not None:
+            self.cursor_i = cursor_i
+        self.cursor_i = min(self.cursor_i, len(self.text_label.text))
         self._cursor_rect.x = self.text_label.get_pos_at(self.cursor_i)
 
     def _move_cursor_with_keys(self, keys: list[int]) -> None:
@@ -132,13 +131,12 @@ class NumInputBox:
         """
 
         if pg.K_LEFT in keys:
-            self.cursor_i = max(self.cursor_i - 1, 0)
-            if pg.key.get_mods() & pg.KMOD_CTRL:
-                self.cursor_i = 0
+            self.cursor_i = 0 if pg.key.get_mods() & pg.KMOD_CTRL else max(self.cursor_i - 1, 0)
         if pg.K_RIGHT in keys:
-            self.cursor_i = min(self.cursor_i + 1, len(self.text_label.text))
-            if pg.key.get_mods() & pg.KMOD_CTRL:
-                self.cursor_i = len(self.text_label.text)
+            text_len: int = len(self.text_label.text)
+            self.cursor_i = (
+                text_len if pg.key.get_mods() & pg.KMOD_CTRL else min(self.cursor_i + 1, text_len)
+            )
         if pg.K_HOME in keys:
             self.cursor_i = 0
         if pg.K_END in keys:
@@ -162,8 +160,8 @@ class NumInputBox:
             temp_text = temp_text[:self.cursor_i - 1] + temp_text[self.cursor_i:]
             self.cursor_i -= 1
 
-        if temp_text.startswith('0'):  # If it's empty keep it empty
-            temp_text = temp_text.lstrip('0') or str(min_limit)
+        if temp_text.startswith("0"):  # If it's empty keep it empty
+            temp_text = temp_text.lstrip("0") or str(min_limit)
 
         return temp_text
 
@@ -190,8 +188,8 @@ class NumInputBox:
             temp_text = str(max_limit)
             change_cursor_i = self.text_label.text != temp_text
 
-        if temp_text.startswith('0'):   # If it's empty keep it empty
-            temp_text = temp_text.lstrip('0') or str(min_limit)
+        if temp_text.startswith("0"):   # If it's empty keep it empty
+            temp_text = temp_text.lstrip("0") or str(min_limit)
 
         if change_cursor_i:
             self.cursor_i = min(self.cursor_i + 1, len(temp_text))
@@ -214,7 +212,7 @@ class NumInputBox:
             temp_text = self._handle_deletion(k, min_limit)
         elif k <= CHR_LIMIT:
             char: str = chr(k)
-            inserted_trailing_zero: bool = bool((char == '0' and not self.cursor_i) and temp_text)
+            inserted_trailing_zero: bool = bool((char == "0" and not self.cursor_i) and temp_text)
             if char.isdigit() and not inserted_trailing_zero:
                 temp_text = self._insert_char(char, min_limit, max_limit)
 

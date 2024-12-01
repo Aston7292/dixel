@@ -58,12 +58,17 @@ Interacting with elements:
     it contains a high level implementation of it's behavior.
 
 ----------TODO----------
-- slider is faster when moving the mouse faster
 - draw only part of the palette if it's too big
+- indicate unsaved file
+- simplify Dixel
 - option to change the palette to match the current colors/multiple palettes
 - CTRL Z/Y (store without alpha channel, UI to view history)
 - option to make drawing only affect the visible_area?
-. have multiple files open
+- save button (indicate unsaved file)
+- way to close without auto saving?
+- have multiple files open
+- handle old data files
+- refresh file when modified externally
 - better mouse sprite handling (if switching objects between frames it won't always be right)
 - UIs as separate windows?
 
@@ -99,7 +104,6 @@ optimizations:
     - GRID_MANAGER: update_section (precalculate section_indicator?)
 """
 
-from tkinter import Tk, filedialog
 from pathlib import Path
 from os import path
 from sys import argv
@@ -115,11 +119,13 @@ from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, Size, Ratio, ObjInfo, MouseInfo, get_img, get_pixels
-from src.file_utils import has_file_access, create_file, create_nested_file
-from src.type_utils import (
-    OptColor, CheckboxInfo, ToolInfo, BlitSequence, LayeredBlitInfo, LayeredBlitSequence
+from src.file_utils import (
+    check_file_access, create_file_argv, create_dir_argv, ask_save_to_file, ask_open_file
 )
-from src.consts import CHR_LIMIT, INIT_WIN_SIZE, BLACK
+from src.type_utils import PosPair, Color, CheckboxInfo, ToolInfo, BlitSequence, LayeredBlitInfo
+from src.consts import (
+    CHR_LIMIT, INIT_WIN_SIZE, BLACK, ACCESS_SUCCESS, ACCESS_MISSING, ACCESS_DENIED, ACCESS_LOCKED
+)
 
 pg.font.init()
 
@@ -151,59 +157,59 @@ NUMPAD_MAP: Final[NumPadMap] = {
 }
 
 ADD_COLOR: Final[Button] = Button(
-    RectPos(INIT_WIN_SIZE.w - 25, INIT_WIN_SIZE.h - 25, 'bottomright'),
+    RectPos(INIT_WIN_SIZE.w - 25, INIT_WIN_SIZE.h - 25, "bottomright"),
     (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "add color", "(CTRL+A)"
 )
 MODIFY_GRID: Final[Button] = Button(
-    RectPos(ADD_COLOR.rect.x - 10, ADD_COLOR.rect.y, 'topright'),
+    RectPos(ADD_COLOR.rect.x - 10, ADD_COLOR.rect.y, "topright"),
     (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "modify grid", "(CTRL+M)"
 )
 
 SAVE_AS: Final[Button] = Button(
-    RectPos(0, 0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
+    RectPos(0, 0, "topleft"), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
     "save as", "(CTRL+S)", text_h=15
 )
 OPEN: Final[Button] = Button(
-    RectPos(SAVE_AS.rect.right, 0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
+    RectPos(SAVE_AS.rect.right, 0, "topleft"), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
     "open file", "(CTRL+O)", text_h=15
 )
 CLOSE: Final[Button] = Button(
-    RectPos(OPEN.rect.right, 0, 'topleft'), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
+    RectPos(OPEN.rect.right, 0, "topleft"), (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG),
     "close file", "(CTRL+Q)", text_h=15
 )
 
 GRID_MANAGER: Final[GridManager] = GridManager(
-    RectPos(round(INIT_WIN_SIZE.w / 2.0), round(INIT_WIN_SIZE.h / 2.0), 'center'),
-    RectPos(INIT_WIN_SIZE.w - 10, 10, 'topright')
+    RectPos(round(INIT_WIN_SIZE.w / 2.0), round(INIT_WIN_SIZE.h / 2.0), "center"),
+    RectPos(INIT_WIN_SIZE.w - 10, 10, "topright")
 )
 
 BRUSH_SIZES_INFO: Final[tuple[CheckboxInfo, ...]] = tuple(
     (get_img("sprites", f"size_{n}_off.png"), f"{n}px\n(CTRL+{n})") for n in range(1, 6)
 )
 BRUSH_SIZES: Final[CheckboxGrid] = CheckboxGrid(
-    RectPos(10, SAVE_AS.rect.bottom + 10, 'topleft'), BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO),
+    RectPos(10, SAVE_AS.rect.bottom + 10, "topleft"), BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO),
     (False, False)
 )
 
 PALETTE_MANAGER: Final[PaletteManager] = PaletteManager(
-    RectPos(INIT_WIN_SIZE.w - 75, ADD_COLOR.rect.y - 25, 'bottomright'),
+    RectPos(INIT_WIN_SIZE.w - 75, ADD_COLOR.rect.y - 25, "bottomright"),
     (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG)
 )
 
 TOOLS_MANAGER: Final[ToolsManager] = ToolsManager(
-    RectPos(10, INIT_WIN_SIZE.h - 10, 'bottomleft')
+    RectPos(10, INIT_WIN_SIZE.h - 10, "bottomleft")
 )
 
 FPS_TEXT_LABEL: Final[TextLabel] = TextLabel(
-    RectPos(round(INIT_WIN_SIZE.w / 2.0), 0, 'midtop'), "FPS: 0"
+    RectPos(round(INIT_WIN_SIZE.w / 2.0), 0, "midtop"), "FPS: 0"
 )
 
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
-    RectPos(round(INIT_WIN_SIZE.w / 2.0), round(INIT_WIN_SIZE.h / 2.0), 'center'),
+    RectPos(round(INIT_WIN_SIZE.w / 2.0), round(INIT_WIN_SIZE.h / 2.0), "center"),
     PALETTE_MANAGER.values[0]
 )
 GRID_UI: Final[GridUI] = GridUI(
-    RectPos(round(INIT_WIN_SIZE.w / 2.0), round(INIT_WIN_SIZE.h / 2.0), 'center'),
+    RectPos(round(INIT_WIN_SIZE.w / 2.0), round(INIT_WIN_SIZE.h / 2.0), "center"),
     GRID_MANAGER.grid.area
 )
 
@@ -241,10 +247,10 @@ def _handle_argv() -> tuple[Path, str]:
     """
 
     file_obj: Path
-    flag: str = argv[2].lower() if len(argv) > 2 else ''
+    flag: str = argv[2].lower() if len(argv) > 2 else ""
 
     should_exit: bool = False
-    if argv[1].lower() == "help" or flag not in ('', "--mk-file", "--mk-dir"):
+    if argv[1].lower() == "help" or flag not in ("", "--mk-file", "--mk-dir"):
         print(
             "Usage: program <file path> <optional flags>\n"
             "Example: program test (.png is not required)\n"
@@ -255,7 +261,7 @@ def _handle_argv() -> tuple[Path, str]:
         should_exit = True
     else:
         try:
-            file_obj = Path(argv[1]).with_suffix('.png')
+            file_obj = Path(argv[1]).with_suffix(".png")
             if path.isreserved(file_obj):
                 print("Invalid name.")
                 should_exit = True
@@ -285,9 +291,9 @@ class Dixel:
     """Drawing program for pixel art."""
 
     __slots__ = (
-        '_is_fullscreen', '_mouse_info', '_pressed_keys', '_timed_keys', '_last_k_input',
-        '_alt_k', '_kmod_ctrl', '_state', '_active_objs', '_inactive_objs', '_hovered_obj',
-        '_data_file_obj', '_is_opening_file', '_data'
+        "_is_fullscreen", "_mouse_info", "_pressed_keys", "_timed_keys", "_last_k_input_time",
+        "_alt_k", "_kmod_ctrl", "_state", "_active_objs", "_inactive_objs", "_hovered_obj",
+        "_data_file_obj", "_is_opening_file", "_data"
     )
 
     def __init__(self) -> None:
@@ -300,9 +306,9 @@ class Dixel:
         )
         self._pressed_keys: list[int] = []
         self._timed_keys: list[int] = self._pressed_keys.copy()
-        self._last_k_input: int = pg.time.get_ticks()
+        self._last_k_input_time: int = pg.time.get_ticks()
 
-        self._alt_k: str = ''
+        self._alt_k: str = ""
         self._kmod_ctrl: int = 0
 
         # 0 = main interface
@@ -317,27 +323,58 @@ class Dixel:
         self._data_file_obj: Path = Path("data.json")
         self._is_opening_file: bool = False
 
+        # Every key except file is updated on save
         self._data: dict[str, Any] = {
-            "file": '',
-            "colors": _get_hex_colors()  # Updated on save
+            "file": "",
+            "grid_offset": [GRID_MANAGER.offset.x, GRID_MANAGER.offset.y],
+            "grid_area": [GRID_MANAGER.grid.area.w, GRID_MANAGER.grid.area.h],
+            "grid_vis_area": [GRID_MANAGER.grid.visible_area.w, GRID_MANAGER.grid.visible_area.h],
+            "brush_size_i": BRUSH_SIZES.clicked_i,
+            "color_i": PALETTE_MANAGER.colors.clicked_i,
+            "tool_i": TOOLS_MANAGER.tools.clicked_i,
+            "grid_ratio": [GRID_UI.values_ratio.w, GRID_UI.values_ratio.h],
+            "colors": _get_hex_colors()
         }
 
         if self._data_file_obj.exists():
-            with self._data_file_obj.open(encoding='utf-8') as f:
-                self._data = json.load(f)
-
-            file_obj: Path = Path(self._data["file"])
-            if not (file_obj.is_file() and has_file_access(file_obj)):
-                self._data["file"] = ''
+            self._load_data_from_file()
 
         if len(argv) > 1:
             self._handle_path_from_argv()
+        elif self._data["file"]:
+            file_exit_code: int = check_file_access(Path(self._data["file"]))
+            if file_exit_code != ACCESS_SUCCESS:
+                if file_exit_code == ACCESS_DENIED:
+                    print("Permission denied.")
+                elif file_exit_code == ACCESS_LOCKED:
+                    print("File locked.")
 
-        rgb_colors: list[list[int]] = [
-            [int(color[i:i + 2], 16) for i in range(0, 6, 2)] for color in self._data["colors"]
+                self._data["file"] = ""
+
+        grid_area: Size = Size(*self._data["grid_area"])
+        GRID_MANAGER.set_from_path(
+            self._data["file"], grid_area, self._data["grid_offset"], self._data["grid_vis_area"]
+        )
+
+    def _load_data_from_file(self) -> None:
+        """Loads the data from the data file."""
+
+        with self._data_file_obj.open(encoding="utf-8") as f:
+            self._data = json.load(f)
+
+        rgb_colors: list[Color] = [
+            tuple(int(color[i:i + 2], 16) for i in (0, 2, 4)) for color in self._data["colors"]
         ]
-        GRID_MANAGER.set_from_path(self._data["file"], GRID_MANAGER.grid.area)
+        prev_tool_i: int = TOOLS_MANAGER.tools.clicked_i
+
         PALETTE_MANAGER.set_colors(rgb_colors)
+        BRUSH_SIZES.check(self._data["brush_size_i"])
+        PALETTE_MANAGER.colors.check(self._data["color_i"])
+        TOOLS_MANAGER.tools.check(self._data["tool_i"])
+        TOOLS_MANAGER.refresh_tool(prev_tool_i)
+        if self._data["grid_ratio"]:
+            GRID_UI.checkbox.is_checked = True
+            GRID_UI.values_ratio.w, GRID_UI.values_ratio.h = self._data["grid_ratio"]
 
     def _handle_path_from_argv(self) -> None:
         """
@@ -353,15 +390,18 @@ class Dixel:
 
         file_path: str = str(file_obj)
         should_exit: bool = False
-        if file_obj.is_file():
-            if not has_file_access(file_obj):
-                print("Permission denied.")
-                should_exit = True
-        else:
+        file_exit_code: int = check_file_access(file_obj)
+        if file_exit_code == ACCESS_DENIED:
+            print("Permission denied.")
+            should_exit = True
+        elif file_exit_code == ACCESS_LOCKED:
+            print("File locked.")
+            should_exit = True
+        elif file_exit_code == ACCESS_MISSING:
             if file_obj.parent.is_dir():
-                should_exit = create_file(file_path, flag)
+                should_exit = create_file_argv(file_path, flag)
             else:
-                should_exit = create_nested_file(file_path, flag)
+                should_exit = create_dir_argv(file_path, flag)
 
             if not should_exit:
                 GRID_MANAGER.save_to_file(file_path)
@@ -374,19 +414,19 @@ class Dixel:
     def _draw(self) -> None:
         """Draws every object with the blit method to the screen."""
 
-        def get_layer(sequence: LayeredBlitInfo) -> int:
+        def get_layer(blit_info: LayeredBlitInfo) -> int:
             """
             Gets the layer from a layered blit info.
 
             Args:
-                sequence
+                blit info
             Returns:
                 layer
             """
 
-            return sequence[2]
+            return blit_info[2]
 
-        main_sequence: LayeredBlitSequence = []
+        main_sequence: list[LayeredBlitInfo] = []
 
         blittable_objs: list[Any] = self._active_objs[0].copy()
         if self._state:
@@ -408,11 +448,11 @@ class Dixel:
 
         objs_info: list[list[ObjInfo]] = []
         for state_info in MAIN_OBJS_INFO:
-            local_state_info: list[ObjInfo] = state_info.copy()
-            for info in local_state_info:
+            copy_state_info: list[ObjInfo] = state_info.copy()
+            for info in copy_state_info:
                 if hasattr(info.obj, "objs_info"):
-                    local_state_info.extend(info.obj.objs_info)
-            objs_info.append(local_state_info)
+                    copy_state_info.extend(info.obj.objs_info)
+            objs_info.append(copy_state_info)
 
         self._active_objs = [
             [info.obj for info in state_info if info.is_active]
@@ -446,12 +486,24 @@ class Dixel:
             SystemExit
         """
 
-        if self._data["file"]:
-            GRID_MANAGER.save_to_file(self._data["file"])
+        keep_grid_ratio: bool = GRID_UI.checkbox.is_checked
 
+        self._data["grid_offset"] = [GRID_MANAGER.offset.x, GRID_MANAGER.offset.y]
+        self._data["grid_area"] = [GRID_MANAGER.grid.area.w, GRID_MANAGER.grid.area.h]
+        self._data["grid_vis_area"] = [
+            GRID_MANAGER.grid.visible_area.w, GRID_MANAGER.grid.visible_area.h
+        ]
+        self._data["brush_size_i"] = BRUSH_SIZES.clicked_i
+        self._data["color_i"] = PALETTE_MANAGER.colors.clicked_i
+        self._data["tool_i"] = TOOLS_MANAGER.tools.clicked_i
+        self._data["grid_ratio"] = (
+            [GRID_UI.values_ratio.w, GRID_UI.values_ratio.h] if keep_grid_ratio else None
+        )
         self._data["colors"] = _get_hex_colors()
 
-        with self._data_file_obj.open('w', encoding='utf-8') as f:
+        if self._data["file"]:
+            GRID_MANAGER.save_to_file(self._data["file"])
+        with self._data_file_obj.open("w", encoding="utf-8") as f:
             json.dump(self._data, f, indent=4)
 
         raise SystemExit
@@ -480,7 +532,7 @@ class Dixel:
 
     def _add_to_keys(self, k: int) -> None:
         """
-        Adds a key to the pressed_keys if it's not using alt.
+        Adds a key to the pressed_keys if it"s not using alt.
 
         Args:
             key
@@ -496,10 +548,10 @@ class Dixel:
         else:
             self._alt_k += chr(converted_k)
             if int(self._alt_k) > CHR_LIMIT:
-                self._alt_k = chr(converted_k)
+                self._alt_k = self._alt_k[-1]
 
-            self._alt_k = self._alt_k.lstrip('0')
-        self._last_k_input = 0
+            self._alt_k = self._alt_k.lstrip("0")
+        self._last_k_input_time = 0
 
     def _handle_key_press(self, k: int) -> None:
         """
@@ -514,10 +566,8 @@ class Dixel:
             self._close()
         elif k == pg.K_F1:
             WIN.size = WIN.minimum_size
-            if self._is_fullscreen:
-                WIN.set_windowed()
-                self._is_fullscreen = False
-
+            WIN.set_windowed()
+            self._is_fullscreen = False
             self._resize_objs()
         elif k == pg.K_F11:
             # Triggers the VIDEORESIZE event, calling resize is unnecessary
@@ -530,17 +580,17 @@ class Dixel:
     def _refine_keys(self) -> None:
         """Refines keyboard inputs."""
 
-        self._timed_keys = []
-        if pg.time.get_ticks() - self._last_k_input >= 100:
+        self._timed_keys.clear()
+        if pg.time.get_ticks() - self._last_k_input_time >= 100:
             numpad_map_i: int = int(bool(pg.key.get_mods() & pg.KMOD_NUM))
             self._timed_keys = [
                 NUMPAD_MAP[k][numpad_map_i] if k in NUMPAD_MAP else k for k in self._pressed_keys
             ]
-            self._last_k_input = pg.time.get_ticks()
+            self._last_k_input_time = pg.time.get_ticks()
 
         if not (pg.key.get_mods() & pg.KMOD_ALT) and self._alt_k:
             self._timed_keys.append(int(self._alt_k))
-            self._alt_k = ''
+            self._alt_k = ""
 
     def _zoom_objs(self, amount: int) -> None:
         """
@@ -602,7 +652,7 @@ class Dixel:
         WIN.size = (win_w, win_h)
         self._resize_objs()
 
-    def _get_hovered_obj(self, mouse_xy: tuple[int, int]) -> None:
+    def _get_hovered_obj(self, mouse_xy: PosPair) -> None:
         """
         Gets the hovered object.
 
@@ -643,38 +693,24 @@ class Dixel:
             self._leave_state(self._state)
             self._draw()  # Applies the leave method changes since tkinter stops the execution
 
-            tk_root: Tk = Tk()
-            tk_root.withdraw()
-            file_path: str = filedialog.asksaveasfilename(
-                defaultextension='.png', filetypes=(("png Files", '*.png'),), title="Save as"
-            )
-            tk_root.destroy()
-
+            file_path: str = ask_save_to_file()
             if file_path:
-                self._data["file"] = file_path
-                GRID_MANAGER.save_to_file(self._data["file"])
+                self._data["file"] = GRID_MANAGER.save_to_file(file_path)
 
     def _handle_file_opening(self) -> None:
         """Handles the open file button."""
 
         ctrl_o: bool = bool(self._kmod_ctrl and pg.K_o in self._timed_keys)
         if OPEN.upt(self._hovered_obj, self._mouse_info) or ctrl_o:
-            if self._data["file"]:
-                GRID_MANAGER.save_to_file(self._data["file"])
-
             self._leave_state(self._state)
             self._draw()  # Applies the leave method changes since tkinter stops the execution
 
-            tk_root: Tk = Tk()
-            tk_root.withdraw()
-            file_path: str = filedialog.askopenfilename(
-                defaultextension='.png', filetypes=(("png Files", '*.png'),), title="Open"
-            )
-            tk_root.destroy()
-
+            file_path: str = ask_open_file()
             if file_path:
-                self._data["file"] = file_path
+                if self._data["file"]:
+                    self._data["file"] = GRID_MANAGER.save_to_file(self._data["file"])
 
+                self._data["file"] = file_path
                 self._state = 2
                 img: pg.Surface = get_img(self._data["file"])
                 GRID_UI.set_info(GRID_MANAGER.grid.area, get_pixels(img))
@@ -688,7 +724,7 @@ class Dixel:
             GRID_MANAGER.save_to_file(self._data["file"])
             self._leave_state(self._state)
 
-            self._data["file"] = ''
+            self._data["file"] = ""
             GRID_MANAGER.set_from_path(self._data["file"], GRID_MANAGER.grid.area)
 
     def _crash(self, exception: Exception) -> NoReturn:
@@ -709,10 +745,24 @@ class Dixel:
                 file_name = f"new_file_{duplicate_name_counter}.png"
 
             self._data["file"] = file_name
+
+        keep_grid_ratio: bool = GRID_UI.checkbox.is_checked
+
+        self._data["grid_offset"] = [GRID_MANAGER.offset.x, GRID_MANAGER.offset.y]
+        self._data["grid_area"] = [GRID_MANAGER.grid.area.w, GRID_MANAGER.grid.area.h]
+        self._data["grid_vis_area"] = [
+            GRID_MANAGER.grid.visible_area.w, GRID_MANAGER.grid.visible_area.h
+        ]
+        self._data["brush_size_i"] = BRUSH_SIZES.clicked_i
+        self._data["color_i"] = PALETTE_MANAGER.colors.clicked_i
+        self._data["tool_i"] = TOOLS_MANAGER.tools.clicked_i
+        self._data["grid_ratio"] = (
+            [GRID_UI.values_ratio.w, GRID_UI.values_ratio.h] if keep_grid_ratio else None
+        )
         self._data["colors"] = _get_hex_colors()
 
         GRID_MANAGER.save_to_file(self._data["file"])
-        with self._data_file_obj.open('w', encoding='utf-8') as f:
+        with self._data_file_obj.open("w", encoding="utf-8") as f:
             json.dump(self._data, f, indent=4)
 
         raise exception
@@ -724,8 +774,8 @@ class Dixel:
             self._hovered_obj, self._mouse_info, self._timed_keys
         ) + 1
 
-        color: list[int]
-        color_to_edit: OptColor
+        color: Color
+        color_to_edit: Optional[Color]
         color, color_to_edit = PALETTE_MANAGER.upt(
             self._hovered_obj, self._mouse_info, self._timed_keys
         )
@@ -754,7 +804,7 @@ class Dixel:
         """Handles the color UI."""
 
         is_ui_closed: bool
-        future_color: OptColor
+        future_color: Optional[Color]
         is_ui_closed, future_color = COLOR_PICKER.upt(
             self._hovered_obj, self._mouse_info, self._timed_keys
         )
@@ -772,7 +822,7 @@ class Dixel:
         )
         if is_ui_closed:
             if not self._is_opening_file:
-                GRID_MANAGER.set_size(future_area)
+                GRID_MANAGER.set_area(future_area)
             else:
                 GRID_MANAGER.set_from_path(self._data["file"], future_area)
                 self._is_opening_file = False
@@ -787,14 +837,12 @@ class Dixel:
                 CLOCK.tick(60)
                 self._handle_events()
 
-                resizing_keys: tuple[int, ...] = (pg.K_F5, pg.K_F6, pg.K_F7, pg.K_F8)
+                resizing_keys: tuple[int, int, int, int] = (pg.K_F5, pg.K_F6, pg.K_F7, pg.K_F8)
                 if not self._is_fullscreen and any(k in self._timed_keys for k in resizing_keys):
                     self._resize_with_keys()
 
                 # When the mouse is off the window its position is (0, 0)
-                mouse_xy: tuple[int, int] = (
-                    pg.mouse.get_pos() if pg.mouse.get_focused() else (-1, -1)
-                )
+                mouse_xy: PosPair = pg.mouse.get_pos() if pg.mouse.get_focused() else (-1, -1)
                 self._mouse_info = MouseInfo(
                     *mouse_xy, pg.mouse.get_pressed(), pg.mouse.get_just_released()
                 )
@@ -821,5 +869,5 @@ class Dixel:
             self._crash(e)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     Dixel().run()

@@ -1,7 +1,6 @@
 """Class to create various clickable objects."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
 from typing import Optional, Any
 
 import pygame as pg
@@ -9,8 +8,8 @@ import pygame as pg
 from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, Ratio, ObjInfo, MouseInfo, resize_obj
-from src.type_utils import LayeredBlitInfo, LayeredBlitSequence
-from src.consts import BG_LAYER, ELEMENT_LAYER, TOP_LAYER
+from src.type_utils import PosPair, SizePair, LayeredBlitInfo
+from src.consts import BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
 
 class Clickable(ABC):
@@ -18,20 +17,19 @@ class Clickable(ABC):
     Abstract class to create a clickable object with two images (must be of the same size).
 
     Includes:
-        base_blit(image index) -> PriorityBlitSequence
+        base_blit(image index) -> layered blit sequence
         check_hovering(mouse_position) -> tuple[object, layer]
         leave() -> None
         resize(window size ratio) -> None
         move_rect(x, y, window size ratio) -> None
 
     Children should include:
-        blit() -> PriorityBlitSequence
+        blit() -> layered blit sequence
         upt(hovered object, mouse info) -> bool
     """
 
     __slots__ = (
-        'init_pos', '_init_imgs', '_imgs', 'rect', '_is_hovering', '_layer', '_hovering_layer',
-        '_hovering_text_label', '_hovering_text_imgs'
+        "init_pos", "_init_imgs", "_imgs", "rect", "_is_hovering", "_layer", "_hovering_text_label"
     )
 
     def __init__(
@@ -56,27 +54,15 @@ class Clickable(ABC):
         self._is_hovering: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
-        self._hovering_layer: int = base_layer + TOP_LAYER
 
         self._hovering_text_label: Optional[TextLabel] = None
-        self._hovering_text_imgs: tuple[pg.Surface, ...] = ()
         if hovering_text is not None:
-            # By blitting the hovering text here its attributes aren't modified every blit call.
-            # It can't be done with other images since blitting something would change them,
-            # it would be noticeable when resized but, these images get recalculated every time
-
-            self._hovering_text_label = TextLabel(RectPos(0, 0, 'topleft'), hovering_text, h=12)
-            self._hovering_text_imgs = tuple(
-                pg.Surface(rect.size) for rect in self._hovering_text_label.rects
+            hovering_text_layer: int = base_layer + TOP_LAYER - TEXT_LAYER
+            self._hovering_text_label = TextLabel(
+                RectPos(0, 0, "topleft"), hovering_text, hovering_text_layer, 12, BLACK
             )
 
-            hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
-                self._hovering_text_imgs, self._hovering_text_label.blit()
-            )
-            for img, (text_img, _, _) in hovering_text_info:
-                img.blit(text_img)
-
-    def _base_blit(self, img_i: int) -> LayeredBlitSequence:
+    def _base_blit(self, img_i: int) -> list[LayeredBlitInfo]:
         """
         Returns a sequence with the image at a given index and the hovering text if hovering.
 
@@ -86,19 +72,18 @@ class Clickable(ABC):
             sequence to add in the main blit sequence
         """
 
-        sequence: LayeredBlitSequence = [(self._imgs[img_i], self.rect.topleft, self._layer)]
-        if self._is_hovering:
-            hovering_text_line_x: int = pg.mouse.get_pos()[0] + 15
-            hovering_text_line_y: int = pg.mouse.get_pos()[1]
-            for img in self._hovering_text_imgs:
-                sequence.append(
-                    (img, (hovering_text_line_x, hovering_text_line_y), self._hovering_layer)
-                )
-                hovering_text_line_y += img.get_height()
+        sequence: list[LayeredBlitInfo] = [(self._imgs[img_i], self.rect.topleft, self._layer)]
+        if self._is_hovering and self._hovering_text_label:
+            hovering_text_label_x: int = pg.mouse.get_pos()[0] + 15
+            hovering_text_label_y: int = pg.mouse.get_pos()[1]
+            self._hovering_text_label.move_rect(
+                hovering_text_label_x, hovering_text_label_y, Ratio(1.0, 1.0)
+            )
+            sequence.extend(self._hovering_text_label.blit())
 
         return sequence
 
-    def check_hovering(self, mouse_xy: tuple[int, int]) -> tuple[Any, int]:
+    def check_hovering(self, mouse_xy: PosPair) -> tuple[Any, int]:
         """
         Checks if the mouse is hovering any interactable part of the object.
 
@@ -123,40 +108,31 @@ class Clickable(ABC):
             window size ratio
         """
 
-        pos: tuple[int, int]
-        size: tuple[int, int]
-        pos, size = resize_obj(self.init_pos, *self._init_imgs[0].get_size(), win_ratio)
+        xy: PosPair
+        wh: SizePair
+        xy, wh = resize_obj(self.init_pos, *self._init_imgs[0].get_size(), win_ratio)
 
-        self._imgs = tuple(pg.transform.scale(img, size) for img in self._init_imgs)
-        self.rect = self._imgs[0].get_rect(**{self.init_pos.coord_type: pos})
+        self._imgs = tuple(pg.transform.scale(img, wh) for img in self._init_imgs)
+        self.rect = self._imgs[0].get_rect(**{self.init_pos.coord_type: xy})
 
         if self._hovering_text_label:
             self._hovering_text_label.resize(win_ratio)
-            self._hovering_text_imgs = tuple(
-                pg.Surface(rect.size) for rect in self._hovering_text_label.rects
-            )
 
-            hovering_text_info: Iterator[tuple[pg.Surface, LayeredBlitInfo]] = zip(
-                self._hovering_text_imgs, self._hovering_text_label.blit()
-            )
-            for img, (text_img, _, _) in hovering_text_info:
-                img.blit(text_img)
-
-    def move_rect(self, x: int, y: int, win_ratio: Ratio) -> None:
+    def move_rect(self, init_x: int, init_y: int, win_ratio: Ratio) -> None:
         """
         Moves the rect to a specific coordinate.
 
         Args:
-            x, y, window size ratio
+            initial x, initial y, window size ratio
         """
 
-        self.init_pos.x, self.init_pos.y = x, y  # Modifying the init_pos is more accurate
+        self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
 
-        xy: tuple[int, int] = (round(x * win_ratio.w), round(y * win_ratio.h))
-        setattr(self.rect, self.init_pos.coord_type, xy)
+        xy: PosPair = (round(self.init_pos.x * win_ratio.w), round(self.init_pos.y * win_ratio.h))
+        self.rect = self.rect.move_to(**{self.init_pos.coord_type: xy})
 
     @abstractmethod
-    def blit(self) -> LayeredBlitSequence:
+    def blit(self) -> list[LayeredBlitInfo]:
         """
         Should return the objects to blit.
 
@@ -180,7 +156,7 @@ class Checkbox(Clickable):
     """Class to create a checkbox with text on top."""
 
     __slots__ = (
-        'is_checked', 'objs_info'
+        "is_checked", "objs_info"
     )
 
     def __init__(
@@ -200,12 +176,12 @@ class Checkbox(Clickable):
         self.is_checked: bool = False
 
         text_label: TextLabel = TextLabel(
-            RectPos(self.rect.centerx, self.rect.y - 5, 'midbottom'), text, base_layer, 16
+            RectPos(self.rect.centerx, self.rect.y - 5, "midbottom"), text, base_layer, 16
         )
 
         self.objs_info: list[ObjInfo] = [ObjInfo(text_label)]
 
-    def blit(self) -> LayeredBlitSequence:
+    def blit(self) -> list[LayeredBlitInfo]:
         """
         Returns the objects to blit.
 
@@ -244,7 +220,7 @@ class Button(Clickable):
     """Class to create a button, when hovered changes image."""
 
     __slots__ = (
-        'objs_info',
+        "objs_info",
     )
 
     def __init__(
@@ -265,11 +241,11 @@ class Button(Clickable):
 
         if text is not None:
             text_label: TextLabel = TextLabel(
-                RectPos(*self.rect.center, 'center'), text, base_layer, text_h
+                RectPos(*self.rect.center, "center"), text, base_layer, text_h
             )
             self.objs_info.append(ObjInfo(text_label))
 
-    def blit(self) -> LayeredBlitSequence:
+    def blit(self) -> list[LayeredBlitInfo]:
         """
         Returns the objects to blit.
 

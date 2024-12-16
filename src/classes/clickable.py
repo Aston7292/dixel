@@ -9,19 +9,20 @@ from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, Ratio, ObjInfo, MouseInfo, resize_obj
 from src.type_utils import PosPair, SizePair, LayeredBlitInfo
-from src.consts import BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
+from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
 
 class Clickable(ABC):
     """
-    Abstract class to create a clickable object with two images (must be of the same size).
+    Abstract class to create a clickable object with two images (with same size) and hovering text.
 
     Includes:
-        base_blit(image index) -> layered blit sequence
-        check_hovering(mouse_position) -> tuple[object, layer]
+        _blit_i(image index) -> layered blit sequence
+        get_hovering_info(mouse_position) -> tuple[is hovering, layer]
         leave() -> None
         resize(window size ratio) -> None
         move_rect(x, y, window size ratio) -> None
+        _handle_hover(hovered object) -> None
 
     Children should include:
         blit() -> layered blit sequence
@@ -62,7 +63,7 @@ class Clickable(ABC):
                 RectPos(0, 0, "topleft"), hovering_text, hovering_text_layer, 12, BLACK
             )
 
-    def _base_blit(self, img_i: int) -> list[LayeredBlitInfo]:
+    def _blit_i(self, img_i: int) -> list[LayeredBlitInfo]:
         """
         Returns a sequence with the image at a given index and the hovering text if hovering.
 
@@ -74,26 +75,25 @@ class Clickable(ABC):
 
         sequence: list[LayeredBlitInfo] = [(self._imgs[img_i], self.rect.topleft, self._layer)]
         if self._is_hovering and self._hovering_text_label:
-            hovering_text_label_x: int = pg.mouse.get_pos()[0] + 15
-            hovering_text_label_y: int = pg.mouse.get_pos()[1]
-            self._hovering_text_label.move_rect(
-                hovering_text_label_x, hovering_text_label_y, Ratio(1.0, 1.0)
-            )
+            mouse_x: int
+            mouse_y: int
+            mouse_x, mouse_y = pg.mouse.get_pos()
+            self._hovering_text_label.move_rect(mouse_x + 15, mouse_y, Ratio(1.0, 1.0))
             sequence.extend(self._hovering_text_label.blit())
 
         return sequence
 
-    def check_hovering(self, mouse_xy: PosPair) -> tuple[Any, int]:
+    def get_hovering_info(self, mouse_xy: PosPair) -> tuple[bool, int]:
         """
-        Checks if the mouse is hovering any interactable part of the object.
+        Gets the hovering info.
 
         Args:
             mouse position
         Returns:
-            hovered object (can be None), hovered object layer
+            True if the object is being hovered else False, hovered object layer
         """
 
-        return self if self.rect.collidepoint(mouse_xy) else None, self._layer
+        return self.rect.collidepoint(mouse_xy), self._layer
 
     def leave(self) -> None:
         """Clears all the relevant data when a state is leaved."""
@@ -128,8 +128,25 @@ class Clickable(ABC):
 
         self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
 
-        xy: PosPair = (round(self.init_pos.x * win_ratio.w), round(self.init_pos.y * win_ratio.h))
+        xy: PosPair
+        xy, _ = resize_obj(self.init_pos, 0.0, 0.0, win_ratio)
         self.rect = self.rect.move_to(**{self.init_pos.coord_type: xy})
+
+    def _handle_hover(self, hovered_obj: Any) -> None:
+        """
+        Changes mouse sprite when hovering.
+
+        Args:
+            hovered object
+        """
+
+        if self != hovered_obj:
+            if self._is_hovering:
+                pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+                self._is_hovering = False
+        elif not self._is_hovering:
+            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
+            self._is_hovering = True
 
     @abstractmethod
     def blit(self) -> list[LayeredBlitInfo]:
@@ -189,31 +206,25 @@ class Checkbox(Clickable):
             sequence to add in the main blit sequence
         """
 
-        return self._base_blit(int(self.is_checked))
+        return self._blit_i(int(self.is_checked))
 
-    def upt(self, hovered_obj: Any, mouse_info: MouseInfo, did_shortcut: bool = False) -> bool:
+    def upt(self, hovered_obj: Any, mouse_info: MouseInfo, is_shortcutting: bool = False) -> bool:
         """
         Changes the checkbox image when checked.
 
         Args:
-            hovered object (can be None), mouse info, shortcut flag (default = False)
+            hovered object (can be None), mouse info, shortcutting flag (default = False)
         Returns:
-            True if the checkbox was checked else False
+            True if the checkbox has been checked else False
         """
 
-        if self != hovered_obj:
-            if self._is_hovering:
-                pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self._is_hovering = False
-        elif not self._is_hovering:
-            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
-            self._is_hovering = True
+        self._handle_hover(hovered_obj)
 
-        was_checked: bool = False
-        if (mouse_info.released[0] and self._is_hovering) or did_shortcut:
-            self.is_checked = was_checked = not self.is_checked
+        has_been_checked: bool = False
+        if (mouse_info.released[MOUSE_LEFT] and self._is_hovering) or is_shortcutting:
+            self.is_checked = has_been_checked = not self.is_checked
 
-        return was_checked
+        return has_been_checked
 
 
 class Button(Clickable):
@@ -238,12 +249,11 @@ class Button(Clickable):
         super().__init__(pos, imgs, hovering_text, base_layer)
 
         self.objs_info: list[ObjInfo] = []
-
         if text is not None:
             text_label: TextLabel = TextLabel(
                 RectPos(*self.rect.center, "center"), text, base_layer, text_h
             )
-            self.objs_info.append(ObjInfo(text_label))
+            self.objs_info = [ObjInfo(text_label)]
 
     def blit(self) -> list[LayeredBlitInfo]:
         """
@@ -253,7 +263,7 @@ class Button(Clickable):
             sequence to add in the main blit sequence
         """
 
-        return self._base_blit(int(self._is_hovering))
+        return self._blit_i(int(self._is_hovering))
 
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo) -> bool:
         """
@@ -265,12 +275,6 @@ class Button(Clickable):
             True if the button was clicked else False
         """
 
-        if self != hovered_obj:
-            if self._is_hovering:
-                pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
-                self._is_hovering = False
-        elif not self._is_hovering:
-            pg.mouse.set_cursor(pg.SYSTEM_CURSOR_HAND)
-            self._is_hovering = True
+        self._handle_hover(hovered_obj)
 
-        return mouse_info.released[0] if self._is_hovering else False
+        return mouse_info.released[MOUSE_LEFT] and self._is_hovering

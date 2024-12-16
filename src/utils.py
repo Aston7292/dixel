@@ -75,9 +75,9 @@ def get_img(*path_sections: str) -> pg.Surface:
         image
     """
 
-    file_obj: Path = Path(*path_sections)
+    img_file_obj: Path = Path(*path_sections)
 
-    return pg.image.load(file_obj).convert_alpha()
+    return pg.image.load(img_file_obj).convert_alpha()
 
 
 def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
@@ -94,7 +94,8 @@ def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
     pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
     pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, pixels_alpha))
 
-    return np.transpose(pixels, (1, 0, 2))  # Swaps columns and rows
+    # Swaps columns and rows, because pygame uses it like this
+    return np.transpose(pixels, (1, 0, 2))
 
 
 def add_border(img: pg.Surface, border_color: Color) -> pg.Surface:
@@ -115,24 +116,26 @@ def add_border(img: pg.Surface, border_color: Color) -> pg.Surface:
 
 
 def resize_obj(
-        pos: RectPos, w: float, h: float, win_ratio: Ratio, keep_size_ratio: bool = False
+        init_pos: RectPos, init_w: float, init_h: float, win_ratio: Ratio,
+        should_keep_size_ratio: bool = False
 ) -> tuple[PosPair, SizePair]:
     """
     Scales position and size of an object without creating gaps between attached objects.
 
     Args:
-        position, width, height, window size ratio, keep size ratio flag (default = False)
+        initial position, initial width, initial height, window size ratio,
+        keep size ratio flag (default = False)
     Returns:
         position, size
     """
 
     img_ratio_w: float = win_ratio.w
     img_ratio_h: float = win_ratio.h
-    if keep_size_ratio:
+    if should_keep_size_ratio:
         img_ratio_w = img_ratio_h = min(win_ratio.w, win_ratio.h)
 
-    resized_xy: PosPair = (round(pos.x * win_ratio.w), round(pos.y * win_ratio.h))
-    resized_wh: SizePair = (ceil(w * img_ratio_w), ceil(h * img_ratio_h))
+    resized_xy: PosPair = (round(init_pos.x * win_ratio.w), round(init_pos.y * win_ratio.h))
+    resized_wh: SizePair = (ceil(init_w * img_ratio_w), ceil(init_h * img_ratio_h))
 
     return resized_xy, resized_wh
 
@@ -149,18 +152,18 @@ class ObjInfo:
     obj: Any
     is_active: bool = field(default=True, init=False)
 
-    def set_active(self, is_active: bool) -> None:
+    def set_active(self, should_activate: bool) -> None:
         """
         Sets the active flag for the object and its sub objects.
 
         Args:
-            active flag
+            activate flag
         """
 
         objs_info: list[ObjInfo] = [self]
         while objs_info:
             info: ObjInfo = objs_info.pop()
-            info.is_active = is_active
+            info.is_active = should_activate
 
             if hasattr(info.obj, "objs_info"):
                 objs_info.extend(info.obj.objs_info)

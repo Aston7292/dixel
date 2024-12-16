@@ -113,18 +113,20 @@ class UI(ABC):
         Args:
             hovered object, mouse info, keys
         Returns:
-            buttons states
+            confirming and exiting flags
         """
 
         kmod_ctrl: int = pg.key.get_mods() & pg.KMOD_CTRL
 
-        ctrl_backspace: bool = bool(kmod_ctrl and pg.K_BACKSPACE in keys)
-        exited: bool = self._exit.upt(hovered_obj, mouse_info) or ctrl_backspace
+        is_exit_pressed: bool = self._exit.upt(hovered_obj, mouse_info)
+        is_ctrl_backspace_pressed: bool = bool(kmod_ctrl and pg.K_BACKSPACE in keys)
+        is_exiting: bool = is_exit_pressed or is_ctrl_backspace_pressed
 
-        ctrl_enter: bool = bool(kmod_ctrl and pg.K_RETURN in keys)
-        confirmed: bool = self._confirm.upt(hovered_obj, mouse_info) or ctrl_enter
+        is_confirm_pressed: bool = self._confirm.upt(hovered_obj, mouse_info)
+        is_ctrl_enter_pressed: bool = bool(kmod_ctrl and pg.K_RETURN in keys)
+        is_confirming: bool = is_confirm_pressed or is_ctrl_enter_pressed
 
-        return confirmed, exited
+        return is_confirming, is_exiting
 
     @abstractmethod
     def upt(self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]) -> tuple[bool, Any]:

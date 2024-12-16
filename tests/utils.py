@@ -11,7 +11,7 @@ from src.utils import Ratio
 RESIZING_RATIO: Final[Ratio] = Ratio(2.0, 3.0)
 
 
-def cmp_imgs(img: pg.Surface, expected_img: pg.Surface, cmp_alpha: bool = True) -> bool:
+def cmp_imgs(img: pg.Surface, expected_img: pg.Surface, should_cmp_alpha: bool = True) -> bool:
     """
     Compares two images.
 
@@ -22,12 +22,12 @@ def cmp_imgs(img: pg.Surface, expected_img: pg.Surface, cmp_alpha: bool = True) 
     """
 
     pixels: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
-    if cmp_alpha:
+    if should_cmp_alpha:
         pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
         pixels = np.dstack((pixels, pixels_alpha))
 
     expected_pixels: NDArray[np.uint8] = pg.surfarray.pixels3d(expected_img)
-    if cmp_alpha:
+    if should_cmp_alpha:
         expected_pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(expected_img)
         expected_pixels = np.dstack((expected_pixels, expected_pixels_alpha))
 

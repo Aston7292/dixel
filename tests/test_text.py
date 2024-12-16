@@ -1,4 +1,4 @@
-"""Tests for the text file."""
+"""Tests for the text_label file."""
 
 from unittest import TestCase, mock
 from itertools import zip_longest
@@ -134,14 +134,16 @@ class TestTextLabel(TestCase):
         expected_init_y: int = 4
         copy_text_label.move_rect(expected_init_x, expected_init_y, Ratio(2.1, 3.2))
 
-        self.assertEqual(copy_text_label.init_pos, RectPos(3, 4, "center"))
+        expected_init_pos: RectPos = RectPos(3, 4, "center")
+        self.assertEqual(copy_text_label.init_pos, expected_init_pos)
 
-        expected_xy: PosPair = (round(expected_init_x * 2.1), round(expected_init_y * 3.2))
+        expected_xy: PosPair
+        expected_xy, _ = resize_obj(expected_init_pos, 0.0, 0.0, Ratio(2.1, 3.2))
         self.assertTupleEqual(copy_text_label.rect.center, expected_xy)
         for rect in copy_text_label.rects:
-            expected_xy = (round(expected_init_x * 2.1), round(expected_init_y * 3.2))
+            expected_xy, _ = resize_obj(expected_init_pos, 0.0, 0.0, Ratio(2.1, 3.2))
             self.assertTupleEqual(rect.center, expected_xy)
-            expected_init_y += rect.h
+            expected_init_pos.y += rect.h
 
     @mock.patch.object(TextLabel, "_get_rects", autospec=True)
     def test_set_text(self, mock_get_rects: mock.Mock) -> None:

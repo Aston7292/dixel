@@ -1,91 +1,141 @@
 """Functions to operate with files."""
 
 from tkinter import filedialog
+from os import path
 from pathlib import Path
 
+import pygame as pg
 from portalocker import lock, unlock, LOCK_EX, LOCK_NB, LockException
 
-from src.consts import ACCESS_SUCCESS, ACCESS_MISSING, ACCESS_DENIED, ACCESS_LOCKED
+from src.utils import get_img
+from src.consts import (
+    IMG_STATE_OK, IMG_STATE_MISSING, IMG_STATE_DENIED, IMG_STATE_LOCKED, IMG_STATE_CORRUPTED
+)
 
 
-def check_file_access(file_obj: Path, create: bool = False) -> int:
+def get_img_state(img_file_path: str, should_create: bool = False) -> int:
     """
-    Checks if a file is accessible.
+    Gest the state of an image.
 
     Args:
-        file object, create flag (default = False)
+        image file path, create flag (default = False)
     Returns:
-        exit code
+        state
     """
 
-    exit_code: int = ACCESS_SUCCESS
+    state: int = IMG_STATE_OK
+    mode: str = "a+b" if should_create else "r+b"
     try:
-        mode: str = "a+" if create else "r+"
-        with file_obj.open(mode, encoding="utf-8") as f:
-            lock(f, LOCK_EX | LOCK_NB)
+        with Path(img_file_path).open(mode) as f:
+            lock(f, LOCK_EX | LOCK_NB)  # Fails if already locked
             unlock(f)
+
+        if not should_create:
+            get_img(img_file_path)  # Fails if corrupted
     except FileNotFoundError:
-        exit_code = ACCESS_MISSING
+        state = IMG_STATE_MISSING
     except PermissionError:
-        exit_code = ACCESS_DENIED
+        state = IMG_STATE_DENIED
     except LockException:
-        exit_code = ACCESS_LOCKED
+        state = IMG_STATE_LOCKED
+    except pg.error:
+        state = IMG_STATE_CORRUPTED
 
-    return exit_code
+    return state
 
 
-def create_file_argv(file_path: str, flag: str) -> bool:
+def try_create_file_argv(img_file_obj: Path, flag: str) -> bool:
     """
     Creates a file if the flag is --mk-file.
 
     Args:
-        file path, flag
+        image file object, flag
     Returns:
-        should exit flag
+        True if creation succeeded else False
     """
 
-    should_exit: bool = False
+    has_succeeded: bool = False
     if flag != "--mk-file":
         print(
             "The file doesn't exist, to create it add --mk-file.\n"
-            f"\"{file_path}\" --mk-file"
+            f"\"{img_file_obj}\" --mk-file"
         )
-        should_exit = True
     else:
         try:
-            Path(file_path).touch()
+            img_file_obj.touch()
+            has_succeeded = True
         except PermissionError:
             print("Permission denied.")
-            should_exit = True
 
-    return should_exit
+    return has_succeeded
 
 
-def create_dir_argv(dir_path: str, flag: str) -> bool:
+def try_create_dir_argv(img_file_obj: Path, flag: str) -> bool:
     """
     Creates a directory if the flag is --mk-dir.
 
     Args:
-        directory path, flag
+        image file object, flag
     Returns:
-        should exit flag
+        True if creation succeeded else False
     """
 
-    should_exit: bool = False
+    has_succeeded: bool = False
     if flag != "--mk-dir":
         print(
             "The directory doesn't exist, to create it add --mk-dir.\n"
-            f"\"{dir_path}\" --mk-dir"
+            f"\"{img_file_obj}\" --mk-dir"
         )
-        should_exit = True
     else:
         try:
-            Path(dir_path).parent.mkdir(parents=True)
+            img_file_obj.parent.mkdir(parents=True)
+            has_succeeded = True
         except PermissionError:
             print("Permission denied.")
-            should_exit = True
 
-    return should_exit
+    return has_succeeded
+
+
+def handle_cmd_args(argv: list[str]) -> tuple[str, str]:
+    """
+    Handles info from cmd arguments.
+
+    Args:
+        argv
+    Returns:
+        image file path, flag
+    Raises:
+        SystemExit
+    """
+
+    img_file_path: str
+    file_path: str = argv[1]
+    flag: str = argv[2].lower() if len(argv) > 2 else ""
+
+    should_continue: bool = False
+    if file_path.lower() == "help" or flag not in ("", "--mk-file", "--mk-dir"):
+        program_name: str = argv[0]
+        print(
+            f"Usage: {program_name} <file path> <optional flag>\n"
+            f"Example: {program_name} test (.png is not required)\n"
+            "FLAGS:\n"
+            f"\t--mk-file: create file ({program_name} new_file --mk-file)\n"
+            f"\t--mk-dir: create directory ({program_name} new_dir/new_file --mk-dir)"
+        )
+    else:
+        try:
+            img_file_obj: Path = Path(file_path).with_suffix(".png")
+            img_file_path = str(img_file_obj)
+            if path.isreserved(img_file_path):
+                print("Invalid name.")
+            else:
+                should_continue = True
+        except ValueError:
+            print("Invalid path.")
+
+    if not should_continue:
+        raise SystemExit
+    return img_file_path, flag
 
 
 def ask_save_to_file() -> str:
@@ -118,10 +168,5 @@ def ask_open_file() -> str:
             defaultextension=".png", filetypes=(("png Files", "*.png"),), title="Open"
         )
 
-        if not file_path:
-            return file_path
-
-        file_obj: Path = Path(file_path)
-        file_exit_code: int = check_file_access(file_obj)
-        if file_exit_code == ACCESS_SUCCESS and file_obj.suffix == ".png":
+        if not file_path or get_img_state(file_path) == IMG_STATE_OK:
             return file_path

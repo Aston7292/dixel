@@ -31,16 +31,16 @@ class TestUtils(TestCase):
 
     @mock.patch.object(pg.image, "load", autospec=True)
     def test_load_img_from_path(self, mock_load: mock.Mock) -> None:
-        """Tests the load_img_from_path method, mocks the pygame.image.load function."""
+        """Tests the load_img_from_path function, mocks the pygame.image.load function."""
 
-        mock_surface: mock.Mock = mock.create_autospec(pg.Surface)
+        mock_surface: mock.Mock = mock.create_autospec(pg.Surface, spec_set=True)
         mock_load.return_value = mock_surface
 
         get_img("test.png")
         mock_surface.convert_alpha.assert_called_once_with()
 
     def test_get_pixels(self) -> None:
-        """Tests the get_pixels method."""
+        """Tests the get_pixels function."""
 
         img: pg.Surface = pg.Surface((50, 51), pg.SRCALPHA)
         img.fill((255, 0, 0))
@@ -52,7 +52,7 @@ class TestUtils(TestCase):
                 self.assertEqual(tuple(pixels[y, x]), img.get_at((x, y)))
 
     def test_add_border(self) -> None:
-        """Tests the add_border method."""
+        """Tests the add_border function."""
 
         color: Color = (0, 0, 1)
 
@@ -65,7 +65,7 @@ class TestUtils(TestCase):
         self.assertEqual(img_with_border.get_at((9, 9)), color)
 
     def test_resize_obj(self) -> None:
-        """Tests the resize_obj method."""
+        """Tests the resize_obj function."""
 
         init_pos: RectPos = RectPos(1, 2, "topleft")
 
@@ -141,8 +141,8 @@ class TestUtils(TestCase):
         copy_parent_obj_info.set_active(False)
 
         self.assertFalse(copy_parent_obj_info.is_active)
-        child_obj_info: ObjInfo = copy_parent_obj_info.obj.objs_info[0]
-        self.assertFalse(child_obj_info.is_active)
+        sub_obj_info: ObjInfo = copy_parent_obj_info.obj.objs_info[0]
+        self.assertFalse(sub_obj_info.is_active)
 
     def test_mouse_info(self) -> None:
         """Tests the MouseInfo dataclass."""

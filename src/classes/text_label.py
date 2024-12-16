@@ -100,8 +100,8 @@ class TextLabel:
         line_rect_y: int = self.rect.y
         for img in self._imgs:
             line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, rect_w, img.get_height())
-            coord: PosPair = getattr(line_rect, self.init_pos.coord_type)
-            self.rects.append(img.get_rect(**{self.init_pos.coord_type: coord}))
+            line_rect_xy: PosPair = getattr(line_rect, self.init_pos.coord_type)
+            self.rects.append(img.get_rect(**{self.init_pos.coord_type: line_rect_xy}))
 
             line_rect_y += self.rects[-1].h
 
@@ -113,17 +113,18 @@ class TextLabel:
             initial x, initial y, window size ratio
         """
 
-        local_init_x: int = init_x
-        local_init_y: int = init_y
-        # Modifying init_pos is more accurate
-        self.init_pos.x, self.init_pos.y = local_init_x, local_init_y
+        self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
+        local_init_pos: RectPos = RectPos(
+            self.init_pos.x, self.init_pos.y, self.init_pos.coord_type
+        )
 
-        xy: PosPair = (round(local_init_x * win_ratio.w), round(local_init_y * win_ratio.h))
+        xy: PosPair
+        xy, _ = resize_obj(local_init_pos, 0.0, 0.0, win_ratio)
         self.rect = self.rect.move_to(**{self.init_pos.coord_type: xy})
         for i, rect in enumerate(self.rects):
-            xy = (round(local_init_x * win_ratio.w), round(local_init_y * win_ratio.h))
+            xy, _ = resize_obj(local_init_pos, 0.0, 0.0, win_ratio)
             self.rects[i] = rect.move_to(**{self.init_pos.coord_type: xy})
-            local_init_y += rect.h
+            local_init_pos.y += rect.h
 
     def set_text(self, text: str) -> None:
         """
@@ -139,8 +140,8 @@ class TextLabel:
         self._imgs = tuple(
             self._renderer.render(line, True, WHITE, self._bg_color) for line in self._lines
         )
-        coord: PosPair = getattr(self.rect, self.init_pos.coord_type)
-        self._get_rects(coord)
+        xy: PosPair = getattr(self.rect, self.init_pos.coord_type)
+        self._get_rects(xy)
 
     def get_pos_at(self, char_i: int) -> int:
         """

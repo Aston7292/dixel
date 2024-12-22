@@ -1,13 +1,13 @@
 """Interface to modify the grid."""
 
-from typing import Union, Final, Optional, Any
+from typing import TypeAlias, Final, Optional, Any
 
 import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
 
 from src.classes.num_input_box import NumInputBox
-from src.classes.ui import UI, CHECKBOX_1_IMG, CHECKBOX_2_IMG
+from src.classes.ui import UI, CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON
 from src.classes.clickable import Checkbox
 from src.classes.text_label import TextLabel
 
@@ -15,7 +15,7 @@ from src.utils import RectPos, Size, Ratio, ObjInfo, MouseInfo, resize_obj
 from src.type_utils import PosPair, SizePair, LayeredBlitInfo
 from src.consts import MOUSE_LEFT, EMPTY_TILE_ARR, BG_LAYER, ELEMENT_LAYER
 
-SelectionType = Union["NumSlider"]
+SelectionType: TypeAlias = "NumSlider"
 
 MOVEMENT_THRESHOLD: Final[int] = 10
 SPEED_SCALING_FACTOR: Final[int] = MOVEMENT_THRESHOLD * 15
@@ -39,7 +39,7 @@ class NumSlider:
             position, text, base layer (default = BG_LAYER)
         """
 
-        self.value: int = 1
+        self.value: int
         self.input_box: NumInputBox = NumInputBox(pos, base_layer)
 
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
@@ -94,12 +94,12 @@ class NumSlider:
                 self._traveled_x = 0
                 self._speeds.clear()
 
-    def _slide(self, mouse_info: MouseInfo, temp_input_box_text: str) -> str:
+    def _slide(self, mouse_info: MouseInfo, temp_input_box_text: str, max_value: int) -> str:
         """
         Changes the value with the mouse.
 
         Args:
-            mouse info, input box text
+            mouse info, input box text, maximum value
         """
 
         # Slide is faster depending on the mouse movement speed
@@ -115,9 +115,9 @@ class NumSlider:
             if abs(self._traveled_x) >= MOVEMENT_THRESHOLD:
                 units_traveled: float = self._traveled_x / MOVEMENT_THRESHOLD
                 avg_speed: float = sum(self._speeds) / len(self._speeds)
-                scaled_avg_speed: float = max(avg_speed / SPEED_SCALING_FACTOR, 1.0)
+                scaled_avg_speed: float = max(avg_speed / SPEED_SCALING_FACTOR, 1)
                 scaled_units: int = int(units_traveled * scaled_avg_speed)
-                value: int = max(min(self.value + scaled_units, MAX_DIM), 1)
+                value: int = max(min(self.value + scaled_units, max_value), 1)
 
                 local_temp_input_box_text = str(value)
                 self._speeds.clear()
@@ -126,14 +126,14 @@ class NumSlider:
         return local_temp_input_box_text
 
     def upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int],
+            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int], max_value: int,
             selection: SelectionType
     ) -> bool:
         """
         Allows to select a color either by sliding or typing.
 
         Args:
-            hovered object (can be None), mouse info, keys, selected object
+            hovered object (can be None), mouse info, keys, maximum value, selected object
         Returns:
             True if the slider was clicked else False
         """
@@ -141,12 +141,12 @@ class NumSlider:
         is_input_box_clicked: bool
         temp_input_box_text: str
         is_input_box_clicked, temp_input_box_text = self.input_box.upt(
-            hovered_obj, mouse_info, keys, (1, MAX_DIM), selection == self
+            hovered_obj, mouse_info, keys, (1, max_value), selection == self
         )
 
         self._handle_hover(mouse_info)
 
-        future_input_box_text: str = self._slide(mouse_info, temp_input_box_text)
+        future_input_box_text: str = self._slide(mouse_info, temp_input_box_text, max_value)
         if self.input_box.text_label.text != future_input_box_text:
             self.value = int(future_input_box_text or 1)
             self.input_box.text_label.set_text(future_input_box_text)
@@ -182,11 +182,10 @@ class GridUI(UI):
             self._rect.centerx, self._rect.centery + 40, "center"
         )
 
-        self._preview_img: pg.Surface = pg.Surface((300, 300))
+        self._preview_img: pg.Surface
+        self._preview_rect: pg.Rect = pg.Rect(0, 0, 300, 300)
         preview_xy: PosPair = (self._preview_init_pos.x, self._preview_init_pos.y)
-        self._preview_rect: pg.Rect = self._preview_img.get_rect(
-            **{self._preview_init_pos.coord_type: preview_xy}
-        )
+        setattr(self._preview_rect, self._preview_init_pos.coord_type, preview_xy)
 
         self._preview_init_size: Size = Size(*self._preview_rect.size)
 
@@ -200,20 +199,18 @@ class GridUI(UI):
             RectPos(self._preview_rect.x + 20, self._h_slider.input_box.rect.y - 25, "bottomleft"),
             "width", self._base_layer
         )
-        self.values_ratio: Ratio = Ratio(1.0, 1.0)
+        self.values_ratio: Ratio = Ratio(1, 1)
 
-        self._preview_tiles: NDArray[np.uint8] = np.empty(
-            (self._h_slider.value, self._w_slider.value, 4), np.uint8
-        )
+        self._preview_tiles: NDArray[np.uint8]
 
         checkbox_y: int = self._h_slider.input_box.rect.centery
         self.checkbox: Checkbox = Checkbox(
             RectPos(self._preview_rect.right - 20, checkbox_y, "midright"),
-            (CHECKBOX_1_IMG, CHECKBOX_2_IMG), "keep ratio", "(CTRL+K)", self._base_layer
+            (CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON), "keep ratio", "(CTRL+K)", self._base_layer
         )
 
         self._selection_i: int = 0
-        self._win_ratio: Ratio = Ratio(1.0, 1.0)
+        self._win_ratio: Ratio = Ratio(1, 1)
 
         self.objs_info.extend((
             ObjInfo(self._w_slider), ObjInfo(self._h_slider),
@@ -368,10 +365,15 @@ class GridUI(UI):
 
         selection: SelectionType = (self._w_slider, self._h_slider)[self._selection_i]
 
-        is_w_slider_clicked: bool = self._w_slider.upt(hovered_obj, mouse_info, keys, selection)
+        is_w_slider_clicked: bool = self._w_slider.upt(
+            hovered_obj, mouse_info, keys, 256, selection
+        )
         if is_w_slider_clicked:
             self._selection_i = 0
-        is_h_slider_clicked: bool = self._h_slider.upt(hovered_obj, mouse_info, keys, selection)
+
+        is_h_slider_clicked: bool = self._h_slider.upt(
+            hovered_obj, mouse_info, keys, 256, selection
+        )
         if is_h_slider_clicked:
             self._selection_i = 1
 

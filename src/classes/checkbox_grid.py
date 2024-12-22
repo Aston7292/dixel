@@ -7,7 +7,7 @@ import pygame as pg
 from src.classes.clickable import Clickable
 
 from src.utils import Point, RectPos, Ratio, ObjInfo, MouseInfo, add_border
-from src.type_utils import PosPair, CheckboxInfo, LayeredBlitInfo
+from src.type_utils import PosPair, CheckboxInfo
 from src.consts import MOUSE_LEFT, WHITE, BG_LAYER
 
 
@@ -15,7 +15,7 @@ class LockedCheckbox(Clickable):
     """Class to create a checkbox that can't be unchecked."""
 
     __slots__ = (
-        "is_checked",
+        "_is_checked",
     )
 
     def __init__(
@@ -31,19 +31,7 @@ class LockedCheckbox(Clickable):
 
         super().__init__(pos, imgs, hovering_text, base_layer)
 
-        self.is_checked: bool = False
-
-    def blit(self) -> list[LayeredBlitInfo]:
-        """
-        Returns the objects to blit.
-
-        Returns:
-            sequence to add in the main blit sequence
-        """
-
-        img_i: int = 1 if self.is_checked else int(self._is_hovering)
-
-        return self._blit_i(img_i)
+        self._is_checked: bool = False
 
     def set_info(self, imgs: tuple[pg.Surface, ...], text: str) -> None:
         """
@@ -71,7 +59,9 @@ class LockedCheckbox(Clickable):
 
         checked: bool = mouse_info.released[MOUSE_LEFT] and self._is_hovering
         if checked:
-            self.is_checked = True
+            self._is_checked = True
+
+        self.img_i = 1 if self._is_checked else int(self._is_hovering)
 
         return checked
 
@@ -100,9 +90,9 @@ class CheckboxGrid:
         self._unresized_last_point: Point = Point(self._init_pos.x, self._init_pos.y)
 
         self._cols: int = cols
-        checkbox_img: pg.Surface = checkboxes_info[0][0]
+        pointer_checkbox_img: pg.Surface = checkboxes_info[0][0]
         self._increment: Point = Point(
-            checkbox_img.get_width() + 10, checkbox_img.get_height() + 10
+            pointer_checkbox_img.get_width() + 10, pointer_checkbox_img.get_height() + 10
         )
         if inverted_axes[0]:
             self._increment.x = -self._increment.x
@@ -113,11 +103,11 @@ class CheckboxGrid:
 
         self.checkboxes: list[LockedCheckbox] = []
         self.clicked_i: int = 0
-        self.rect: pg.Rect = pg.Rect()
+        self.rect: pg.Rect
 
-        self.objs_info: list[ObjInfo] = [ObjInfo(checkbox) for checkbox in self.checkboxes]
+        self.objs_info: list[ObjInfo]
 
-        self.set_grid(checkboxes_info, Ratio(1.0, 1.0))
+        self.set_grid(checkboxes_info, Ratio(1, 1))
 
     def get_hovering_info(self, mouse_xy: PosPair) -> tuple[bool, int]:
         """
@@ -143,16 +133,18 @@ class CheckboxGrid:
 
     def check(self, clicked_i: int) -> None:
         """
-        Checks a specific checkbox and unchecks the previous one, changes clicked_i.
+        Checks a specific checkbox and unchecks the previous one if it exists, changes clicked_i.
 
         Args:
             index of the active checkbox
         """
 
         if self.clicked_i < len(self.checkboxes):
-            self.checkboxes[self.clicked_i].is_checked = False
+            self.checkboxes[self.clicked_i].img_i = 0
+            self.checkboxes[self.clicked_i]._is_checked = False
         self.clicked_i = clicked_i
-        self.checkboxes[self.clicked_i].is_checked = True
+        self.checkboxes[self.clicked_i].img_i = 1
+        self.checkboxes[self.clicked_i]._is_checked = True
 
     def set_grid(self, checkboxes_info: tuple[CheckboxInfo, ...], win_ratio: Ratio) -> None:
         """
@@ -325,7 +317,8 @@ class CheckboxGrid:
             self.check(self.clicked_i - 1)
         else:
             self.clicked_i = min(self.clicked_i, len(self.checkboxes) - 1)
-            self.checkboxes[self.clicked_i].is_checked = True
+            self.checkboxes[self.clicked_i].img_i = 1
+            self.checkboxes[self.clicked_i]._is_checked = True
 
         rects: tuple[pg.Rect, ...] = tuple(checkbox.rect for checkbox in self.checkboxes)
         left: int = min(rect.left for rect in rects)

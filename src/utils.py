@@ -109,7 +109,7 @@ def add_border(img: pg.Surface, border_color: Color) -> pg.Surface:
     """
 
     copy_img: pg.Surface = img.copy()
-    border_dim: int = round(min(copy_img.get_size()) / 10.0)
+    border_dim: int = round(min(copy_img.get_size()) / 10)
     pg.draw.rect(copy_img, border_color, copy_img.get_rect(), border_dim)
 
     return copy_img
@@ -175,10 +175,11 @@ class MouseInfo:
     Dataclass for storing mouse info.
 
     Args:
-        x, y, pressed buttons, recently released buttons
+        x, y, pressed buttons, recently released buttons, scroll amount
     """
 
     x: int
     y: int
     pressed: tuple[bool, bool, bool]
     released: tuple[bool, bool, bool, bool, bool]
+    scroll_amount: int

@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 
 from src.utils import Ratio
 
-RESIZING_RATIO: Final[Ratio] = Ratio(2.0, 3.0)
+RESIZING_RATIO: Final[Ratio] = Ratio(2, 3)
 
 
 def cmp_imgs(img: pg.Surface, expected_img: pg.Surface, should_cmp_alpha: bool = True) -> bool:

@@ -1,6 +1,6 @@
 """Interface for choosing a color."""
 
-from typing import Union, Final, Optional, Any
+from typing import TypeAlias, Final, Optional, Any
 
 import pygame as pg
 
@@ -12,21 +12,22 @@ from src.utils import Point, RectPos, Ratio, Size, ObjInfo, MouseInfo, resize_ob
 from src.type_utils import PosPair, SizePair, Color, LayeredBlitInfo
 from src.consts import MOUSE_LEFT, BG_LAYER, ELEMENT_LAYER
 
-SelectionType = Union["Scrollbar", NumInputBox]
+SelectionType: TypeAlias = "ColorScrollbar | NumInputBox"
+RGBChannels: TypeAlias = tuple["ColorScrollbar", "ColorScrollbar", "ColorScrollbar"]
 
-SLIDER_1_IMG: Final[pg.Surface] = pg.Surface((10, 35))
-SLIDER_1_IMG.fill((40, 40, 40))
-SLIDER_2_IMG: Final[pg.Surface] = pg.Surface((10, 35))
-SLIDER_2_IMG.fill((10, 10, 10))
+SLIDER_IMG_OFF: Final[pg.Surface] = pg.Surface((10, 35))
+SLIDER_IMG_OFF.fill((40, 40, 40))
+SLIDER_IMG_ON: Final[pg.Surface] = pg.Surface((10, 35))
+SLIDER_IMG_ON.fill((10, 10, 10))
 
 
-class Scrollbar:
+class ColorScrollbar:
     """Class to create a scrollbar to pick an r, g or b value of a color."""
 
     __slots__ = (
         "_bar_init_pos", "_bar_img", "bar_rect", "_bar_init_size", "_channel_i", "value",
-        "_slider_init_pos", "_slider_init_imgs", "_slider_imgs", "_slider_rect", "_slider_img_i",
-        "_is_hovering", "_is_scrolling", "_layer", "input_box", "objs_info"
+        "_slider_init_pos", "_slider_init_imgs", "_slider_imgs", "_slider_rect",
+        "_slider_img_i", "_is_hovering", "_is_scrolling", "_layer", "input_box", "objs_info"
     )
 
     def __init__(
@@ -41,24 +42,26 @@ class Scrollbar:
 
         self._bar_init_pos: RectPos = pos
 
-        self._bar_img: pg.Surface = pg.Surface((255, 25))
-        self.bar_rect: pg.Rect = self._bar_img.get_rect(
-            **{self._bar_init_pos.coord_type: (self._bar_init_pos.x, self._bar_init_pos.y)}
-        )
+        self._bar_img: pg.Surface
+        self.bar_rect: pg.Rect = pg.Rect(0, 0, 255, 25)
+        bar_xy: PosPair = (self._bar_init_pos.x, self._bar_init_pos.y)
+        setattr(self.bar_rect, self._bar_init_pos.coord_type, bar_xy)
 
         self._bar_init_size: Size = Size(*self.bar_rect.size)
 
         self._channel_i: int = channel_i
-        self.value: int = 0
+        self.value: int
 
+        # Not used for resizing slider_x
         self._slider_init_pos: RectPos = RectPos(*self.bar_rect.midleft, "midleft")
-        self._slider_init_imgs: tuple[pg.Surface, ...] = (SLIDER_1_IMG, SLIDER_2_IMG)
-        slider_x: int = self._slider_init_pos.x + self.value
+        self._slider_init_imgs: tuple[pg.Surface, ...] = (SLIDER_IMG_OFF, SLIDER_IMG_ON)
 
         self._slider_imgs: tuple[pg.Surface, ...] = self._slider_init_imgs
+        slider_xy: PosPair = (self._slider_init_pos.x, self._slider_init_pos.y)
         self._slider_rect: pg.Rect = self._slider_imgs[0].get_rect(
-            **{self._slider_init_pos.coord_type: (slider_x, self._slider_init_pos.y)}
+            **{self._slider_init_pos.coord_type: slider_xy}
         )
+
         self._slider_img_i: int = 0
 
         self._is_hovering: bool = False
@@ -68,8 +71,8 @@ class Scrollbar:
         input_box_x: int = self.bar_rect.right + self._slider_rect.w + 10
 
         channel_text_label: TextLabel = TextLabel(
-            RectPos(*self.bar_rect.midleft, "midright"), ("r", "g", "b")[self._channel_i],
-            base_layer
+            RectPos(self.bar_rect.x - 10, self.bar_rect.centery, "midright"),
+            ("R", "G", "B")[self._channel_i], base_layer
         )
         self.input_box: NumInputBox = NumInputBox(
             RectPos(input_box_x, self.bar_rect.centery, "midleft"), base_layer
@@ -136,7 +139,7 @@ class Scrollbar:
         )
 
         # Calculating slider_x like this is more accurate
-        unit_w: float = bar_wh[0] / 255.0
+        unit_w: float = bar_wh[0] / 255
         slider_xy: PosPair = (self.bar_rect.x + round(self.value * unit_w), slider_y)
 
         self._slider_imgs = tuple(
@@ -146,26 +149,27 @@ class Scrollbar:
             **{self._slider_init_pos.coord_type: slider_xy}
         )
 
-    def set_value(self, color: Color) -> None:
+    def set_value(self, color: Color, is_external_change: bool) -> None:
         """
         Sets the bar on a specif value.
 
         Args:
-            color
+            color, external change flag
         """
 
         small_bar_img: pg.Surface = pg.Surface((255, 1))  # More accurate
-        pixel_color: list[int] = list(color)
+        px_color: list[int] = list(color)
         for i in range(256):
-            pixel_color[self._channel_i] = i
-            small_bar_img.set_at((i, 0), pixel_color)
+            px_color[self._channel_i] = i
+            small_bar_img.set_at((i, 0), px_color)
         self._bar_img = pg.transform.scale(small_bar_img, self.bar_rect.size)
 
-        self.value = color[self._channel_i]
-        unit_w: float = self.bar_rect.w / 255.0
+        if is_external_change:
+            self.value = color[self._channel_i]
+            self.input_box.text_label.set_text(str(self.value))
+            self.input_box.bounded_set_cursor_i(0)
+        unit_w: float = self.bar_rect.w / 255
         self._slider_rect.x = self.bar_rect.x + round(self.value * unit_w)
-        self.input_box.text_label.set_text(str(self.value))
-        self.input_box.bounded_set_cursor_i(0)
 
     def _handle_hover(self, hovered_obj: Any, mouse_info: MouseInfo) -> None:
         """
@@ -226,7 +230,7 @@ class Scrollbar:
         local_temp_input_box_text: str = temp_input_box_text
 
         if self._is_scrolling:
-            unit_w: float = self.bar_rect.w / 255.0
+            unit_w: float = self.bar_rect.w / 255
             value: int = int((mouse_info.x - self.bar_rect.x) / unit_w)
             value = max(min(value, 255), 0)
             local_temp_input_box_text = str(value)
@@ -262,13 +266,11 @@ class Scrollbar:
         future_input_box_text: str = self.scroll(mouse_info, keys, temp_input_box_text)
         if self.input_box.text_label.text != future_input_box_text:
             self.value = int(future_input_box_text or 0)
-            unit_w: float = self.bar_rect.w / 255.0
-            self._slider_rect.x = self.bar_rect.x + round(self.value * unit_w)
             self.input_box.text_label.set_text(future_input_box_text)
             self.input_box.bounded_set_cursor_i()
 
         clicked_i: Optional[int] = None
-        if self == hovered_obj and mouse_info.released[MOUSE_LEFT]:
+        if self._is_hovering and mouse_info.released[MOUSE_LEFT]:
             clicked_i = 0
         if is_input_box_clicked:
             clicked_i = 1
@@ -306,25 +308,24 @@ class ColorPicker(UI):
 
         self._preview_layer: int = self._base_layer + ELEMENT_LAYER
 
-        b_bar: Scrollbar = Scrollbar(
+        b_bar: ColorScrollbar = ColorScrollbar(
             RectPos(self._rect.centerx, self._preview_rect.top - 50, "center"), 2, self._base_layer
         )
-        g_bar: Scrollbar = Scrollbar(
+        g_bar: ColorScrollbar = ColorScrollbar(
             RectPos(self._rect.centerx, b_bar.bar_rect.top - 50, "center"), 1, self._base_layer
         )
-        r_bar: Scrollbar = Scrollbar(
+        r_bar: ColorScrollbar = ColorScrollbar(
             RectPos(self._rect.centerx, g_bar.bar_rect.top - 50, "center"), 0, self._base_layer
         )
 
-        self._channels: tuple[Scrollbar, Scrollbar, Scrollbar] = (r_bar, g_bar, b_bar)
-        self._objs: tuple[tuple[Scrollbar, NumInputBox], ...] = (
+        self._channels: RGBChannels = (r_bar, g_bar, b_bar)
+        self._objs: tuple[tuple[ColorScrollbar, NumInputBox], ...] = (
             (r_bar, r_bar.input_box), (g_bar, g_bar.input_box), (b_bar, b_bar.input_box)
         )
         self._selection_i: Point = Point(0, 0)
 
-        hex_text: str = ""
         self._hex_text_label: TextLabel = TextLabel(
-            RectPos(*self._preview_rect.midtop, "midbottom"), hex_text, self._base_layer
+            RectPos(*self._preview_rect.midtop, "midbottom"), "", self._base_layer
         )
 
         self.objs_info.extend(ObjInfo(channel) for channel in self._channels)
@@ -369,16 +370,16 @@ class ColorPicker(UI):
             **{self._preview_init_pos.coord_type: preview_xy}
         )
 
-    def set_color(self, color: Color) -> None:
+    def set_color(self, color: Color, is_external_change: bool = True) -> None:
         """
         Sets the UI on a specific color.
 
         Args:
-            color
+            color, external change flag (default = True)
         """
 
         for channel in self._channels:
-            channel.set_value(color)
+            channel.set_value(color, is_external_change)
         self._preview_img.fill(color)
 
         hex_text: str = "#" + "".join(f"{channel:02x}" for channel in color)
@@ -456,7 +457,7 @@ class ColorPicker(UI):
             color = tuple(channel.value for channel in self._channels)
 
             if color != prev_color:
-                self.set_color(color)
+                self.set_color(color, False)
 
         is_confirming: bool
         is_exiting: bool

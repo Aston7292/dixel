@@ -17,11 +17,11 @@ INTERFACE_IMG.fill((60, 60, 60))
 
 BUTTON_M_OFF_IMG: Final[pg.Surface] = get_img("sprites", "button_m_off.png")
 BUTTON_M_ON_IMG: Final[pg.Surface] = get_img("sprites", "button_m_on.png")
-CLOSE_1_IMG: Final[pg.Surface] = get_img("sprites", "close_button_off.png")
-CLOSE_2_IMG: Final[pg.Surface] = get_img("sprites", "close_button_on.png")
+CLOSE_IMG_OFF: Final[pg.Surface] = get_img("sprites", "close_button_off.png")
+CLOSE_IMG_ON: Final[pg.Surface] = get_img("sprites", "close_button_on.png")
 
-CHECKBOX_1_IMG: Final[pg.Surface] = get_img("sprites", "checkbox_off.png")
-CHECKBOX_2_IMG: Final[pg.Surface] = get_img("sprites", "checkbox_on.png")
+CHECKBOX_IMG_OFF: Final[pg.Surface] = get_img("sprites", "checkbox_off.png")
+CHECKBOX_IMG_ON: Final[pg.Surface] = get_img("sprites", "checkbox_on.png")
 
 
 class UI(ABC):
@@ -67,7 +67,7 @@ class UI(ABC):
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10, self._rect.y + 10, "topright"),
-            (CLOSE_1_IMG, CLOSE_2_IMG), None, "(CTRL+BACKSPACE)", self._base_layer
+            (CLOSE_IMG_OFF, CLOSE_IMG_ON), None, "(CTRL+BACKSPACE)", self._base_layer
         )
         self._confirm: Button = Button(
             RectPos(self._rect.right - 10, self._rect.bottom - 10, "bottomright"),

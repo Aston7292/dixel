@@ -35,9 +35,9 @@ TOP_LAYER: Final[int] = 3
 SPECIAL_LAYER: Final[int] = 4  # Base for the special layers
 UI_LAYER: Final[int] = SPECIAL_LAYER * 2  # Base for the UI layers
 
-STATE_MAIN: Final[int] = 0
-STATE_COLOR: Final[int] = 1
-STATE_GRID: Final[int] = 2
+STATE_I_MAIN: Final[int] = 0
+STATE_I_COLOR: Final[int] = 1
+STATE_I_GRID: Final[int] = 2
 
 IMG_STATE_OK: Final[int] = 0
 IMG_STATE_MISSING: Final[int] = 1

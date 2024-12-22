@@ -71,22 +71,22 @@ class TestUtils(TestCase):
 
         resized_xy: PosPair
         resized_wh: SizePair
-        resized_xy, resized_wh = resize_obj(init_pos, 3.0, 4.0, Ratio(2.1, 3.2))
-        self.assertTupleEqual(resized_xy, (round(1.0 * 2.1), round(2.0 * 3.2)))
-        self.assertTupleEqual(resized_wh, (ceil(3.0 * 2.1), ceil(4.0 * 3.2)))
+        resized_xy, resized_wh = resize_obj(init_pos, 3, 4, Ratio(2.1, 3.2))
+        self.assertTupleEqual(resized_xy, (round(1 * 2.1), round(2 * 3.2)))
+        self.assertTupleEqual(resized_wh, (ceil(3 * 2.1), ceil(4 * 3.2)))
 
-        resized_xy, resized_wh = resize_obj(init_pos, 3.0, 4.0, Ratio(2.6, 3.4), True)
-        self.assertTupleEqual(resized_xy, (round(1.0 * 2.6), round(2.0 * 3.4)))
-        self.assertTupleEqual(resized_wh, (ceil(3.0 * 2.6), ceil(4.0 * 2.6)))
+        resized_xy, resized_wh = resize_obj(init_pos, 3, 4, Ratio(2.6, 3.4), True)
+        self.assertTupleEqual(resized_xy, (round(1 * 2.6), round(2 * 3.4)))
+        self.assertTupleEqual(resized_wh, (ceil(3 * 2.6), ceil(4 * 2.6)))
 
         for _ in range(100):
             # Check gaps
 
             x: int = RNG.randint(0, 500)
             y: int = RNG.randint(0, 500)
-            w: float = RNG.uniform(0.0, 100.0)
-            h: float = RNG.uniform(0.0, 100.0)
-            win_ratio: Ratio = Ratio(RNG.uniform(0.0, 5.0), RNG.uniform(0.0, 5.0))
+            w: float = RNG.uniform(0, 100)
+            h: float = RNG.uniform(0, 100)
+            win_ratio: Ratio = Ratio(RNG.uniform(0, 5), RNG.uniform(0, 5))
 
             resized_xy, resized_wh = resize_obj(RectPos(x, y, "topleft"), w, h, win_ratio)
 
@@ -123,10 +123,10 @@ class TestUtils(TestCase):
     def test_ratio(self) -> None:
         """Tests the Ratio dataclass."""
 
-        ratio: Ratio = Ratio(0.0, 1.0)
+        ratio: Ratio = Ratio(0, 1)
 
-        self.assertEqual(ratio.w, 0.0)
-        self.assertEqual(ratio.h, 1.0)
+        self.assertEqual(ratio.w, 0)
+        self.assertEqual(ratio.h, 1)
 
     def test_obj_info(self) -> None:
         """Tests the ObjInfo dataclass."""
@@ -147,9 +147,10 @@ class TestUtils(TestCase):
     def test_mouse_info(self) -> None:
         """Tests the MouseInfo dataclass."""
 
-        mouse_info: MouseInfo = MouseInfo(0, 1, (False,) * 3, (False,) * 5)
+        mouse_info: MouseInfo = MouseInfo(0, 1, (False,) * 3, (False,) * 5, 1)
 
         self.assertEqual(mouse_info.x, 0)
         self.assertEqual(mouse_info.y, 1)
         self.assertTupleEqual(mouse_info.pressed, (False,) * 3)
         self.assertTupleEqual(mouse_info.released, (False,) * 5)
+        self.assertEqual(mouse_info.scroll_amount, 1)

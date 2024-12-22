@@ -91,7 +91,7 @@ class TestTextLabel(TestCase):
         expected_xy: PosPair
         expected_h: int
         expected_xy, (_, expected_h) = resize_obj(
-            self.text_label.init_pos, 0.0, self.text_label._init_h, RESIZING_RATIO, True
+            self.text_label.init_pos, 0, self.text_label._init_h, RESIZING_RATIO, True
         )
 
         self.text_label.resize(RESIZING_RATIO)
@@ -138,14 +138,14 @@ class TestTextLabel(TestCase):
         self.assertEqual(copy_text_label.init_pos, expected_init_pos)
 
         expected_xy: PosPair
-        expected_xy, _ = resize_obj(expected_init_pos, 0.0, 0.0, Ratio(2.1, 3.2))
+        expected_xy, _ = resize_obj(expected_init_pos, 0, 0, Ratio(2.1, 3.2))
         self.assertTupleEqual(copy_text_label.rect.center, expected_xy)
         for rect in copy_text_label.rects:
-            expected_xy, _ = resize_obj(expected_init_pos, 0.0, 0.0, Ratio(2.1, 3.2))
+            expected_xy, _ = resize_obj(expected_init_pos, 0, 0, Ratio(2.1, 3.2))
             self.assertTupleEqual(rect.center, expected_xy)
             expected_init_pos.y += rect.h
 
-    @mock.patch.object(TextLabel, "_get_rects", autospec=True)
+    @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_set_text(self, mock_get_rects: mock.Mock) -> None:
         """Tests the set_text method, mocks the get_rects method."""
 

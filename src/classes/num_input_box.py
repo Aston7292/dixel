@@ -43,12 +43,12 @@ class NumInputBox:
         self._hovering_layer: int = base_layer + TOP_LAYER
 
         self.text_label = TextLabel(RectPos(*self.rect.center, "center"), "", base_layer)
-        self._cursor_i: int = 0
+        self._cursor_i: int
 
         self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
         self._cursor_rect: pg.Rect = self._cursor_img.get_rect(
-            topleft=(self.text_label.get_pos_at(self._cursor_i), self.text_label.rect.y)
+            topleft=self.text_label.rect.topleft
         )
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self.text_label)]
@@ -208,7 +208,7 @@ class NumInputBox:
 
         temp_text: str = self.text_label.text
 
-        if k in (pg.K_BACKSPACE, pg.K_DELETE):
+        if k == pg.K_BACKSPACE or k == pg.K_DELETE:
             temp_text = self._handle_deletion(k, min_limit)
         elif k <= CHR_LIMIT:
             char: str = chr(k)

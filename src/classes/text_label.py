@@ -44,7 +44,7 @@ class TextLabel:
         self._imgs: tuple[pg.Surface, ...] = tuple(
             self._renderer.render(line, True, WHITE, self._bg_color) for line in self._lines
         )
-        self.rect: pg.Rect = pg.Rect()
+        self.rect: pg.Rect
         self.rects: list[pg.Rect] = []
 
         self._layer: int = base_layer + TEXT_LAYER
@@ -71,7 +71,7 @@ class TextLabel:
 
         xy: PosPair
         h: int
-        xy, (_, h) = resize_obj(self.init_pos, 0.0, self._init_h, win_ratio, True)
+        xy, (_, h) = resize_obj(self.init_pos, 0, self._init_h, win_ratio, True)
 
         if h not in renderers_cache:
             renderers_cache[h] = pg.font.SysFont("helvetica", h)
@@ -119,10 +119,10 @@ class TextLabel:
         )
 
         xy: PosPair
-        xy, _ = resize_obj(local_init_pos, 0.0, 0.0, win_ratio)
+        xy, _ = resize_obj(local_init_pos, 0, 0, win_ratio)
         self.rect = self.rect.move_to(**{self.init_pos.coord_type: xy})
         for i, rect in enumerate(self.rects):
-            xy, _ = resize_obj(local_init_pos, 0.0, 0.0, win_ratio)
+            xy, _ = resize_obj(local_init_pos, 0, 0, win_ratio)
             self.rects[i] = rect.move_to(**{self.init_pos.coord_type: xy})
             local_init_pos.y += rect.h
 

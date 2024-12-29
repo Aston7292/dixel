@@ -24,7 +24,7 @@ def get_img_state(img_file_path: str, should_create: bool = False) -> int:
     """
 
     state: int = IMG_STATE_OK
-    mode: str = "a+b" if should_create else "r+b"
+    mode: str = "ab+" if should_create else "rb+"
     try:
         with Path(img_file_path).open(mode) as f:
             lock(f, LOCK_EX | LOCK_NB)  # Fails if already locked
@@ -126,7 +126,7 @@ def handle_cmd_args(argv: list[str]) -> tuple[str, str]:
         try:
             img_file_obj: Path = Path(file_path).with_suffix(".png")
             img_file_path = str(img_file_obj)
-            if path.isreserved(img_file_path):
+            if path.isreserved(img_file_obj):
                 print("Invalid name.")
             else:
                 should_continue = True
@@ -151,7 +151,11 @@ def ask_save_to_file() -> str:
             defaultextension=".png", filetypes=(("png Files", "*.png"),), title="Save as"
         )
 
-        if not file_path or Path(file_path).suffix == ".png":
+        if not file_path:
+            return file_path
+
+        file_path = str(Path(file_path).with_suffix(".png"))
+        if get_img_state(file_path, True) == IMG_STATE_OK:
             return file_path
 
 

@@ -74,7 +74,7 @@ class ToolsManager:
     """Class to manage drawing tools."""
 
     __slots__ = (
-        "_names", "tools_grid", "_tools_extra_info", "objs_info", "_dynamic_info_ranges"
+        "_names", "tools_grid", "_tools_extra_info", "objs_info", "_tools_objs_info_ranges"
     )
 
     def __init__(self, pos: RectPos) -> None:
@@ -102,7 +102,7 @@ class ToolsManager:
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self.tools_grid)]
 
-        self._dynamic_info_ranges: list[tuple[int, int]] = []
+        self._tools_objs_info_ranges: list[tuple[int, int]] = []
         for tool_extra_info in self._tools_extra_info:
             range_start: int = len(self.objs_info)
             self.objs_info.extend(
@@ -110,10 +110,10 @@ class ToolsManager:
             )
             range_end: int = len(self.objs_info)
 
-            self._dynamic_info_ranges.append((range_start, range_end))
+            self._tools_objs_info_ranges.append((range_start, range_end))
 
-        active_range: tuple[int, int] = self._dynamic_info_ranges[self.tools_grid.clicked_i]
-        for i in range(self._dynamic_info_ranges[0][0], self._dynamic_info_ranges[-1][1]):
+        active_range: tuple[int, int] = self._tools_objs_info_ranges[self.tools_grid.clicked_i]
+        for i in range(self._tools_objs_info_ranges[0][0], self._tools_objs_info_ranges[-1][1]):
             if i < active_range[0] or i >= active_range[1]:
                 self.objs_info[i].set_active(False)
 
@@ -153,7 +153,7 @@ class ToolsManager:
             index of the previous tool
         """
 
-        prev_active_range: tuple[int, int] = self._dynamic_info_ranges[prev_tool_i]
+        prev_active_range: tuple[int, int] = self._tools_objs_info_ranges[prev_tool_i]
         prev_objs_info: list[ObjInfo] = self.objs_info[prev_active_range[0]:prev_active_range[1]]
         for prev_info in prev_objs_info:
             prev_info.set_active(False)
@@ -161,13 +161,12 @@ class ToolsManager:
         prev_tool_objs: list[Any] = [prev_info.obj for prev_info in prev_objs_info]
         while prev_tool_objs:
             obj: Any = prev_tool_objs.pop()
-
             if hasattr(obj, "leave"):
                 obj.leave()
             if hasattr(obj, "objs_info"):
-                prev_tool_objs.extend(obj_info.obj for obj_info in obj.objs_info)
+                prev_tool_objs.extend(info.obj for info in obj.objs_info)
 
-        active_range: tuple[int, int] = self._dynamic_info_ranges[self.tools_grid.clicked_i]
+        active_range: tuple[int, int] = self._tools_objs_info_ranges[self.tools_grid.clicked_i]
         for i in range(active_range[0], active_range[1]):
             self.objs_info[i].set_active(True)
 

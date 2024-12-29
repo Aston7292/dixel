@@ -12,11 +12,11 @@ Keyboard input:
 
 Mouse info:
     Mouse info is contained in the dataclass MouseInfo that tracks:
-    x and y position, pressed buttons and recently released ones (for clicking elements).
+    x and y position, pressed buttons, released ones (for clicking elements) and scroll amount.
 
 Sub objects:
-    Objects may have a objs_info attribute, a list of sub objects, stored in the dataclass ObjInfo
-    retrieved at the start of each frame and automatically call the methods below.
+    Objects may have a objs_info attribute, a list of sub objects, stored in the dataclass ObjInfo,
+    every object is in the states_objs attribute and the methods below are automatically called.
 
 Blitting:
     The blit method returns a list with one or more groups of image, position and layer,
@@ -249,7 +249,7 @@ class Dixel:
 
     __slots__ = (
         "_is_fullscreen", "_mouse_info", "_pressed_keys", "_timed_keys", "_last_k_input_time",
-        "_kmod_ctrl", "_alt_k", "_state_i", "_active_objs", "_inactive_objs", "_hovered_obj",
+        "_kmod_ctrl", "_alt_k", "_state_i", "_states_info", "_state_active_objs", "_hovered_obj",
         "_data_file_obj", "_file_path", "_is_opening_file"
     )
 
@@ -262,13 +262,12 @@ class Dixel:
         self._pressed_keys: list[int] = []
         self._timed_keys: list[int] = []
         self._last_k_input_time: int = -100
-
         self._kmod_ctrl: int
         self._alt_k: str = ""
-        self._state_i: int = STATE_I_MAIN
 
-        self._active_objs: list[list[Any]]
-        self._inactive_objs: list[list[Any]]
+        self._state_i: int = STATE_I_MAIN
+        self._states_info: list[list[ObjInfo]] = []
+        self._state_active_objs: list[Any]
         self._hovered_obj: Any
 
         self._data_file_obj: Path = Path("data.json")
@@ -282,8 +281,10 @@ class Dixel:
             self._handle_path_from_argv()
         elif self._file_path:
             self._check_file_path_state()
+
         grid_img: Optional[pg.Surface] = get_img(self._file_path) if self._file_path else None
         GRID_MANAGER.grid.set_tiles(grid_img)
+        self._get_objs()
 
     def _load_data_from_file(self) -> None:
         """Loads the data from the data file."""
@@ -350,7 +351,7 @@ class Dixel:
         self._file_path = img_file_path
 
     def _check_file_path_state(self) -> None:
-        """Checks if the file path is in an invalid state and if so closes it."""
+        """Checks if the file is in an invalid state and if so closes it."""
 
         img_state: int = get_img_state(self._file_path)
         if img_state != IMG_STATE_OK:
@@ -378,9 +379,11 @@ class Dixel:
 
             return blit_info[2]
 
-        blittable_objs: list[Any] = self._active_objs[STATE_I_MAIN].copy()
+        blittable_objs: list[Any] = self._state_active_objs.copy()
         if self._state_i != STATE_I_MAIN:
-            blittable_objs.extend(self._active_objs[self._state_i])
+            blittable_objs.extend(
+                info.obj for info in self._states_info[STATE_I_MAIN] if info.is_active
+            )
 
         main_sequence: list[LayeredBlitInfo] = [
             blit_info for obj in blittable_objs if hasattr(obj, "blit") for blit_info in obj.blit()
@@ -394,31 +397,28 @@ class Dixel:
         WIN.flip()
 
     def _get_objs(self) -> None:
-        """Gets objects and sub objects."""
+        """Gets objects info, sub objects info and state active objects."""
 
-        objs_info: list[list[ObjInfo]] = []
+        self._states_info.clear()
         for state_info in MAIN_STATES_OBJS_INFO:
             copy_state_info: list[ObjInfo] = state_info.copy()
             for info in copy_state_info:
                 if hasattr(info.obj, "objs_info"):
                     copy_state_info.extend(info.obj.objs_info)
-            objs_info.append(copy_state_info)
+            self._states_info.append(copy_state_info)
 
-        self._active_objs = [
-            [info.obj for info in state_info if info.is_active]
-            for state_info in objs_info
-        ]
-        self._inactive_objs = [
-            [info.obj for info in state_info if not info.is_active]
-            for state_info in objs_info
+        self._state_active_objs = [
+            info.obj for info in self._states_info[self._state_i] if info.is_active
         ]
 
-    def _close(self) -> NoReturn:
+    def _close(self, exception: Exception | type[SystemExit] = SystemExit) -> NoReturn:
         """
         Saves the file and closes the program.
 
+        Args:
+            exception (default = SystemExit)
         Raises:
-            SystemExit
+            exception
         """
 
         grid_ratio: Optional[list[float]] = (
@@ -443,7 +443,7 @@ class Dixel:
         with self._data_file_obj.open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
 
-        raise SystemExit
+        raise exception
 
     def _resize_objs(self) -> None:
         """Resizes every object of the main and current state with a resize method."""
@@ -452,11 +452,9 @@ class Dixel:
             WIN_SURF.get_width() / INIT_WIN_SIZE.w, WIN_SURF.get_height() / INIT_WIN_SIZE.h
         )
 
-        state_objs: list[Any] = self._active_objs[STATE_I_MAIN] + self._inactive_objs[STATE_I_MAIN]
+        state_objs: list[Any] = [info.obj for info in self._states_info[STATE_I_MAIN]]
         if self._state_i != STATE_I_MAIN:
-            state_objs.extend(
-                self._active_objs[self._state_i] + self._inactive_objs[self._state_i]
-            )
+            state_objs.extend(info.obj for info in self._states_info[self._state_i])
 
         for obj in state_objs:
             if hasattr(obj, "resize"):
@@ -469,19 +467,13 @@ class Dixel:
         for obj in post_resize_objs:
             obj.post_resize()
 
-    def _leave_state(self, state_i: int) -> None:
-        """
-        Clears all the relevant data of objects with a leave method when leaving a state.
+    def _leave_state(self) -> None:
+        """Clears all the relevant data of objects with a leave method when leaving a state."""
 
-        Args:
-            state index
-        """
-
-        for obj in self._active_objs[state_i]:
+        for obj in self._state_active_objs:
             if hasattr(obj, "leave"):
                 obj.leave()
 
-        self._get_objs()
         self._resize_objs()
         pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
 
@@ -594,18 +586,14 @@ class Dixel:
             WIN.size = (win_w, win_h)
             self._resize_objs()
 
-    def _get_hovered_obj(self, mouse_xy: PosPair) -> None:
-        """
-        Gets the hovered object.
-
-        Args:
-            mouse position
-        """
+    def _get_hovered_obj(self) -> None:
+        """ Gets the hovered object."""
 
         self._hovered_obj = None
 
         max_hovered_layer: int = BG_LAYER
-        for obj in self._active_objs[self._state_i]:
+        mouse_xy: PosPair = (self._mouse_info.x, self._mouse_info.y)
+        for obj in self._state_active_objs:
             if hasattr(obj, "get_hovering_info"):
                 is_hovering: bool
                 obj_layer: int
@@ -635,12 +623,12 @@ class Dixel:
         is_save_as_clicked: bool = SAVE_AS.upt(self._hovered_obj, self._mouse_info)
         is_ctrl_s_pressed: bool = bool(self._kmod_ctrl and pg.K_s in self._timed_keys)
         if is_save_as_clicked or is_ctrl_s_pressed:
-            self._leave_state(self._state_i)
+            self._leave_state()
             self._draw()  # Applies the leave method changes since tkinter stops the execution
 
             file_path: str = ask_save_to_file()
             if file_path:
-                self._file_path = GRID_MANAGER.save_to_file(file_path)
+                GRID_MANAGER.save_to_file(file_path)
 
     def _upt_file_opening(self) -> None:
         """Updates the open file button."""
@@ -648,13 +636,13 @@ class Dixel:
         is_open_clicked: bool = OPEN.upt(self._hovered_obj, self._mouse_info)
         is_ctrl_o_pressed: bool = bool(self._kmod_ctrl and pg.K_o in self._timed_keys)
         if is_open_clicked or is_ctrl_o_pressed:
-            self._leave_state(self._state_i)
+            self._leave_state()
             self._draw()  # Applies the leave method changes since tkinter stops the execution
 
             file_path: str = ask_open_file()
             if file_path:
                 if self._file_path:
-                    self._file_path = GRID_MANAGER.save_to_file(self._file_path)
+                    GRID_MANAGER.save_to_file(self._file_path)
 
                 self._file_path = file_path
                 self._state_i = STATE_I_GRID
@@ -671,8 +659,7 @@ class Dixel:
             GRID_MANAGER.save_to_file(self._file_path)
 
             self._file_path = ""
-            grid_img: Optional[pg.Surface] = get_img(self._file_path) if self._file_path else None
-            GRID_MANAGER.grid.set_tiles(grid_img)
+            GRID_MANAGER.grid.set_tiles(None)
 
     def _crash(self, exception: Exception) -> NoReturn:
         """
@@ -693,28 +680,7 @@ class Dixel:
 
             self._file_path = file_path
 
-        grid_ratio: Optional[list[float]] = (
-            [GRID_UI.values_ratio.w, GRID_UI.values_ratio.h]
-            if GRID_UI.checkbox.is_checked else None
-        )
-
-        data: dict[str, Any] = {
-            "file": self._file_path,
-            "grid_offset": [GRID_MANAGER.grid.offset.x, GRID_MANAGER.grid.offset.y],
-            "grid_area": [GRID_MANAGER.grid.area.w, GRID_MANAGER.grid.area.h],
-            "grid_vis_area": [GRID_MANAGER.grid.visible_area.w, GRID_MANAGER.grid.visible_area.h],
-            "brush_size_i": BRUSH_SIZES.clicked_i,
-            "color_i": PALETTE_MANAGER.colors_grid.clicked_i,
-            "tool_i": TOOLS_MANAGER.tools_grid.clicked_i,
-            "grid_ratio": grid_ratio,
-            "colors": _get_hex_colors()
-        }
-
-        GRID_MANAGER.save_to_file(self._file_path)
-        with self._data_file_obj.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4)
-
-        raise exception
+        self._close(exception)
 
     def _main_interface(self) -> None:
         """Handles the main interface."""
@@ -724,10 +690,17 @@ class Dixel:
         ) + 1
 
         color: Color
+        should_refresh_objs: bool
         color_to_edit: Optional[Color]
-        color, color_to_edit = PALETTE_MANAGER.upt(
+        color, should_refresh_objs, color_to_edit = PALETTE_MANAGER.upt(
             self._hovered_obj, self._mouse_info, self._timed_keys
         )
+        if should_refresh_objs:
+            self._get_objs()
+            # Changes the selected checkbox image immediately
+            self._get_hovered_obj()
+            for checkbox in PALETTE_MANAGER.colors_grid.visible_checkboxes:
+                checkbox.upt(self._hovered_obj, self._mouse_info)
         if color_to_edit:
             self._state_i = STATE_I_COLOR
             COLOR_PICKER.set_color(color_to_edit)
@@ -745,9 +718,10 @@ class Dixel:
         self._upt_file_closing()
 
         if self._kmod_ctrl:  # Independent shortcuts
-            for i in range(len(BRUSH_SIZES.checkboxes)):  # Check for keys 1 - maximum brush size
-                if pg.K_1 + i in self._timed_keys:
-                    BRUSH_SIZES.check(i)
+            max_brush_size_ctrl_shortcut: int = min(len(BRUSH_SIZES.checkboxes), 9)
+            for i in range(pg.K_1, pg.K_1 + max_brush_size_ctrl_shortcut):
+                if i in self._timed_keys:
+                    BRUSH_SIZES.check(i - pg.K_1)
 
     def _color_ui(self) -> None:
         """Handles the color UI."""
@@ -758,7 +732,10 @@ class Dixel:
             self._hovered_obj, self._mouse_info, self._timed_keys
         )
         if is_ui_closed:
-            PALETTE_MANAGER.add(future_color)
+            should_refresh_objs: bool = PALETTE_MANAGER.add(future_color)
+            if should_refresh_objs:
+                self._get_objs()
+
             self._state_i = STATE_I_MAIN
 
     def _grid_ui(self) -> None:
@@ -775,7 +752,7 @@ class Dixel:
             GRID_MANAGER.set_info(pointer_offset, future_area, pointer_visible_area)
 
             if not self._is_opening_file:
-                GRID_MANAGER.grid.update_full()
+                GRID_MANAGER.grid.refresh_full()
             else:
                 grid_img: Optional[pg.Surface] = (
                     get_img(self._file_path) if self._file_path else None
@@ -797,7 +774,7 @@ class Dixel:
             self._grid_ui()
 
         if self._state_i != prev_state_i:
-            self._leave_state(prev_state_i)
+            self._leave_state()
 
     def run(self) -> None:
         """Game loop."""
@@ -817,8 +794,11 @@ class Dixel:
                     *mouse_xy, pg.mouse.get_pressed(), pg.mouse.get_just_released(), scroll_amount
                 )
 
-                self._get_objs()
-                self._get_hovered_obj(mouse_xy)
+                self._state_active_objs = [
+                    info.obj for info in self._states_info[self._state_i] if info.is_active
+                ]
+                self._get_hovered_obj()
+
                 self._handle_states()
 
                 self._draw()

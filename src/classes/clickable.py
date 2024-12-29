@@ -7,7 +7,7 @@ import pygame as pg
 
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, Ratio, ObjInfo, MouseInfo, resize_obj
+from src.utils import RectPos, Ratio, ObjInfo, MouseInfo, resize_obj, rec_move_rect, rec_resize
 from src.type_utils import PosPair, SizePair, LayeredBlitInfo
 from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
@@ -53,11 +53,11 @@ class Clickable(ABC):
         )
 
         self.img_i: int = 0
-
         self._is_hovering: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
 
+        # If it's not in objs_info it's easier to blit it only when hovered
         self._hovering_text_label: Optional[TextLabel] = None
         if hovering_text is not None:
             hovering_text_layer: int = base_layer + TOP_LAYER - TEXT_LAYER
@@ -80,8 +80,15 @@ class Clickable(ABC):
             mouse_x: int
             mouse_y: int
             mouse_x, mouse_y = pg.mouse.get_pos()
-            self._hovering_text_label.move_rect(mouse_x + 15, mouse_y, Ratio(1, 1))
-            sequence.extend(self._hovering_text_label.blit())
+            rec_move_rect(self._hovering_text_label, mouse_x + 15, mouse_y, Ratio(1, 1))
+
+            hovering_text_label_objs: list[Any] = [self._hovering_text_label]
+            while hovering_text_label_objs:
+                obj: Any = hovering_text_label_objs.pop()
+                if hasattr(obj, "blit"):
+                    sequence.extend(obj.blit())
+                if hasattr(obj, "objs_info"):
+                    hovering_text_label_objs.extend(info.obj for info in obj.objs_info)
 
         return sequence
 
@@ -118,7 +125,7 @@ class Clickable(ABC):
         self.rect = self._imgs[0].get_rect(**{self.init_pos.coord_type: xy})
 
         if self._hovering_text_label:
-            self._hovering_text_label.resize(win_ratio)
+            rec_resize([self._hovering_text_label], win_ratio)
 
     def move_rect(self, init_x: int, init_y: int, win_ratio: Ratio) -> None:
         """

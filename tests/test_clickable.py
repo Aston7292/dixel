@@ -75,25 +75,25 @@ class TestCheckbox(TestCase):
 
         self.assertEqual(test_checkbox._layer, 1 + ELEMENT_LAYER)
 
-        hovering_text_label_init_args: tuple[Any, ...] = mock_text_label_init.call_args_list[0][0]
+        hovering_text_label_init_args: mock._Call = mock_text_label_init.call_args_list[0]
         expected_hovering_text_label_init_args: tuple[Any, ...] = (
             test_checkbox._hovering_text_label, RectPos(0, 0, "topleft"), "world\n!", 2, 12, BLACK
         )
         self.assertTupleEqual(
-            hovering_text_label_init_args, expected_hovering_text_label_init_args
+            hovering_text_label_init_args[0], expected_hovering_text_label_init_args
         )
 
         # Checkbox attrs before extra TextLabel.__init__ calls
 
         self.assertFalse(test_checkbox.is_checked)
 
-        text_label_init_args: tuple[Any, ...] = mock_text_label_init.call_args_list[1][0]
+        text_label_init_args: mock._Call = mock_text_label_init.call_args_list[1]
         text_label: TextLabel = text_label_init_args[0]
         expected_text_label_init_args: tuple[Any, ...] = (
             text_label, RectPos(test_checkbox.rect.centerx, test_checkbox.rect.y - 5, "midbottom"),
             "hello", 1, 16
         )
-        self.assertTupleEqual(text_label_init_args, expected_text_label_init_args)
+        self.assertTupleEqual(text_label_init_args[0], expected_text_label_init_args)
 
         self.assertListEqual(test_checkbox.objs_info, [ObjInfo(text_label)])
 

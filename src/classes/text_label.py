@@ -153,9 +153,9 @@ class TextLabel:
             character x
         """
 
-        w: int = self._renderer.render(self._lines[0][:char_i], False, WHITE, WHITE).get_width()
+        w: int = self._renderer.render(self.text[:char_i], False, WHITE, WHITE).get_width()
 
-        return self.rects[0].x + w
+        return self.rect.x + w
 
     def get_closest_to(self, x: int) -> int:
         """
@@ -167,12 +167,12 @@ class TextLabel:
             index (0 - len(text))
         """
 
-        current_x: int = self.rects[0].x
-        for i, char in enumerate(self._lines[0]):
+        current_x: int = self.rect.x
+        for i, char in enumerate(self.text):
             next_x: int = current_x + self._renderer.render(char, False, WHITE, WHITE).get_width()
             if x < next_x:
                 return i if abs(x - current_x) < abs(x - next_x) else i + 1
 
             current_x = next_x
 
-        return len(self._lines[0])
+        return len(self.text)

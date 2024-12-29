@@ -140,6 +140,55 @@ def resize_obj(
     return resized_xy, resized_wh
 
 
+def rec_resize(main_objs: list[Any], win_ratio: Ratio) -> None:
+    """
+    Resizes objects and their sub objects, modifies the original list.
+
+    Args:
+        objects, window size ratio
+    """
+
+    pointer_objs: list[Any] = main_objs
+    while pointer_objs:
+        obj: Any = pointer_objs.pop()
+        if hasattr(obj, "resize"):
+            obj.resize(win_ratio)
+        if hasattr(obj, "objs_info"):
+            pointer_objs.extend(info.obj for info in obj.objs_info)
+
+
+def rec_move_rect(main_obj: Any, init_x: int, init_y: int, win_ratio: Ratio) -> None:
+    """
+    Moves an object and all it's sub objects.
+
+    Args:
+        object, initial x, initial y, window size ratio.
+    """
+    # TODO: update tests (utils, file utils, clickable, checkbox grid)
+    change_x: int = 0
+    change_y: int = 0
+    objs: list[Any] = [main_obj]
+
+    is_first: bool = True
+    while objs:
+        obj: Any = objs.pop()
+        if hasattr(obj, "move_rect"):
+            if not is_first:
+                x: int = obj.init_pos.x + change_x
+                y: int = obj.init_pos.y + change_y
+                obj.move_rect(x, y, win_ratio)
+            else:
+                prev_init_x: int = obj.init_pos.x
+                prev_init_y: int = obj.init_pos.y
+                obj.move_rect(init_x, init_y, win_ratio)
+
+                change_x = obj.init_pos.x - prev_init_x
+                change_y = obj.init_pos.y - prev_init_y
+                is_first = False
+        if hasattr(obj, "objs_info"):
+            objs.extend(info.obj for info in obj.objs_info)
+
+
 @dataclass(slots=True)
 class ObjInfo:
     """

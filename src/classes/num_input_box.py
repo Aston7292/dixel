@@ -17,9 +17,8 @@ class NumInputBox:
     """Class to choose a number in range with an input box."""
 
     __slots__ = (
-        "_init_pos", "_init_img", "_img", "rect", "is_hovering", "_is_selected",
-        "_layer", "_hovering_layer", "text_label", "_cursor_i", "_cursor_img", "_cursor_rect",
-        "objs_info"
+        "_init_pos", "_init_img", "_img", "rect", "is_hovering", "_is_selected", "_layer",
+        "_hovering_layer", "text_label", "_cursor_i", "_cursor_img", "_cursor_rect", "objs_info"
     )
 
     def __init__(self, pos: RectPos, base_layer: int = BG_LAYER) -> None:

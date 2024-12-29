@@ -126,7 +126,6 @@ class Grid:
         self.area: Size = Size(64, 64)
         self._init_visible_area: Size = Size(32, 32)
         self.visible_area: Size = Size(self._init_visible_area.w, self._init_visible_area.h)
-
         self.grid_tile_dim: float = 18
 
         self._grid_img: pg.Surface
@@ -137,7 +136,7 @@ class Grid:
             round(self.visible_area.h * self.grid_tile_dim)
         )
 
-        self.tiles: NDArray[np.uint8] = np.empty((self.area.h, self.area.w, 4), np.uint8)
+        self.tiles: NDArray[np.uint8] = np.empty((0, 0, 4), np.uint8)
         transparent_grey: Color = (120, 120, 120, 125)
         self.transparent_tile_img: pg.Surface = pg.Surface((2, 2), pg.SRCALPHA)
         self.transparent_tile_img.fill(transparent_grey)
@@ -146,16 +145,14 @@ class Grid:
 
         self._minimap_img: pg.Surface
         self._minimap_rect: pg.Rect
+        # Having a version where 1 tile = 1 pixel is better for scaling, used for update section
+        self._no_indicator_small_minimap_img: pg.Surface
 
         self._minimap_size_cap: Size = Size(256, 256)
 
         self.offset: Point = Point(0, 0)
         self.selected_tiles: list[Point] = []
         self._win_ratio: Ratio = Ratio(1, 1)
-
-        # Having a version where 1 tile = 1 pixel is better for scaling
-        # Used for update_section
-        self._no_indicator_small_minimap_img: pg.Surface
 
         self._layer: int = BG_LAYER
 
@@ -300,8 +297,8 @@ class Grid:
 
         self._minimap_img = pg.transform.scale(small_minimap_img, self._minimap_rect.size)
 
-    def update_full(self) -> None:
-        """Updates all the tiles on the minimap and retrieves the grid."""
+    def refresh_full(self) -> None:
+        """Refreshes all the tiles on the minimap and retrieves the grid."""
 
         # Repeat tiles so an empty tile image takes 1 normal-sized tile
         tiles: NDArray[np.uint8] = np.repeat(
@@ -320,9 +317,9 @@ class Grid:
         self._get_minimap_rect()
         self.get_minimap_img()
 
-    def update_section(self, changed_tiles: tuple[PosPair, ...]) -> None:
+    def refresh_section(self, changed_tiles: tuple[PosPair, ...]) -> None:
         """
-        Updates specific tiles on the minimap and retrieves the grid.
+        Refreshes specific tiles on the minimap and retrieves the grid.
 
         Args:
             changed tiles
@@ -372,7 +369,7 @@ class Grid:
                     self.tiles, ((0, 0), (0, extra_cols), (0, 0)), constant_values=0
                 )
 
-        self.update_full()
+        self.refresh_full()
 
     def set_area(self, area: Size) -> None:
         """
@@ -515,48 +512,43 @@ class GridManager:
             keys, relative mouse tile, brush size
         """
 
+        rel_mouse_tile_x: int = rel_mouse_tile.x
+        rel_mouse_tile_y: int = rel_mouse_tile.y
+
         value: int = 1
         if pg.key.get_mods() & pg.KMOD_ALT:
             value = brush_size
         if pg.key.get_mods() & pg.KMOD_SHIFT:
             value = max(self.grid.visible_area.w, self.grid.visible_area.h)
 
-        local_rel_mouse_tile: Point = Point(rel_mouse_tile.x, rel_mouse_tile.y)
-        prev_mouse_tile_x: int = local_rel_mouse_tile.x
-        prev_mouse_tile_y: int = local_rel_mouse_tile.y
-
+        prev_rel_mouse_tile_x: int = rel_mouse_tile_x
+        prev_rel_mouse_tile_y: int = rel_mouse_tile_y
         if pg.K_LEFT in keys:
-            local_rel_mouse_tile.x, self.grid.offset.x = _decrease_mouse_tile(
-                local_rel_mouse_tile.x, value, self.grid.offset.x
+            rel_mouse_tile_x, self.grid.offset.x = _decrease_mouse_tile(
+                rel_mouse_tile_x, value, self.grid.offset.x
             )
         if pg.K_RIGHT in keys:
-            local_rel_mouse_tile.x, self.grid.offset.x = _increase_mouse_tile(
-                local_rel_mouse_tile.x, value, self.grid.offset.x,
+            rel_mouse_tile_x, self.grid.offset.x = _increase_mouse_tile(
+                rel_mouse_tile_x, value, self.grid.offset.x,
                 self.grid.visible_area.w, self.grid.area.w
             )
         if pg.K_UP in keys:
-            local_rel_mouse_tile.y, self.grid.offset.y = _decrease_mouse_tile(
-                local_rel_mouse_tile.y, value, self.grid.offset.y
+            rel_mouse_tile_y, self.grid.offset.y = _decrease_mouse_tile(
+                rel_mouse_tile_y, value, self.grid.offset.y
             )
         if pg.K_DOWN in keys:
-            local_rel_mouse_tile.y, self.grid.offset.y = _increase_mouse_tile(
-                local_rel_mouse_tile.y, value, self.grid.offset.y,
+            rel_mouse_tile_y, self.grid.offset.y = _increase_mouse_tile(
+                rel_mouse_tile_y, value, self.grid.offset.y,
                 self.grid.visible_area.h, self.grid.area.h
             )
 
-        has_mouse_tile_x_changed: bool = local_rel_mouse_tile.x != prev_mouse_tile_x
-        has_mouse_tile_y_changed: bool = local_rel_mouse_tile.y != prev_mouse_tile_y
-        if has_mouse_tile_x_changed or has_mouse_tile_y_changed:
+        if rel_mouse_tile_x != prev_rel_mouse_tile_x or rel_mouse_tile_y != prev_rel_mouse_tile_y:
             self.grid.get_minimap_img()
 
             # Mouse is in the center of the tile
             half_tile_dim: float = self.grid.grid_tile_dim / 2
-            rel_mouse_x: int = round(
-                (local_rel_mouse_tile.x * self.grid.grid_tile_dim) + half_tile_dim
-            )
-            rel_mouse_y: int = round(
-                (local_rel_mouse_tile.y * self.grid.grid_tile_dim) + half_tile_dim
-            )
+            rel_mouse_x: int = round((rel_mouse_tile_x * self.grid.grid_tile_dim) + half_tile_dim)
+            rel_mouse_y: int = round((rel_mouse_tile_y * self.grid.grid_tile_dim) + half_tile_dim)
             pg.mouse.set_pos(
                 (self.grid.grid_rect.x + rel_mouse_x, self.grid.grid_rect.y + rel_mouse_y)
             )
@@ -584,7 +576,6 @@ class GridManager:
 
         prev_offset_x: int = self.grid.offset.x
         prev_offset_y: int = self.grid.offset.y
-
         if keys:
             self._move_with_keys(keys, mouse_tile, brush_size)  # Changes the offset
 
@@ -609,47 +600,47 @@ class GridManager:
         """
 
         changed_tiles: list[PosPair] = []
+        grid_w: int = self.grid.area.w
+        grid_h: int = self.grid.area.h
 
-        pointer_area: Size = self.grid.area
         self.grid.selected_tiles.append(Point(end.x * 2, end.y * 2))
         if extra_info["mirror_x"]:
             self.grid.selected_tiles.extend(
-                Point(((pointer_area.w - brush_size) * 2) - tile.x, tile.y)
+                Point(((grid_w - brush_size) * 2) - tile.x, tile.y)
                 for tile in self.grid.selected_tiles.copy()
             )
         if extra_info["mirror_y"]:
             self.grid.selected_tiles.extend(
-                Point(tile.x, ((pointer_area.h - brush_size) * 2) - tile.y)
+                Point(tile.x, ((grid_h - brush_size) * 2) - tile.y)
                 for tile in self.grid.selected_tiles.copy()
             )
 
         if not is_drawing:
             return changed_tiles
 
-        x_1: int = max(min(start.x, pointer_area.w - 1), -brush_size + 1)
-        y_1: int = max(min(start.y, pointer_area.h - 1), -brush_size + 1)
-        x_2: int = max(min(end.x, pointer_area.w - 1), -brush_size + 1)
-        y_2: int = max(min(end.y, pointer_area.h - 1), -brush_size + 1)
+        x_1: int = max(min(start.x, grid_w - 1), -brush_size + 1)
+        y_1: int = max(min(start.y, grid_h - 1), -brush_size + 1)
+        x_2: int = max(min(end.x, grid_w - 1), -brush_size + 1)
+        y_2: int = max(min(end.y, grid_h - 1), -brush_size + 1)
         changed_tiles.extend(_get_tiles_in_line(x_1, y_1, x_2, y_2))
 
         if extra_info["mirror_x"]:
-            changed_tiles.extend(
-                (pointer_area.w - brush_size - x, y) for x, y in changed_tiles.copy()
-            )
+            changed_tiles.extend((grid_w - brush_size - x, y) for x, y in changed_tiles.copy())
         if extra_info["mirror_y"]:
-            changed_tiles.extend(
-                (x, pointer_area.h - brush_size - y) for x, y in changed_tiles.copy()
-            )
+            changed_tiles.extend((x, grid_h - brush_size - y) for x, y in changed_tiles.copy())
 
         scaled_changed_tiles: list[PosPair] = [
             (x, y)
             for original_x, original_y in changed_tiles
-            for x in range(max(original_x, 0), min(original_x + brush_size, pointer_area.w))
-            for y in range(max(original_y, 0), min(original_y + brush_size, pointer_area.h))
+            for x in range(max(original_x, 0), min(original_x + brush_size, grid_w))
+            for y in range(max(original_y, 0), min(original_y + brush_size, grid_h))
         ]
 
         return scaled_changed_tiles
 
+    from line_profiler import profile
+    
+    @profile
     def _draw_on_grid(
             self, tiles: list[PosPair], color: Color, prev_selected_tiles: list[Point]
     ) -> None:
@@ -660,14 +651,16 @@ class GridManager:
             tiles, color, previous selected tiles
         """
 
-        prev_tiles: NDArray[np.uint8] = np.copy(self.grid.tiles)
-
         unique_tiles: tuple[PosPair, ...] = tuple(set(tiles))
-        for x, y in unique_tiles:
-            self.grid.tiles[y, x] = color
 
-        if not np.array_equal(self.grid.tiles, prev_tiles):
-            self.grid.update_section(unique_tiles)
+        changed_grid = False
+        for x, y in unique_tiles:
+            if tuple(self.grid.tiles[y, x]) != color:
+                changed_grid = True
+                self.grid.tiles[y, x] = color
+
+        if changed_grid:
+            self.grid.refresh_section(unique_tiles)
         elif self.grid.selected_tiles != prev_selected_tiles:
             self.grid.get_grid()
 
@@ -790,7 +783,6 @@ class GridManager:
 
         prev_mouse_tile_x: int = int((mouse_x - self.grid.grid_rect.x) / self.grid.grid_tile_dim)
         prev_mouse_tile_y: int = int((mouse_y - self.grid.grid_rect.y) / self.grid.grid_tile_dim)
-
         self.grid.zoom(amount, should_reach_limit)
 
         mouse_tile_x: int = int((mouse_x - self.grid.grid_rect.x) / self.grid.grid_tile_dim)
@@ -811,14 +803,12 @@ class GridManager:
         self.grid.get_grid()
         self.grid.get_minimap_img()
 
-    def save_to_file(self, file_path: str) -> str:
+    def save_to_file(self, file_path: str) -> None:
         """
         Saves the tiles to a file.
 
         Args:
             file path
-        Returns:
-            file path (empty if couldn't save)
         """
 
         img_state: int = get_img_state(file_path, True)
@@ -831,7 +821,7 @@ class GridManager:
             else:
                 print(f"Unknown reason. State: {img_state}.")
 
-            return ""
+            return
 
         # Swaps columns and rows, because pygame uses it like this
         transposed_tiles: NDArray[np.uint8] = np.transpose(self.grid.tiles, (1, 0, 2))
@@ -840,8 +830,6 @@ class GridManager:
         pixels_alpha[...] = transposed_tiles[..., 3]
 
         pg.image.save(surf, file_path)
-
-        return file_path
 
     def _handle_hover(self, hovered_obj: Any) -> None:
         """
@@ -870,7 +858,7 @@ class GridManager:
             hovered object (can be None), mouse info, keys, color, brush size, tool info
         """
 
-        self._handle_hover(hovered_obj, mouse_info)
+        self._handle_hover(hovered_obj)
 
         if self.grid == hovered_obj or self.grid == self._prev_hovered_obj:  # Extra frame to draw
             self._handle_draw(mouse_info, keys, color, brush_size, tool_info)

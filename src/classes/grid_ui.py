@@ -57,9 +57,9 @@ class NumSlider:
     def leave(self) -> None:
         """Clears all the relevant data when a state is leaved."""
 
-        self._is_sliding = False
         self._traveled_x = 0
         self._speeds.clear()
+        self._is_sliding = False
 
     def set_value(self, value: int) -> None:
         """
@@ -85,14 +85,14 @@ class NumSlider:
 
         if not self.input_box.is_hovering:
             if not mouse_info.pressed[MOUSE_LEFT]:
-                self._is_sliding = False
                 self._traveled_x = 0
                 self._speeds.clear()
+                self._is_sliding = False
         else:
-            self._is_sliding = mouse_info.pressed[MOUSE_LEFT]
             if not mouse_info.pressed[MOUSE_LEFT]:
                 self._traveled_x = 0
                 self._speeds.clear()
+            self._is_sliding = mouse_info.pressed[MOUSE_LEFT]
 
     def _slide(self, mouse_info: MouseInfo, temp_input_box_text: str, max_value: int) -> str:
         """
@@ -282,7 +282,7 @@ class GridUI(UI):
         extra_cols: int = self._w_slider.value - copy_tiles.shape[1]
         if extra_cols < 0:
             copy_tiles = copy_tiles[:, :self._w_slider.value, ...]
-        if extra_cols > 0:
+        elif extra_cols > 0:
             copy_tiles = np.pad(copy_tiles, ((0, 0), (0, extra_cols), (0, 0)), constant_values=0)
 
         # Swaps columns and rows, because pygame uses it like this

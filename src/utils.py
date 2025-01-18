@@ -24,6 +24,17 @@ class Point:
     x: int
     y: int
 
+    @property
+    def xy(self) -> PosPair:
+        """
+        Gets the x and y coordinates.
+
+        Returns:
+            x coordinate, y coordinate
+        """
+
+        return (self.x, self.y)
+
 
 @dataclass(slots=True)
 class Size:
@@ -36,6 +47,17 @@ class Size:
 
     w: int
     h: int
+
+    @property
+    def wh(self) -> SizePair:
+        """
+        Gets the width and height.
+
+        Returns:
+            width, height
+        """
+
+        return (self.w, self.h)
 
 
 @dataclass(slots=True)
@@ -50,6 +72,17 @@ class Ratio:
     w: float
     h: float
 
+    @property
+    def wh(self) -> tuple[float, float]:
+        """
+        Gets the width and height ratios.
+
+        Returns:
+            width ratio, height ratio
+        """
+
+        return (self.w, self.h)
+
 
 @dataclass(slots=True)
 class RectPos:
@@ -63,6 +96,17 @@ class RectPos:
     x: int
     y: int
     coord_type: str
+
+    @property
+    def xy(self) -> PosPair:
+        """
+        Gets the x and y coordinates.
+
+        Returns:
+            x coordinate, y coordinate
+        """
+
+        return (self.x, self.y)
 
 
 def get_img(*path_sections: str) -> pg.Surface:
@@ -132,7 +176,7 @@ def resize_obj(
     img_ratio_w: float = win_ratio.w
     img_ratio_h: float = win_ratio.h
     if should_keep_size_ratio:
-        img_ratio_w = img_ratio_h = min(win_ratio.w, win_ratio.h)
+        img_ratio_w = img_ratio_h = min(win_ratio.wh)
 
     resized_xy: PosPair = (round(init_pos.x * win_ratio.w), round(init_pos.y * win_ratio.h))
     resized_wh: SizePair = (ceil(init_w * img_ratio_w), ceil(init_h * img_ratio_h))
@@ -148,13 +192,13 @@ def rec_resize(main_objs: list[Any], win_ratio: Ratio) -> None:
         objects, window size ratio
     """
 
-    pointer_objs: list[Any] = main_objs
-    while pointer_objs:
-        obj: Any = pointer_objs.pop()
+    ptr_objs_hierarchy: list[Any] = main_objs
+    while ptr_objs_hierarchy:
+        obj: Any = ptr_objs_hierarchy.pop()
         if hasattr(obj, "resize"):
             obj.resize(win_ratio)
         if hasattr(obj, "objs_info"):
-            pointer_objs.extend(info.obj for info in obj.objs_info)
+            ptr_objs_hierarchy.extend([info.obj for info in obj.objs_info])
 
 
 def rec_move_rect(main_obj: Any, init_x: int, init_y: int, win_ratio: Ratio) -> None:
@@ -164,14 +208,14 @@ def rec_move_rect(main_obj: Any, init_x: int, init_y: int, win_ratio: Ratio) -> 
     Args:
         object, initial x, initial y, window size ratio.
     """
-    # TODO: update tests (utils, file utils, clickable, checkbox grid)
+
     change_x: int = 0
     change_y: int = 0
-    objs: list[Any] = [main_obj]
+    objs_hierarchy: list[Any] = [main_obj]
 
     is_first: bool = True
-    while objs:
-        obj: Any = objs.pop()
+    while objs_hierarchy:
+        obj: Any = objs_hierarchy.pop()
         if hasattr(obj, "move_rect"):
             if not is_first:
                 x: int = obj.init_pos.x + change_x
@@ -186,7 +230,7 @@ def rec_move_rect(main_obj: Any, init_x: int, init_y: int, win_ratio: Ratio) -> 
                 change_y = obj.init_pos.y - prev_init_y
                 is_first = False
         if hasattr(obj, "objs_info"):
-            objs.extend(info.obj for info in obj.objs_info)
+            objs_hierarchy.extend([info.obj for info in obj.objs_info])
 
 
 @dataclass(slots=True)
@@ -203,28 +247,32 @@ class ObjInfo:
 
     def set_active(self, should_activate: bool) -> None:
         """
-        Sets the active flag for the object and its sub objects.
+        Sets the active flag for the object and its sub objects and calls the enter/leave method.
 
         Args:
             activate flag
         """
+
+        method_name: str = "enter" if should_activate else "leave"
 
         objs_info: list[ObjInfo] = [self]
         while objs_info:
             info: ObjInfo = objs_info.pop()
             info.is_active = should_activate
 
+            if hasattr(info.obj, method_name):
+                getattr(info.obj, method_name)()
             if hasattr(info.obj, "objs_info"):
                 objs_info.extend(info.obj.objs_info)
 
 
-@dataclass(frozen=True, slots=True)
-class MouseInfo:
+@dataclass(slots=True)
+class Mouse:
     """
     Dataclass for storing mouse info.
 
     Args:
-        x, y, pressed buttons, recently released buttons, scroll amount
+        x, y, pressed buttons, released buttons, scroll amount, hovered object
     """
 
     x: int
@@ -232,3 +280,32 @@ class MouseInfo:
     pressed: tuple[bool, bool, bool]
     released: tuple[bool, bool, bool, bool, bool]
     scroll_amount: int
+    hovered_obj: Any
+
+    @property
+    def xy(self) -> PosPair:
+        """
+        Gets the x and y coordinates.
+
+        Returns:
+            x coordinate, y coordinate
+        """
+
+        return (self.x, self.y)
+
+
+@dataclass(slots=True)
+class Keyboard:
+    """
+    Dataclass for storing keyboard info.
+
+    Args:
+        pressed keys, timed keys, control flag, shift flag, alt flag, numpad flag
+    """
+
+    pressed: list[int]
+    timed: list[int]
+    is_ctrl_on: bool
+    is_shift_on: bool
+    is_alt_on: bool
+    is_numpad_on: bool

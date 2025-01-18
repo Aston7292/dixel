@@ -15,10 +15,10 @@ MOUSE_RIGHT: Final[int] = 2
 
 INIT_WIN_SIZE: Final[Size] = Size(1_200, 900)
 
-BLACK: Final[Color] = (0, 0, 0)
-WHITE: Final[Color] = (255, 255, 255)
-LIGHT_GRAY: Final[Color] = (85, 85, 85)
-DARK_GRAY: Final[Color] = (75, 75, 75)
+BLACK: Final[Color] = [0, 0, 0]
+WHITE: Final[Color] = [255, 255, 255]
+LIGHT_GRAY: Final[Color] = [85, 85, 85]
+DARK_GRAY: Final[Color] = [75, 75, 75]
 
 EMPTY_TILE_ARR: Final[NDArray[np.uint8]] = np.array(
     [
@@ -27,6 +27,8 @@ EMPTY_TILE_ARR: Final[NDArray[np.uint8]] = np.array(
     ],
     np.uint8
 )
+TILE_ROWS: Final[int] = EMPTY_TILE_ARR.shape[0]
+TILE_COLS: Final[int] = EMPTY_TILE_ARR.shape[1]
 VISIBLE_CHECKBOX_GRID_ROWS: Final[int] = 10
 
 BG_LAYER: Final[int] = 0

@@ -6,7 +6,7 @@ import pygame as pg
 
 PosPair = tuple[int, int]
 SizePair = tuple[int, int]
-Color = tuple[int, ...]
+Color = list[int]
 
 CheckboxInfo = tuple[pg.Surface, Optional[str]]
 ToolInfo = tuple[str, dict[str, Any]]

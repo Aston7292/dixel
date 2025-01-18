@@ -21,30 +21,50 @@ Requires pygame-ce, numpy and portalocker (multi-platform way to detect locked f
 
 - **Pencil**: Change individual pixels (x/y mirror)
 
-## Keyboard Shortcuts
+## Keyboard functionality
 
+### Window
+
+- **F1**: Reset window size
+- **F5-F8**: Resize window
+- **F11**: Toggle fullscreen
+
+### Home
+
+- **ESC**: Close window
 - **CTRL A**: Go to add color UI
 - **CTRL M**: Go to modify grid UI
 - **CTRL S**: Save file with name
 - **CTRL O**: Open file
 - **CTRL Q**: Close file
-- **CTRL Backspace**: Exit in UI
-- **CTRL Enter**: Confirm in UI
+- **arrows/page down/page up/home/end**: move in scrollbars
 
-- **ALT arrows**: move selected pixel by brush size
-- **SHIFT arrows**: move selected pixel by visible area
-- **CTRL arrows**: move selected pixel to the limit of the grid
-- **CTRL -/+**: zoom in/out
-- **CTRL SHIFT -/+**: zoom in/out until limit
-- **CTRL R**: reset grid offset and visible area
+### Checkbox grids
 
+- **arrows/home/end**: Move
 - **CTRL 1-5**: Change brush size
 - **CTRL E**: Edit selected color
 - **CTRL Del**: delete selected color
 
-- **CTRL left/right**: go to end of text in input box
-- **CTRL ALT left/right**: switch between scrollbar and input box in color picking UI
-- **CTRL K**: toggle keep ratio in grid UI
+### Grid
+
+- **arrows**: Move
+- **Enter**: Draw
+- **Backspace**: Erase
+- **ALT arrows**: Move selected pixel by brush size
+- **SHIFT arrows**: Move selected pixel by visible area
+- **CTRL arrows**: Move selected pixel to the limit of the grid
+- **CTRL -/+**: Zoom in/out
+- **CTRL SHIFT -/+**: Zoom in/out until limit
+- **CTRL R**: Reset offset and visible area
+
+### UIs
+
+- **arrows/tab**: Move selection
+- **CTRL left/right**: Go to end of text in input box
+- **CTRL K**: Toggle keep ratio in grid UI
+- **ESC**: Close
+- **Enter**: Confirm
 
 ## Screenshots
 

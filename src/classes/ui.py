@@ -8,7 +8,7 @@ import pygame as pg
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, Ratio, ObjInfo, MouseInfo, get_img, resize_obj
+from src.utils import RectPos, Ratio, ObjInfo, Mouse, Keyboard, get_img, resize_obj
 from src.type_utils import PosPair, SizePair, LayeredBlitInfo
 from src.consts import UI_LAYER
 
@@ -29,17 +29,16 @@ class UI(ABC):
     Abstract class to create a default UI with a title, confirm and exit buttons.
 
     Includes:
-        blit() -> layered blit sequence
+        get_blit_sequence() -> layered blit sequence
         resize(window size ratio) -> None,
-        base_upt(mouse, keys) -> tuple[confirmed, exited]
+        base_upt(mouse, keyboard) -> tuple[confirmed, exited]
 
     Children should include:
-        upt(hovered object, mouse info, keys) -> tuple[closed, extra info]
+        upt(mouse, keyboard) -> tuple[closed, extra info]
     """
 
     __slots__ = (
-        "_init_pos", "_init_img", "_img", "_rect", "_base_layer", "_exit", "_confirm",
-        "objs_info"
+        "_init_pos", "_init_img", "_img", "_rect", "_exit", "_confirm", "objs_info"
     )
 
     def __init__(self, pos: RectPos, title: str) -> None:
@@ -54,24 +53,18 @@ class UI(ABC):
         self._init_img: pg.Surface = INTERFACE_IMG
 
         self._img: pg.Surface = self._init_img
-        self._rect: pg.Rect = self._img.get_rect(
-            **{self._init_pos.coord_type: (self._init_pos.x, self._init_pos.y)}
-        )
+        self._rect: pg.Rect = self._img.get_rect(**{self._init_pos.coord_type: self._init_pos.xy})
 
-        self._base_layer: int = UI_LAYER
-
-        title_text_label: TextLabel = TextLabel(
-            RectPos(self._rect.centerx, self._rect.top + 10, "midtop"), title,
-            self._base_layer, 32
-        )
+        title_text_label_pos: RectPos = RectPos(self._rect.centerx, self._rect.top + 10, "midtop")
+        title_text_label: TextLabel = TextLabel(title_text_label_pos, title, UI_LAYER, 32)
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10, self._rect.y + 10, "topright"),
-            (CLOSE_IMG_OFF, CLOSE_IMG_ON), None, "(CTRL+BACKSPACE)", self._base_layer
+            [CLOSE_IMG_OFF, CLOSE_IMG_ON], None, "(ESC)", UI_LAYER
         )
         self._confirm: Button = Button(
             RectPos(self._rect.right - 10, self._rect.bottom - 10, "bottomright"),
-            (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "confirm", "(CTRL+ENTER)", self._base_layer
+            [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "confirm", "(Enter)", UI_LAYER
         )
 
         self.objs_info: list[ObjInfo] = [
@@ -79,15 +72,15 @@ class UI(ABC):
             ObjInfo(self._exit), ObjInfo(self._confirm)
         ]
 
-    def blit(self) -> list[LayeredBlitInfo]:
+    def get_blit_sequence(self) -> list[LayeredBlitInfo]:
         """
-        Returns the objects to blit.
+        Gets the blit sequence.
 
         Returns:
             sequence to add in the main blit sequence
         """
 
-        return [(self._img, self._rect.topleft, self._base_layer)]
+        return [(self._img, self._rect.topleft, UI_LAYER)]
 
     def resize(self, win_ratio: Ratio) -> None:
         """
@@ -104,37 +97,31 @@ class UI(ABC):
         self._img = pg.transform.scale(self._init_img, wh)
         self._rect = self._img.get_rect(**{self._init_pos.coord_type: xy})
 
-    def _base_upt(
-            self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]
-    ) -> tuple[bool, bool]:
+    def _base_upt(self, mouse: Mouse, keys: list[int]) -> tuple[bool, bool]:
         """
         Checks if the exit or confirm button were pressed.
 
         Args:
-            hovered object, mouse info, keys
+            mouse, keys
         Returns:
             confirming and exiting flags
         """
 
-        kmod_ctrl: int = pg.key.get_mods() & pg.KMOD_CTRL
+        is_exit_pressed: bool = self._exit.upt(mouse)
+        is_exiting: bool = is_exit_pressed or pg.K_ESCAPE in keys
 
-        is_exit_pressed: bool = self._exit.upt(hovered_obj, mouse_info)
-        is_ctrl_backspace_pressed: bool = bool(kmod_ctrl and pg.K_BACKSPACE in keys)
-        is_exiting: bool = is_exit_pressed or is_ctrl_backspace_pressed
-
-        is_confirm_pressed: bool = self._confirm.upt(hovered_obj, mouse_info)
-        is_ctrl_enter_pressed: bool = bool(kmod_ctrl and pg.K_RETURN in keys)
-        is_confirming: bool = is_confirm_pressed or is_ctrl_enter_pressed
+        is_confirm_pressed: bool = self._confirm.upt(mouse)
+        is_confirming: bool = is_confirm_pressed or pg.K_RETURN in keys
 
         return is_confirming, is_exiting
 
     @abstractmethod
-    def upt(self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]) -> tuple[bool, Any]:
+    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[bool, Any]:
         """
         Should implement a way to make the object interactable.
 
         Args:
-            hovered object (can be None), mouse info, keys
+            mouse, keyboard
         Returns:
             True if the interface was closed else False, extra info
         """

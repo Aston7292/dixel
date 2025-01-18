@@ -13,25 +13,25 @@ from src.consts import (
 )
 
 
-def get_img_state(img_file_path: str, should_create: bool = False) -> int:
+def get_img_state(file_path: str, should_create: bool) -> int:
     """
     Gest the state of an image.
 
     Args:
-        image file path, create flag (default = False)
+        path, create flag
     Returns:
         state
     """
 
     state: int = IMG_STATE_OK
-    mode: str = "ab+" if should_create else "rb+"
     try:
-        with Path(img_file_path).open(mode) as f:
+        mode: str = "ab+" if should_create else "rb+"
+        with Path(file_path).open(mode) as f:
             lock(f, LOCK_EX | LOCK_NB)  # Fails if already locked
             unlock(f)
 
         if not should_create:
-            get_img(img_file_path)  # Fails if corrupted
+            get_img(file_path)  # Fails if corrupted
     except FileNotFoundError:
         state = IMG_STATE_MISSING
     except PermissionError:
@@ -125,11 +125,11 @@ def handle_cmd_args(argv: list[str]) -> tuple[str, str]:
     else:
         try:
             img_file_obj: Path = Path(file_path).with_suffix(".png")
-            img_file_path = str(img_file_obj)
             if path.isreserved(img_file_obj):
                 print("Invalid name.")
             else:
                 should_continue = True
+                img_file_path = str(img_file_obj)
         except ValueError:
             print("Invalid path.")
 
@@ -148,7 +148,7 @@ def ask_save_to_file() -> str:
 
     while True:
         file_path: str = filedialog.asksaveasfilename(
-            defaultextension=".png", filetypes=(("png Files", "*.png"),), title="Save as"
+            defaultextension=".png", filetypes=[("png Files", "*.png")], title="Save As"
         )
 
         if not file_path:
@@ -169,8 +169,8 @@ def ask_open_file() -> str:
 
     while True:
         file_path: str = filedialog.askopenfilename(
-            defaultextension=".png", filetypes=(("png Files", "*.png"),), title="Open"
+            defaultextension=".png", filetypes=[("png Files", "*.png")], title="Open"
         )
 
-        if not file_path or get_img_state(file_path) == IMG_STATE_OK:
+        if not file_path or get_img_state(file_path, False) == IMG_STATE_OK:
             return file_path

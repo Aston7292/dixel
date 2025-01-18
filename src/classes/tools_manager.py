@@ -25,13 +25,12 @@ from src.classes.ui import CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
 
-from src.utils import RectPos, ObjInfo, MouseInfo, get_img
-from src.type_utils import ToolInfo
+from src.utils import RectPos, ObjInfo, Mouse, get_img
+from src.type_utils import CheckboxInfo, ToolInfo
 from src.consts import SPECIAL_LAYER
 
 ToolsInfo = dict[str, dict[str, Any]]
-ToolsExtraInfo = tuple[tuple[dict[str, Any], ...], ...]
-ToolsExtraInfoList = list[list[dict[str, Any]]]
+ToolsExtraInfo = list[tuple[dict[str, Any], ...]]
 
 PENCIL_IMG: Final[Surface] = get_img("sprites", "pencil_tool.png")
 BUCKET_IMG: Final[Surface] = PENCIL_IMG
@@ -42,14 +41,14 @@ TOOLS_INFO: Final[ToolsInfo] = {
         "extra_info": (
             {
                 "type": Checkbox,
-                "init_args": [(CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON), "x mirror", None],
-                "upt_args": ["hovered_obj", "mouse_info"],
+                "init_args": [[CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON], "x mirror", None],
+                "upt_args": ["mouse"],
                 "out_format": {"mirror_x": "is_checked"}
             },
             {
                 "type": Checkbox,
-                "init_args": [(CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON), "y mirror", None],
-                "upt_args": ["hovered_obj", "mouse_info"],
+                "init_args": [[CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON], "y mirror", None],
+                "upt_args": ["mouse"],
                 "out_format": {"mirror_y": "is_checked"}
             }
         )
@@ -60,9 +59,9 @@ TOOLS_INFO: Final[ToolsInfo] = {
             {
                 "type": Checkbox,
                 "init_args": [
-                    (CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON), "fill pixels of\nthe same color", None
+                    [CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON], "fill pixels of\nthe same color", None
                 ],
-                "upt_args": ["hovered_obj", "mouse_info"],
+                "upt_args": ["mouse"],
                 "out_format": {"same_color": "is_checked"}
             },
         )
@@ -86,18 +85,13 @@ class ToolsManager:
         """
 
         self._names: tuple[str, ...] = tuple(TOOLS_INFO.keys())
-        base_tools_info: tuple[tuple[Surface, str], ...] = tuple(
-            info["base_info"] for info in TOOLS_INFO.values()
-        )
-        self.tools_grid: CheckboxGrid = CheckboxGrid(pos, base_tools_info, 5, (False, True))
+        checkboxes_info: list[CheckboxInfo] = [info["base_info"] for info in TOOLS_INFO.values()]
+        self.tools_grid: CheckboxGrid = CheckboxGrid(pos, checkboxes_info, 5, (False, True))
 
-        tools_raw_extra_info: ToolsExtraInfo = tuple(
-            info["extra_info"] for info in TOOLS_INFO.values()
-        )
+        tools_raw_extra_info: ToolsExtraInfo = [info["extra_info"] for info in TOOLS_INFO.values()]
         # Added keys: obj, removed keys: type, init_args
         self._tools_extra_info = [
-            self._get_extra_info(tool_raw_extra_info)
-            for tool_raw_extra_info in tools_raw_extra_info
+            self._get_extra_info(raw_extra_info) for raw_extra_info in tools_raw_extra_info
         ]
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self.tools_grid)]
@@ -106,7 +100,7 @@ class ToolsManager:
         for tool_extra_info in self._tools_extra_info:
             range_start: int = len(self.objs_info)
             self.objs_info.extend(
-                ObjInfo(sub_tool_extra_info["obj"]) for sub_tool_extra_info in tool_extra_info
+                [ObjInfo(sub_tool_extra_info["obj"]) for sub_tool_extra_info in tool_extra_info]
             )
             range_end: int = len(self.objs_info)
 
@@ -132,10 +126,9 @@ class ToolsManager:
         obj_x: int = self.tools_grid.rect.x + 20
         obj_y: int = self.tools_grid.rect.y - 20
         for raw_sub_tool_extra_info in raw_extra_info:
-            obj: Any = raw_sub_tool_extra_info["type"](
-                RectPos(obj_x, obj_y, "bottomleft"), *raw_sub_tool_extra_info["init_args"],
-                base_layer=SPECIAL_LAYER
-            )
+            pos: RectPos = RectPos(obj_x, obj_y, "bottomleft")
+            init_args: list[Any] = raw_sub_tool_extra_info["init_args"]
+            obj: Any = raw_sub_tool_extra_info["type"](pos, *init_args, base_layer=SPECIAL_LAYER)
 
             raw_sub_tool_extra_info["obj"] = obj
             del raw_sub_tool_extra_info["type"], raw_sub_tool_extra_info["init_args"]
@@ -154,17 +147,8 @@ class ToolsManager:
         """
 
         prev_active_range: tuple[int, int] = self._tools_objs_info_ranges[prev_tool_i]
-        prev_objs_info: list[ObjInfo] = self.objs_info[prev_active_range[0]:prev_active_range[1]]
-        for prev_info in prev_objs_info:
-            prev_info.set_active(False)
-
-        prev_tool_objs: list[Any] = [prev_info.obj for prev_info in prev_objs_info]
-        while prev_tool_objs:
-            obj: Any = prev_tool_objs.pop()
-            if hasattr(obj, "leave"):
-                obj.leave()
-            if hasattr(obj, "objs_info"):
-                prev_tool_objs.extend(info.obj for info in obj.objs_info)
+        for i in range(prev_active_range[0], prev_active_range[1]):
+            self.objs_info[i].set_active(False)
 
         active_range: tuple[int, int] = self._tools_objs_info_ranges[self.tools_grid.clicked_i]
         for i in range(active_range[0], active_range[1]):
@@ -182,30 +166,26 @@ class ToolsManager:
 
         out_dict: dict[str, Any] = {}
         for extra_info in self._tools_extra_info[self.tools_grid.clicked_i]:
-            upt_args: tuple[Any, ...] = tuple(
-                local_vars.get(str(arg), arg) for arg in extra_info["upt_args"]
-            )
-            extra_info["obj"].upt(*upt_args)
+            upt_vars: list[Any] = [local_vars.get(arg, arg) for arg in extra_info["upt_args"]]
+            extra_info["obj"].upt(*upt_vars)
 
-            obj_out_dict: dict[str, Any] = {}
             for key, value in extra_info["out_format"].items():
-                obj_out_dict[key] = getattr(extra_info["obj"], value)
-            out_dict.update(obj_out_dict)
+                out_dict[key] = getattr(extra_info["obj"], value)
 
         return out_dict
 
-    def upt(self, hovered_obj: Any, mouse_info: MouseInfo, keys: list[int]) -> ToolInfo:
+    def upt(self, mouse: Mouse, timed_keys: list[int]) -> ToolInfo:
         """
         Allows selecting a tool and it's extra options.
 
         Args:
-            hovered object (can be None), mouse info, keys
+            mouse, timed keys
         Returns:
             tool name, sub options state
         """
 
         prev_clicked_i: int = self.tools_grid.clicked_i
-        self.tools_grid.upt(hovered_obj, mouse_info, keys)
+        self.tools_grid.upt(mouse, timed_keys)
 
         if self.tools_grid.clicked_i != prev_clicked_i:
             self.refresh_tools(prev_clicked_i)

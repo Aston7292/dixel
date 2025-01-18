@@ -82,7 +82,7 @@ class TestUtils(TestCase):
         mock_ask_save_as_file_name.return_value = "a.png"
         self.assertEqual(ask_save_to_file(), "a.png")
         mock_ask_save_as_file_name.assert_called_once_with(
-            defaultextension=".png", filetypes=(("png Files", "*.png"),), title="Save as",
+            defaultextension=".png", filetypes=[("png Files", "*.png")], title="Save As",
         )
 
         mock_ask_save_as_file_name.return_value = ""
@@ -102,7 +102,7 @@ class TestUtils(TestCase):
         mock_get_img_state.return_value = IMG_STATE_OK
         self.assertEqual(ask_open_file(), "a.png")
         mock_ask_open_file_name.assert_called_once_with(
-            defaultextension=".png", filetypes=(("png Files", "*.png"),), title="Open",
+            defaultextension=".png", filetypes=[("png Files", "*.png")], title="Open",
         )
         mock_get_img_state.assert_called_once_with("a.png")
 

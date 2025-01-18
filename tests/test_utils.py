@@ -10,14 +10,14 @@ import numpy as np
 from numpy.typing import NDArray
 
 from src.utils import (
-    Point, RectPos, Size, Ratio, ObjInfo, MouseInfo, get_img, get_pixels, add_border, resize_obj
+    Point, RectPos, Size, Ratio, ObjInfo, Mouse, get_img, get_pixels, add_border, resize_obj
 )
 from src.type_utils import PosPair, SizePair, Color
 
 RNG: Final[SystemRandom] = SystemRandom()
 
 
-class ParentObj:
+class MainObj:
     """Class to test the set active method on objects info."""
 
     def __init__(self) -> None:
@@ -54,7 +54,7 @@ class TestUtils(TestCase):
     def test_add_border(self) -> None:
         """Tests the add_border function."""
 
-        color: Color = (0, 0, 1)
+        color: Color = [0, 0, 1]
 
         img: pg.Surface = pg.Surface((10, 11))
         img_with_border: pg.Surface = add_border(img, color)
@@ -131,23 +131,23 @@ class TestUtils(TestCase):
     def test_obj_info(self) -> None:
         """Tests the ObjInfo dataclass."""
 
-        parent_obj: ParentObj = ParentObj()
-        parent_obj_info: ObjInfo = ObjInfo(parent_obj)
+        main_obj: MainObj = MainObj()
+        main_obj_info: ObjInfo = ObjInfo(main_obj)
 
-        self.assertIs(parent_obj_info.obj, parent_obj)
-        self.assertTrue(parent_obj_info.is_active)
+        self.assertIs(main_obj_info.obj, main_obj)
+        self.assertTrue(main_obj_info.is_active)
 
-        copy_parent_obj_info: ObjInfo = ObjInfo(ParentObj())
-        copy_parent_obj_info.set_active(False)
+        copy_main_obj_info: ObjInfo = ObjInfo(MainObj())
+        copy_main_obj_info.set_active(False)
 
-        self.assertFalse(copy_parent_obj_info.is_active)
-        sub_obj_info: ObjInfo = copy_parent_obj_info.obj.objs_info[0]
+        self.assertFalse(copy_main_obj_info.is_active)
+        sub_obj_info: ObjInfo = copy_main_obj_info.obj.objs_info[0]
         self.assertFalse(sub_obj_info.is_active)
 
     def test_mouse_info(self) -> None:
         """Tests the MouseInfo dataclass."""
 
-        mouse_info: MouseInfo = MouseInfo(0, 1, (False,) * 3, (False,) * 5, 1)
+        mouse_info: Mouse = Mouse(0, 1, (False,) * 3, (False,) * 5, 1)
 
         self.assertEqual(mouse_info.x, 0)
         self.assertEqual(mouse_info.y, 1)

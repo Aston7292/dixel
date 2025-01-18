@@ -1,13 +1,12 @@
 """Tests for the text_label file."""
 
 from unittest import TestCase, mock
-from itertools import zip_longest
 
 import pygame as pg
 
 from src.classes.text_label import TextLabel, renderers_cache
 
-from src.utils import RectPos, Ratio, resize_obj
+from src.utils import RectPos, resize_obj
 from src.type_utils import PosPair, LayeredBlitInfo
 from src.consts import WHITE, TEXT_LAYER
 
@@ -35,12 +34,12 @@ class TestTextLabel(TestCase):
             copy
         """
 
+        ptr_pos: RectPos = self.text_label.init_pos
+        text: str = self.text_label.text
         layer: int = self.text_label._layer - TEXT_LAYER
+        h: int = self.text_label._init_h
 
-        copy_text_label: TextLabel = TextLabel(
-            self.text_label.init_pos, self.text_label.text, layer, self.text_label._init_h,
-            self.text_label._bg_color
-        )
+        copy_text_label: TextLabel = TextLabel(ptr_pos, text, layer, h, self.text_label._bg_color)
         copy_text_label.resize(RESIZING_RATIO)
 
         return copy_text_label
@@ -57,32 +56,30 @@ class TestTextLabel(TestCase):
         self.assertIs(renderers_cache[text_label._init_h], text_label._renderer)
 
         self.assertEqual(text_label.text, "hello\n!")
-        self.assertTupleEqual(text_label._lines, ("hello", "!"))
+        self.assertListEqual(text_label._lines, ["hello", "!"])
         self.assertEqual(text_label._bg_color, WHITE)
 
         self.assertEqual(text_label._layer, 1 + TEXT_LAYER)
 
         renderer: pg.Font = pg.font.SysFont("helvetica", 30)
-        for img, line in zip_longest(text_label._imgs, text_label._lines):
+        for img, line in zip(text_label._imgs, text_label._lines, strict=True):
             expected_img: pg.Surface = renderer.render(line, True, WHITE, WHITE).convert()
             self.assertTrue(cmp_imgs(img.convert(), expected_img, False))
 
-        mock_get_rects.assert_called_once_with(
-            text_label, (text_label.init_pos.x, text_label.init_pos.y)
-        )
+        mock_get_rects.assert_called_once_with(text_label, text_label.init_pos.xy)
 
         transparent_bg_text_label: TextLabel = TextLabel(RectPos(0, 0, "topleft"), "hello")
         self.assertIsNone(transparent_bg_text_label._bg_color)
 
-    def test_blit(self) -> None:
-        """Tests the blit method."""
+    def test_get_blit_sequence(self) -> None:
+        """Tests the get_blit_sequence method."""
 
         expected_sequence: list[LayeredBlitInfo] = [
             (img, rect.topleft, self.text_label._layer)
-            for img, rect in zip_longest(self.text_label._imgs, self.text_label.rects)
+            for img, rect in zip(self.text_label._imgs, self.text_label.rects, strict=True)
         ]
 
-        self.assertListEqual(self.text_label.blit(), expected_sequence)
+        self.assertListEqual(self.text_label.get_blit_sequence(), expected_sequence)
 
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_a_resize(self, mock_get_rects: mock.Mock) -> None:
@@ -98,7 +95,7 @@ class TestTextLabel(TestCase):
         self.__class__.renderer = pg.font.SysFont("helvetica", 60)
         self.assertIs(renderers_cache[expected_h], self.text_label._renderer)
 
-        for img, line in zip_longest(self.text_label._imgs, self.text_label._lines):
+        for img, line in zip(self.text_label._imgs, self.text_label._lines, strict=True):
             expected_img: pg.Surface = self.renderer.render(line, True, WHITE, WHITE).convert()
             self.assertTrue(cmp_imgs(img.convert(), expected_img, False))
         mock_get_rects.assert_called_once_with(self.text_label, expected_xy)
@@ -110,8 +107,8 @@ class TestTextLabel(TestCase):
         copy_text_label._get_rects((2, 3))
 
         expected_rects: list[pg.Rect] = []
-        rect_w: int = max(img.get_width() for img in copy_text_label._imgs)
-        rect_h: int = sum(img.get_height() for img in copy_text_label._imgs)
+        rect_w: int = max([img.get_width() for img in copy_text_label._imgs])
+        rect_h: int = sum([img.get_height() for img in copy_text_label._imgs])
         expected_rect: pg.Rect = pg.Rect(0, 0, rect_w, rect_h)
         expected_rect.center = (2, 3)
 
@@ -132,16 +129,16 @@ class TestTextLabel(TestCase):
 
         expected_init_x: int = 3
         expected_init_y: int = 4
-        copy_text_label.move_rect(expected_init_x, expected_init_y, Ratio(2.1, 3.2))
+        copy_text_label.move_rect(expected_init_x, expected_init_y, RESIZING_RATIO)
 
         expected_init_pos: RectPos = RectPos(3, 4, "center")
         self.assertEqual(copy_text_label.init_pos, expected_init_pos)
 
         expected_xy: PosPair
-        expected_xy, _ = resize_obj(expected_init_pos, 0, 0, Ratio(2.1, 3.2))
+        expected_xy, _ = resize_obj(expected_init_pos, 0, 0, RESIZING_RATIO)
         self.assertTupleEqual(copy_text_label.rect.center, expected_xy)
         for rect in copy_text_label.rects:
-            expected_xy, _ = resize_obj(expected_init_pos, 0, 0, Ratio(2.1, 3.2))
+            expected_xy, _ = resize_obj(expected_init_pos, 0, 0, RESIZING_RATIO)
             self.assertTupleEqual(rect.center, expected_xy)
             expected_init_pos.y += rect.h
 
@@ -156,8 +153,8 @@ class TestTextLabel(TestCase):
         self.assertEqual(mock_get_rects.call_count, init_get_rects_n_calls + 1)
 
         self.assertEqual(copy_text_label.text, "hello\n?")
-        self.assertTupleEqual(copy_text_label._lines, ("hello", "?"))
-        for img, line in zip_longest(copy_text_label._imgs, copy_text_label._lines):
+        self.assertListEqual(copy_text_label._lines, ["hello", "?"])
+        for img, line in zip(copy_text_label._imgs, copy_text_label._lines, strict=True):
             expected_img: pg.Surface = self.renderer.render(line, True, WHITE, WHITE).convert()
             self.assertTrue(cmp_imgs(img.convert(), expected_img, False))
 
@@ -179,17 +176,17 @@ class TestTextLabel(TestCase):
     def test_get_closest_to(self) -> None:
         """Tests the get_closest_to method."""
 
-        pos_2: int = (
-            self.text_label.rects[0].x + self.renderer.render("he", True, WHITE, WHITE).get_width()
-        )
+        line_rect_left: int = self.text_label.rects[0].x
+        line_rect_right: int = self.text_label.rect.right
+        pos_2: int = line_rect_left + self.renderer.render("he", True, WHITE, WHITE).get_width()
         turning_x: int = pos_2 + (self.renderer.render("l", True, WHITE, WHITE).get_width() // 2)
         first_line_len: int = len(self.text_label._lines[0])
 
-        self.assertEqual(self.text_label.get_closest_to(self.text_label.rect.x), 0)
+        self.assertEqual(self.text_label.get_closest_to(line_rect_left - 1), 0)
+        self.assertEqual(self.text_label.get_closest_to(line_rect_left), 0)
         self.assertEqual(self.text_label.get_closest_to(pos_2 - 1), 2)
         self.assertEqual(self.text_label.get_closest_to(pos_2 + 1), 2)
         self.assertEqual(self.text_label.get_closest_to(turning_x), 2)
         self.assertEqual(self.text_label.get_closest_to(turning_x + 1), 3)
-        self.assertEqual(
-            self.text_label.get_closest_to(self.text_label.rect.right), first_line_len
-        )
+        self.assertEqual(self.text_label.get_closest_to(line_rect_right), first_line_len)
+        self.assertEqual(self.text_label.get_closest_to(line_rect_right + 1), first_line_len)

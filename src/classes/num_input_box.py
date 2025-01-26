@@ -17,8 +17,8 @@ class NumInputBox:
     """Class to choose a number in range with an input box."""
 
     __slots__ = (
-        "_init_pos", "_init_img", "_img", "rect", "_is_selected", "_layer", "_hovering_layer",
-        "cursor_type", "text_label", "_cursor_i", "_cursor_img", "_cursor_rect", "objs_info"
+        "_init_pos", "_init_img", "_img", "rect", "_is_selected", "_layer", "_cursor_layer",
+        "cursor_type", "text_label", "_cursor_i", "_cursor_img", "cursor_rect", "objs_info"
     )
 
     def __init__(self, pos: RectPos, base_layer: int = BG_LAYER) -> None:
@@ -38,7 +38,7 @@ class NumInputBox:
         self._is_selected: bool = False
 
         self._layer: int = base_layer + ELEMENT_LAYER
-        self._hovering_layer: int = base_layer + TOP_LAYER
+        self._cursor_layer: int = base_layer + TOP_LAYER
         self.cursor_type: int = pg.SYSTEM_CURSOR_IBEAM
 
         self.text_label = TextLabel(RectPos(*self.rect.center, "center"), "", base_layer)
@@ -46,7 +46,7 @@ class NumInputBox:
 
         self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
-        self._cursor_rect: pg.Rect = self._cursor_img.get_rect(topleft=(0, 0))
+        self.cursor_rect: pg.Rect = self._cursor_img.get_rect(topleft=(0, 0))
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self.text_label)]
 
@@ -60,7 +60,7 @@ class NumInputBox:
 
         sequence: list[LayeredBlitInfo] = [(self._img, self.rect.topleft, self._layer)]
         if self._is_selected:
-            sequence.append((self._cursor_img, self._cursor_rect.topleft, self._hovering_layer))
+            sequence.append((self._cursor_img, self.cursor_rect.topleft, self._cursor_layer))
 
         return sequence
 
@@ -69,9 +69,9 @@ class NumInputBox:
         Gets the hovering info.
 
         Args:
-            mouse position
+            mouse xy
         Returns:
-            True if the object is being hovered else False, hovered object layer
+            hovered flag, hovered object layer
         """
 
         return self.rect.collidepoint(mouse_xy), self._layer
@@ -100,8 +100,8 @@ class NumInputBox:
         self._cursor_img = pg.Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
 
-        self._cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
-        self._cursor_rect.y = self.text_label.rect.y
+        self.cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
+        self.cursor_rect.y = self.text_label.rect.y
 
     def bounded_set_cursor_i(self, i: Optional[int]) -> None:
         """
@@ -114,7 +114,7 @@ class NumInputBox:
         if i is not None:
             self._cursor_i = i
         self._cursor_i = min(self._cursor_i, len(self.text_label.text))
-        self._cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
+        self.cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
 
     def _move_with_keys(self, keyboard: Keyboard) -> None:
         """
@@ -144,18 +144,18 @@ class NumInputBox:
             text
         """
 
-        future_text: str = self.text_label.text
+        copy_text: str = self.text_label.text
 
         if k == pg.K_DELETE:
-            future_text = future_text[:self._cursor_i] + future_text[self._cursor_i + 1:]
+            copy_text = copy_text[:self._cursor_i] + copy_text[self._cursor_i + 1:]
         elif k == pg.K_BACKSPACE and self._cursor_i:
-            future_text = future_text[:self._cursor_i - 1] + future_text[self._cursor_i:]
+            copy_text = copy_text[:self._cursor_i - 1] + copy_text[self._cursor_i:]
             self._cursor_i -= 1
 
-        if future_text.startswith("0"):  # If empty keep it empty
-            future_text = future_text.lstrip("0") or str(min_limit)
+        if copy_text.startswith("0"):  # If empty keep it empty
+            copy_text = copy_text.lstrip("0") or str(min_limit)
 
-        return future_text
+        return copy_text
 
     def _insert_char(self, char: str, min_limit: int, max_limit: int) -> str:
         """
@@ -167,26 +167,26 @@ class NumInputBox:
             text
         """
 
-        future_text: str = self.text_label.text
+        copy_text: str = self.text_label.text
 
-        future_text = future_text[:self._cursor_i] + char + future_text[self._cursor_i:]
+        copy_text = copy_text[:self._cursor_i] + char + copy_text[self._cursor_i:]
         max_len: int = len(str(max_limit))
-        future_text = future_text[:max_len]
+        copy_text = copy_text[:max_len]
 
         should_change_cursor_i: bool = True  # Better UX on edge cases
-        if int(future_text) < min_limit:
-            future_text = str(min_limit)
-        elif int(future_text) > max_limit:
-            future_text = str(max_limit)
-            should_change_cursor_i = self.text_label.text != future_text
+        if int(copy_text) < min_limit:
+            copy_text = str(min_limit)
+        elif int(copy_text) > max_limit:
+            copy_text = str(max_limit)
+            should_change_cursor_i = copy_text != self.text_label.text
 
-        if future_text.startswith("0"):  # If empty keep it empty
-            future_text = future_text.lstrip("0") or str(min_limit)
+        if copy_text.startswith("0"):  # If empty keep it empty
+            copy_text = copy_text.lstrip("0") or str(min_limit)
 
         if should_change_cursor_i:
-            self._cursor_i = min(self._cursor_i + 1, len(future_text))
+            self._cursor_i = min(self._cursor_i + 1, len(copy_text))
 
-        return future_text
+        return copy_text
 
     def _handle_k(self, k: int, min_limit: int, max_limit: int) -> str:
         """
@@ -198,17 +198,17 @@ class NumInputBox:
             text
         """
 
-        future_text: str = self.text_label.text
+        copy_text: str = self.text_label.text
 
         if k == pg.K_BACKSPACE or k == pg.K_DELETE:
-            future_text = self._handle_deletion(k, min_limit)
+            copy_text = self._handle_deletion(k, min_limit)
         elif k <= CHR_LIMIT:
             char: str = chr(k)
-            is_trailing_zero: bool = (char == "0" and not self._cursor_i) and bool(future_text)
+            is_trailing_zero: bool = (char == "0" and not self._cursor_i) and bool(copy_text)
             if char.isdigit() and not is_trailing_zero:
-                future_text = self._insert_char(char, min_limit, max_limit)
+                copy_text = self._insert_char(char, min_limit, max_limit)
 
-        return future_text
+        return copy_text
 
     def upt(
             self, mouse: Mouse, keyboard: Keyboard, limits: tuple[int, int], is_selected: bool
@@ -219,21 +219,21 @@ class NumInputBox:
         Args:
             mouse, keyboard, limits, selected flag
         Returns:
-            True if input box was clicked else False, text
+            clicked flag, text
         """
 
         # The text label isn't updated here because it's also changed by other classes
 
         self._is_selected = is_selected
-        future_text: str = self.text_label.text
+        copy_text: str = self.text_label.text
         if self._is_selected and keyboard.timed:
             self._move_with_keys(keyboard)
-            future_text = self._handle_k(keyboard.timed[-1], *limits)
-            self._cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
+            copy_text = self._handle_k(keyboard.timed[-1], *limits)
+            self.cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
 
         is_clicked: bool = mouse.hovered_obj == self and mouse.released[MOUSE_LEFT]
         if is_clicked:
             self._cursor_i = self.text_label.get_closest_to(mouse.x)
-            self._cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
+            self.cursor_rect.x = self.text_label.get_pos_at(self._cursor_i)
 
-        return is_clicked, future_text
+        return is_clicked, copy_text

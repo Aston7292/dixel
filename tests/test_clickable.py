@@ -55,7 +55,7 @@ class TestCheckbox(TestCase):
 
     @mock.patch.object(TextLabel, "__init__", autospec=True, return_value=None)
     def test_init(self, mock_text_label_init: mock.Mock) -> None:
-        """Tests the init method, mocks the TextLabel.__init__ method."""
+        """Tests the init method, mocks TextLabel.__init__."""
 
         # Also tests the Clickable abstract class
 
@@ -158,7 +158,7 @@ class TestCheckbox(TestCase):
 
     @mock.patch.object(TextLabel, "resize", autospec=True, wraps=TextLabel.resize)
     def test_a_resize(self, mock_text_label_resize: mock.Mock) -> None:
-        """Tests the resize method as first, mocks the TextLabel.resize method."""
+        """Tests the resize method as first, mocks TextLabel.resize."""
 
         self.checkbox.resize(RESIZING_RATIO)
 
@@ -188,7 +188,7 @@ class TestCheckbox(TestCase):
         """Tests the move_rect method."""
 
         copy_checkbox: Checkbox = self._copy_checkbox()
-        copy_checkbox.move_rect(3, 4, RESIZING_RATIO)
+        copy_checkbox.move_rect((3, 4), RESIZING_RATIO)
 
         expected_xy: PosPair
         expected_xy, _ = resize_obj(copy_checkbox.init_pos, 0, 0, RESIZING_RATIO)
@@ -199,7 +199,7 @@ class TestCheckbox(TestCase):
 
     @mock.patch.object(pg.mouse, "set_cursor", autospec=True)
     def test_handle_hover(self, mock_set_cursor: mock.Mock) -> None:
-        """Tests the Clickable._handle_hover method, mocks the pygame.set_cursor function."""
+        """Tests the Clickable._handle_hover method, mocks pygame.set_cursor."""
 
         copy_checkbox: Checkbox = self._copy_checkbox()
 
@@ -214,7 +214,7 @@ class TestCheckbox(TestCase):
 
     @mock.patch.object(Clickable, "_handle_hover", autospec=True, wraps=Clickable._handle_hover)
     def test_upt(self, mock_handle_hover: mock.Mock) -> None:
-        """Tests the upt method, mocks the Clickable._check_hover method."""
+        """Tests the upt method, mocks Clickable._check_hover."""
 
         copy_checkbox: Checkbox = self._copy_checkbox()
         mouse_info: Mouse = Mouse(0, 0, (False,) * 3, (True,) * 5, 0)
@@ -282,7 +282,7 @@ class TestButton(TestCase):
     @mock.patch.object(TextLabel, "__init__", autospec=True, return_value=None)
     @mock.patch.object(Clickable, "__init__", autospec=True, wraps=Clickable.__init__)
     def test_init(self, mock_clickable_init: mock.Mock, mock_text_label_init: mock.Mock) -> None:
-        """Tests the init method, mocks the Clickable.__init__ and TextLabel.__init__ methods."""
+        """Tests the init method, mocks Clickable.__init__ and TextLabel.__init__."""
 
         pos: RectPos = RectPos(1, 2, "center")
         imgs: list[pg.Surface] = [IMG_OFF, IMG_ON]
@@ -300,7 +300,7 @@ class TestButton(TestCase):
 
     @mock.patch.object(Clickable, "_handle_hover", autospec=True, wraps=Clickable._handle_hover)
     def test_upt(self, mock_handle_hover: mock.Mock) -> None:
-        """Tests the upt method, mocks the Clickable._check_hover method."""
+        """Tests the upt method, mocks Clickable._check_hover."""
 
         copy_button: Button = self._copy_button()
         mouse_info: Mouse = Mouse(0, 0, (False,) * 3, (True,) * 5, 0)

@@ -18,7 +18,7 @@ def cmp_imgs(img: pg.Surface, expected_img: pg.Surface, should_cmp_alpha: bool =
     Args:
         image, expected image, compare alpha flag (default = True)
     Returns:
-        True if the images have the same pixels else False
+        equal flag
     """
 
     pixels: NDArray[np.uint8] = pg.surfarray.pixels3d(img)

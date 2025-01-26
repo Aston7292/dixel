@@ -46,7 +46,7 @@ class TestTextLabel(TestCase):
 
     @mock.patch.object(TextLabel, "_get_rects", autospec=True)
     def test_init(self, mock_get_rects: mock.Mock) -> None:
-        """Tests the init method, mocks the get_rects method."""
+        """Tests the init method, mocks TextLabel.get_rects."""
 
         text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 30, WHITE)
 
@@ -83,7 +83,7 @@ class TestTextLabel(TestCase):
 
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_a_resize(self, mock_get_rects: mock.Mock) -> None:
-        """Tests the resize method as first, mocks the get_rects method."""
+        """Tests the resize method as first, mocks TextLabel.get_rects."""
 
         expected_xy: PosPair
         expected_h: int
@@ -107,8 +107,8 @@ class TestTextLabel(TestCase):
         copy_text_label._get_rects((2, 3))
 
         expected_rects: list[pg.Rect] = []
-        rect_w: int = max([img.get_width() for img in copy_text_label._imgs])
-        rect_h: int = sum([img.get_height() for img in copy_text_label._imgs])
+        rect_w: int = max(img.get_width() for img in copy_text_label._imgs)
+        rect_h: int = sum(img.get_height() for img in copy_text_label._imgs)
         expected_rect: pg.Rect = pg.Rect(0, 0, rect_w, rect_h)
         expected_rect.center = (2, 3)
 
@@ -127,9 +127,7 @@ class TestTextLabel(TestCase):
 
         copy_text_label: TextLabel = self._copy_text_label()
 
-        expected_init_x: int = 3
-        expected_init_y: int = 4
-        copy_text_label.move_rect(expected_init_x, expected_init_y, RESIZING_RATIO)
+        copy_text_label.move_rect((3, 4), RESIZING_RATIO)
 
         expected_init_pos: RectPos = RectPos(3, 4, "center")
         self.assertEqual(copy_text_label.init_pos, expected_init_pos)
@@ -144,13 +142,13 @@ class TestTextLabel(TestCase):
 
     @mock.patch.object(TextLabel, "_get_rects", autospec=True, wraps=TextLabel._get_rects)
     def test_set_text(self, mock_get_rects: mock.Mock) -> None:
-        """Tests the set_text method, mocks the get_rects method."""
+        """Tests the set_text method, mocks TextLabel.get_rects."""
 
         copy_text_label: TextLabel = self._copy_text_label()
-        init_get_rects_n_calls: int = mock_get_rects.call_count
+        init_num_get_rects_calls: int = mock_get_rects.call_count
 
         copy_text_label.set_text("hello\n?")
-        self.assertEqual(mock_get_rects.call_count, init_get_rects_n_calls + 1)
+        self.assertEqual(mock_get_rects.call_count, init_num_get_rects_calls + 1)
 
         self.assertEqual(copy_text_label.text, "hello\n?")
         self.assertListEqual(copy_text_label._lines, ["hello", "?"])
@@ -176,7 +174,7 @@ class TestTextLabel(TestCase):
     def test_get_closest_to(self) -> None:
         """Tests the get_closest_to method."""
 
-        line_rect_left: int = self.text_label.rects[0].x
+        line_rect_left: int = self.text_label.rects[0].left
         line_rect_right: int = self.text_label.rect.right
         pos_2: int = line_rect_left + self.renderer.render("he", True, WHITE, WHITE).get_width()
         turning_x: int = pos_2 + (self.renderer.render("l", True, WHITE, WHITE).get_width() // 2)

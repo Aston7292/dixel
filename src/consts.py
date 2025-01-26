@@ -27,9 +27,9 @@ EMPTY_TILE_ARR: Final[NDArray[np.uint8]] = np.array(
     ],
     np.uint8
 )
-TILE_ROWS: Final[int] = EMPTY_TILE_ARR.shape[0]
-TILE_COLS: Final[int] = EMPTY_TILE_ARR.shape[1]
-VISIBLE_CHECKBOX_GRID_ROWS: Final[int] = 10
+NUM_TILE_ROWS: Final[int] = EMPTY_TILE_ARR.shape[0]
+NUM_TILE_COLS: Final[int] = EMPTY_TILE_ARR.shape[1]
+NUM_VISIBLE_CHECKBOX_GRID_ROWS: Final[int] = 10
 
 BG_LAYER: Final[int] = 0
 ELEMENT_LAYER: Final[int] = 1

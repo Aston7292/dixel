@@ -1,7 +1,7 @@
 """Class to create various clickable objects."""
 
 from abc import ABC, abstractmethod
-from typing import Optional, Any
+from typing import Final, Optional, Any
 
 import pygame as pg
 
@@ -11,6 +11,9 @@ from src.utils import RectPos, Ratio, ObjInfo, Mouse, resize_obj, rec_move_rect,
 from src.type_utils import PosPair, SizePair, LayeredBlitInfo
 from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
+DEFAULT_RATIO: Final[Ratio] = Ratio(1, 1)
+INIT_CLICK_INTERVAL: Final[int] = 100
+
 
 class Clickable(ABC):
     """
@@ -18,10 +21,10 @@ class Clickable(ABC):
 
     Includes:
         get_blit_sequence() -> layered blit sequence
-        get_hovering_info(mouse_position) -> tuple[is hovering, layer]
+        get_hovering_info(mouse_xy) -> tuple[is hovering, layer]
         leave() -> None
         resize(window size ratio) -> None
-        move_rect(x, y, window size ratio) -> None
+        move_rect(xy, window size ratio) -> None
 
     Children should include:
         upt(mouse) -> bool
@@ -80,7 +83,7 @@ class Clickable(ABC):
             mouse_x: int
             mouse_y: int
             mouse_x, mouse_y = pg.mouse.get_pos()
-            rec_move_rect(self.hovering_text_label, mouse_x + 15, mouse_y, Ratio(1, 1))
+            rec_move_rect(self.hovering_text_label, mouse_x + 15, mouse_y, DEFAULT_RATIO)
 
             hovering_text_label_objs: list[Any] = [self.hovering_text_label]
             while hovering_text_label_objs:
@@ -97,9 +100,9 @@ class Clickable(ABC):
         Gets the hovering info.
 
         Args:
-            mouse position
+            mouse xy
         Returns:
-            True if the object is being hovered else False, hovered object layer
+            hovered flag, hovered object layer
         """
 
         return self.rect.collidepoint(mouse_xy), self._layer
@@ -127,15 +130,15 @@ class Clickable(ABC):
         if self.hovering_text_label:
             rec_resize([self.hovering_text_label], win_ratio)
 
-    def move_rect(self, init_x: int, init_y: int, win_ratio: Ratio) -> None:
+    def move_rect(self, init_xy: PosPair, win_ratio: Ratio) -> None:
         """
         Moves the rect to a specific coordinate.
 
         Args:
-            initial x, initial y, window size ratio
+            initial xy, window size ratio
         """
 
-        self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
+        self.init_pos.xy = init_xy  # Modifying init_pos is more accurate
 
         xy: PosPair
         xy, _ = resize_obj(self.init_pos, 0, 0, win_ratio)
@@ -188,7 +191,7 @@ class Checkbox(Clickable):
         Args:
             mouse, shortcutting flag (default = False)
         Returns:
-            True if the checkbox has been checked else False
+            has been checked flag
         """
 
         self._is_hovering = mouse.hovered_obj == self
@@ -241,10 +244,72 @@ class Button(Clickable):
         Args:
             mouse
         Returns:
-            True if the button was clicked else False
+            clicked flag
         """
 
         self._is_hovering = mouse.hovered_obj == self
         self.img_i = int(self._is_hovering)
 
         return mouse.released[MOUSE_LEFT] and self._is_hovering
+
+
+class SpammableButton(Clickable):
+    """Class to create a spammable button, when hovered changes image."""
+
+    __slots__ = (
+        "_click_interval", "_last_click_time", "_is_first_click"
+    )
+
+    def __init__(self, pos: RectPos, imgs: list[pg.Surface], base_layer: int = BG_LAYER) -> None:
+        """
+        Creates the button and text.
+
+        Args:
+            position, two images, base layer (default = BG_LAYER)
+        """
+
+        super().__init__(pos, imgs, "", base_layer)
+
+        self._click_interval: int = INIT_CLICK_INTERVAL
+        self._last_click_time: int = -INIT_CLICK_INTERVAL
+        self._is_first_click: bool = True
+
+    def leave(self) -> None:
+        """Clears all the relevant data when the object state is leaved."""
+
+        super().leave()
+        self.img_i = 0
+
+        self._click_interval = INIT_CLICK_INTERVAL
+        self._last_click_time = -INIT_CLICK_INTERVAL
+        self._is_first_click = True
+
+    def upt(self, mouse: Mouse) -> bool:
+        """
+        Changes the button image if the mouse is hovering it.
+
+        Args:
+            mouse
+        Returns:
+            clicked flag
+        """
+
+        self._is_hovering = mouse.hovered_obj == self
+        self.img_i = int(self._is_hovering)
+
+        is_clicked: bool = False
+        if not mouse.pressed[MOUSE_LEFT]:
+            self._is_first_click = True
+        elif self._is_hovering:
+            time: int = pg.time.get_ticks()
+            if self._is_first_click:
+                self._click_interval = INIT_CLICK_INTERVAL
+                self._last_click_time = time + 150  # Takes longer for second click
+                self._is_first_click = False
+                is_clicked = True
+            elif time - self._last_click_time >= self._click_interval:
+                self._click_interval = max(self._click_interval - 10, 10)
+                self._last_click_time = time
+                is_clicked = True
+
+        return is_clicked

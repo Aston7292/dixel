@@ -25,7 +25,7 @@ from src.classes.ui import CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
 
-from src.utils import RectPos, ObjInfo, Mouse, get_img
+from src.utils import RectPos, ObjInfo, Mouse, Keyboard, get_img
 from src.type_utils import CheckboxInfo, ToolInfo
 from src.consts import SPECIAL_LAYER
 
@@ -34,6 +34,7 @@ ToolsExtraInfo = list[tuple[dict[str, Any], ...]]
 
 PENCIL_IMG: Final[Surface] = get_img("sprites", "pencil_tool.png")
 BUCKET_IMG: Final[Surface] = PENCIL_IMG
+CHECKBOX_IMGS: list[Surface] = [CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON]
 
 TOOLS_INFO: Final[ToolsInfo] = {
     "brush": {
@@ -41,13 +42,13 @@ TOOLS_INFO: Final[ToolsInfo] = {
         "extra_info": (
             {
                 "type": Checkbox,
-                "init_args": [[CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON], "x mirror", None],
+                "init_args": [CHECKBOX_IMGS, "x mirror", None],
                 "upt_args": ["mouse"],
                 "out_format": {"mirror_x": "is_checked"}
             },
             {
                 "type": Checkbox,
-                "init_args": [[CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON], "y mirror", None],
+                "init_args": [CHECKBOX_IMGS, "y mirror", None],
                 "upt_args": ["mouse"],
                 "out_format": {"mirror_y": "is_checked"}
             }
@@ -58,9 +59,7 @@ TOOLS_INFO: Final[ToolsInfo] = {
         "extra_info": (
             {
                 "type": Checkbox,
-                "init_args": [
-                    [CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON], "fill pixels of\nthe same color", None
-                ],
+                "init_args": [CHECKBOX_IMGS, "fill all pixels\nthat have the\nsame color", None],
                 "upt_args": ["mouse"],
                 "out_format": {"same_color": "is_checked"}
             },
@@ -174,18 +173,18 @@ class ToolsManager:
 
         return out_dict
 
-    def upt(self, mouse: Mouse, timed_keys: list[int]) -> ToolInfo:
+    def upt(self, mouse: Mouse, keyboard: Keyboard) -> ToolInfo:
         """
         Allows selecting a tool and it's extra options.
 
         Args:
-            mouse, timed keys
+            mouse, keyboard
         Returns:
             tool name, sub options state
         """
 
         prev_clicked_i: int = self.tools_grid.clicked_i
-        self.tools_grid.upt(mouse, timed_keys)
+        self.tools_grid.upt(mouse, keyboard)
 
         if self.tools_grid.clicked_i != prev_clicked_i:
             self.refresh_tools(prev_clicked_i)

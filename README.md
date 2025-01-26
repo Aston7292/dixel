@@ -42,6 +42,7 @@ Requires pygame-ce, numpy and portalocker (multi-platform way to detect locked f
 ### Checkbox grids
 
 - **arrows/home/end**: Move
+- **CTRL arrows**: Move to the limit of the grid
 - **CTRL 1-5**: Change brush size
 - **CTRL E**: Edit selected color
 - **CTRL Del**: delete selected color
@@ -63,7 +64,7 @@ Requires pygame-ce, numpy and portalocker (multi-platform way to detect locked f
 - **arrows/tab**: Move selection
 - **CTRL left/right**: Go to end of text in input box
 - **CTRL K**: Toggle keep ratio in grid UI
-- **ESC**: Close
+- **Escape**: Close
 - **Enter**: Confirm
 
 ## Screenshots

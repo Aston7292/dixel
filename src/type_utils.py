@@ -1,6 +1,6 @@
 """Types shared between files."""
 
-from typing import Optional, Any
+from typing import Any
 
 import pygame as pg
 
@@ -8,7 +8,7 @@ PosPair = tuple[int, int]
 SizePair = tuple[int, int]
 Color = list[int]
 
-CheckboxInfo = tuple[pg.Surface, Optional[str]]
+CheckboxInfo = tuple[pg.Surface, str]
 ToolInfo = tuple[str, dict[str, Any]]
 
 BlitSequence = list[tuple[pg.Surface, PosPair]]

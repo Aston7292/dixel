@@ -21,18 +21,43 @@ SLIDER_IMG_ON: Final[pg.Surface] = pg.Surface((10, 35))
 SLIDER_IMG_ON.fill((10, 10, 10))
 
 
+def _scroll_with_keys(timed_keys: list[int], value: int) -> str:
+    """
+    Scrolls with keys.
+
+    Args:
+        timed keys, value
+    Returns:
+        text
+    """
+
+    copy_value: int = value
+    if pg.K_LEFT in timed_keys:
+        copy_value = max(copy_value - 1, 0)
+    if pg.K_RIGHT in timed_keys:
+        copy_value = min(copy_value + 1, 255)
+    if pg.K_PAGEDOWN in timed_keys:
+        copy_value = max(copy_value - 25, 0)
+    if pg.K_PAGEUP in timed_keys:
+        copy_value = min(copy_value + 25, 255)
+    if pg.K_HOME in timed_keys:
+        copy_value = 0
+    if pg.K_END in timed_keys:
+        copy_value = 255
+
+    return str(copy_value)
+
+
 class ColorScrollbar:
     """Class to create a scrollbar to pick an r, g or b value of a color."""
 
     __slots__ = (
         "_bar_init_pos", "_bar_img", "bar_rect", "_bar_init_size", "_channel_i", "value",
-        "_slider_init_pos", "_slider_init_imgs", "_slider_imgs", "_slider_rect",
+        "_unit_w", "_slider_init_pos", "_slider_init_imgs", "_slider_imgs", "_slider_rect",
         "_slider_img_i", "_is_scrolling", "_layer", "cursor_type", "input_box", "objs_info"
     )
 
-    def __init__(
-            self, pos: RectPos, channel_i: int, base_layer: int = UI_LAYER
-    ) -> None:
+    def __init__(self, pos: RectPos, channel_i: int, base_layer: int = UI_LAYER) -> None:
         """
         Creates the bar, slider and text.
 
@@ -50,15 +75,17 @@ class ColorScrollbar:
 
         self._channel_i: int = channel_i
         self.value: int
+        self._unit_w: float = 1
 
         # Not used for resizing slider_x
         self._slider_init_pos: RectPos = RectPos(*self.bar_rect.midleft, "midleft")
         self._slider_init_imgs: list[pg.Surface] = [SLIDER_IMG_OFF, SLIDER_IMG_ON]
 
         self._slider_imgs: list[pg.Surface] = self._slider_init_imgs
-        self._slider_rect: pg.Rect = self._slider_imgs[0].get_rect(
-            **{self._slider_init_pos.coord_type: self._slider_init_pos.xy}
-        )
+        slider_img: pg.Surface = self._slider_imgs[0]
+        slider_coord_type: str = self._slider_init_pos.coord_type
+        slider_xy: PosPair = self._slider_init_pos.xy
+        self._slider_rect: pg.Rect = slider_img.get_rect(**{slider_coord_type: slider_xy})
 
         self._slider_img_i: int = 0
         self._is_scrolling: bool = False
@@ -95,9 +122,9 @@ class ColorScrollbar:
         Gets the hovering info.
 
         Args:
-            mouse position
+            mouse xy
         Returns:
-            True if the object is being hovered else False, hovered object layer
+            hovered flag, hovered object layer
         """
 
         is_hovering_bar: bool = self.bar_rect.collidepoint(mouse_xy)
@@ -133,8 +160,8 @@ class ColorScrollbar:
         (_, slider_y), slider_wh = resize_obj(self._slider_init_pos, *slider_init_wh, win_ratio)
 
         # Calculating slider_x like this is more accurate
-        unit_w: float = bar_wh[0] / 255
-        slider_xy: PosPair = (self.bar_rect.x + round(self.value * unit_w), slider_y)
+        self._unit_w = bar_wh[0] / 255
+        slider_xy: PosPair = (self.bar_rect.x + round(self.value * self._unit_w), slider_y)
 
         slider_coord_type: str = self._slider_init_pos.coord_type
         self._slider_imgs = [pg.transform.scale(img, slider_wh) for img in self._slider_init_imgs]
@@ -159,36 +186,9 @@ class ColorScrollbar:
             self.value = color[self._channel_i]
             self.input_box.text_label.set_text(str(self.value))
             self.input_box.bounded_set_cursor_i(0)
-        unit_w: float = self.bar_rect.w / 255
-        self._slider_rect.x = self.bar_rect.x + round(self.value * unit_w)
+        self._slider_rect.x = self.bar_rect.x + round(self.value * self._unit_w)
 
-    def _scroll_with_keys(self, timed_keys: list[int]) -> str:
-        """
-        Scrolls with keys.
-
-        Args:
-            timed keys
-        Returns:
-            text
-        """
-
-        copy_value: int = self.value
-        if pg.K_LEFT in timed_keys:
-            copy_value = max(copy_value - 1, 0)
-        if pg.K_RIGHT in timed_keys:
-            copy_value = min(copy_value + 1, 255)
-        if pg.K_PAGEDOWN in timed_keys:
-            copy_value = max(copy_value - 25, 0)
-        if pg.K_PAGEUP in timed_keys:
-            copy_value = min(copy_value + 25, 255)
-        if pg.K_HOME in timed_keys:
-            copy_value = 0
-        if pg.K_END in timed_keys:
-            copy_value = 255
-
-        return str(copy_value)
-
-    def scroll(self, mouse_x: int, timed_keys: list[int], future_input_box_text: str) -> str:
+    def _scroll(self, mouse_x: int, timed_keys: list[int], input_box_text: str) -> str:
         """
         Changes the color with mouse and keyboard.
 
@@ -196,19 +196,19 @@ class ColorScrollbar:
             mouse x, timed keys, input box text
         """
 
-        local_future_input_box_text: str = future_input_box_text
+        copy_value: int = self.value
+        copy_input_box_text: str = input_box_text
 
         if self._is_scrolling:
-            unit_w: float = self.bar_rect.w / 255
-            value: int = int((mouse_x - self.bar_rect.x) / unit_w)
-            value = max(min(value, 255), 0)
-            local_future_input_box_text = str(value)
+            copy_value = int((mouse_x - self.bar_rect.x) / self._unit_w)
+            copy_value = max(min(copy_value, 255), 0)
+            copy_input_box_text = str(copy_value)
 
         is_selected: bool = self._slider_img_i == 1
         if is_selected and timed_keys:
-            local_future_input_box_text = self._scroll_with_keys(timed_keys)
+            copy_input_box_text = _scroll_with_keys(timed_keys, copy_value)
 
-        return local_future_input_box_text
+        return copy_input_box_text
 
     def upt(self, mouse: Mouse, keyboard: Keyboard, selected_obj: SelectionType) -> Optional[int]:
         """
@@ -228,15 +228,15 @@ class ColorScrollbar:
         self._slider_img_i = int(selected_obj == self)
 
         is_input_box_clicked: bool
-        future_input_box_text: str
-        is_input_box_clicked, future_input_box_text = self.input_box.upt(
+        copy_input_box_text: str
+        is_input_box_clicked, copy_input_box_text = self.input_box.upt(
             mouse, keyboard, (0, 255), selected_obj == self.input_box
         )
 
-        future_input_box_text = self.scroll(mouse.x, keyboard.timed, future_input_box_text)
-        if self.input_box.text_label.text != future_input_box_text:
-            self.value = int(future_input_box_text or 0)
-            self.input_box.text_label.set_text(future_input_box_text)
+        copy_input_box_text = self._scroll(mouse.x, keyboard.timed, copy_input_box_text)
+        if copy_input_box_text != self.input_box.text_label.text:
+            self.value = int(copy_input_box_text or 0)
+            self.input_box.text_label.set_text(copy_input_box_text)
             self.input_box.bounded_set_cursor_i(None)
 
         clicked_i: Optional[int] = None
@@ -253,7 +253,7 @@ class ColorPicker(UI):
 
     __slots__ = (
         "_preview_init_pos", "_preview_img", "_preview_rect", "_preview_init_size",
-        "_preview_layer", "_channels", "_objs", "_selection_i", "_hex_text_label"
+        "_channels", "_objs", "_selection_i", "_hex_text_label"
     )
 
     def __init__(self, pos: RectPos) -> None:
@@ -274,8 +274,6 @@ class ColorPicker(UI):
         )
 
         self._preview_init_size: Size = Size(*self._preview_rect.size)
-
-        self._preview_layer: int = UI_LAYER + ELEMENT_LAYER
 
         b_bar: ColorScrollbar = ColorScrollbar(
             RectPos(self._rect.centerx, self._preview_rect.top - 50, "center"), 2
@@ -308,14 +306,14 @@ class ColorPicker(UI):
         """
 
         sequence: list[LayeredBlitInfo] = super().get_blit_sequence()
-        sequence.append((self._preview_img, self._preview_rect.topleft, self._preview_layer))
+        sequence.append((self._preview_img, self._preview_rect.topleft, UI_LAYER))
 
         return sequence
 
     def enter(self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
-        self._selection_i.x = self._selection_i.y = 0
+        self._selection_i.xy = (0, 0)
 
     def resize(self, win_ratio: Ratio) -> None:
         """
@@ -374,7 +372,7 @@ class ColorPicker(UI):
 
         if self._selection_i.x == 1 and self._selection_i.y != prev_selection_i_y:
             ptr_prev_input_box: NumInputBox = self._objs[prev_selection_i_y][1]
-            prev_cursor_x: int = ptr_prev_input_box._cursor_rect.x
+            prev_cursor_x: int = ptr_prev_input_box.cursor_rect.x
 
             ptr_input_box: NumInputBox = self._objs[self._selection_i.y][1]
             closest_char_i: int = ptr_input_box.text_label.get_closest_to(prev_cursor_x)
@@ -392,16 +390,16 @@ class ColorPicker(UI):
         for i, channel in enumerate(self._channels):
             channel_selection_i: Optional[int] = channel.upt(mouse, keyboard, selected_obj)
             if channel_selection_i is not None:
-                self._selection_i.x, self._selection_i.y = channel_selection_i, i
+                self._selection_i.xy = (channel_selection_i, i)
 
-    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[bool, Optional[Color]]:
+    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[bool, bool, Color]:
         """
         Allows to select a color with 3 scrollbars and view its preview.
 
         Args:
             mouse, keyboard
         Returns:
-            True if interface was closed else False, color (can be None)
+            exiting flag, confirming flag, color
         """
 
         if keyboard.timed:
@@ -413,8 +411,8 @@ class ColorPicker(UI):
         if color != prev_color:
             self.set_color(color, False)
 
-        is_confirming: bool
         is_exiting: bool
-        is_confirming, is_exiting = self._base_upt(mouse, keyboard.pressed)
+        is_confirming: bool
+        is_exiting, is_confirming = self._base_upt(mouse, keyboard.pressed)
 
-        return is_confirming or is_exiting, color if is_confirming else None
+        return is_exiting, is_confirming, color

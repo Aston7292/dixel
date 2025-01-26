@@ -60,7 +60,7 @@ class UI(ABC):
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10, self._rect.y + 10, "topright"),
-            [CLOSE_IMG_OFF, CLOSE_IMG_ON], None, "(ESC)", UI_LAYER
+            [CLOSE_IMG_OFF, CLOSE_IMG_ON], None, "(Escape)", UI_LAYER
         )
         self._confirm: Button = Button(
             RectPos(self._rect.right - 10, self._rect.bottom - 10, "bottomright"),
@@ -68,8 +68,7 @@ class UI(ABC):
         )
 
         self.objs_info: list[ObjInfo] = [
-            ObjInfo(title_text_label),
-            ObjInfo(self._exit), ObjInfo(self._confirm)
+            ObjInfo(title_text_label), ObjInfo(self._exit), ObjInfo(self._confirm)
         ]
 
     def get_blit_sequence(self) -> list[LayeredBlitInfo]:
@@ -104,7 +103,7 @@ class UI(ABC):
         Args:
             mouse, keys
         Returns:
-            confirming and exiting flags
+            exiting flag, confirming flag
         """
 
         is_exit_pressed: bool = self._exit.upt(mouse)
@@ -113,15 +112,15 @@ class UI(ABC):
         is_confirm_pressed: bool = self._confirm.upt(mouse)
         is_confirming: bool = is_confirm_pressed or pg.K_RETURN in keys
 
-        return is_confirming, is_exiting
+        return is_exiting, is_confirming
 
     @abstractmethod
-    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[bool, Any]:
+    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[bool, bool, Any]:
         """
         Should implement a way to make the object interactable.
 
         Args:
             mouse, keyboard
         Returns:
-            True if the interface was closed else False, extra info
+            exiting flag, confirming flag, extra info
         """

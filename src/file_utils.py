@@ -51,10 +51,10 @@ def try_create_file_argv(img_file_obj: Path, flag: str) -> bool:
     Args:
         image file object, flag
     Returns:
-        True if creation succeeded else False
+        failed flag
     """
 
-    has_succeeded: bool = False
+    has_failed: bool = True
     if flag != "--mk-file":
         print(
             "The file doesn't exist, to create it add --mk-file.\n"
@@ -63,11 +63,11 @@ def try_create_file_argv(img_file_obj: Path, flag: str) -> bool:
     else:
         try:
             img_file_obj.touch()
-            has_succeeded = True
+            has_failed = False
         except PermissionError:
             print("Permission denied.")
 
-    return has_succeeded
+    return has_failed
 
 
 def try_create_dir_argv(img_file_obj: Path, flag: str) -> bool:
@@ -77,10 +77,10 @@ def try_create_dir_argv(img_file_obj: Path, flag: str) -> bool:
     Args:
         image file object, flag
     Returns:
-        True if creation succeeded else False
+        failed flag
     """
 
-    has_succeeded: bool = False
+    has_failed: bool = True
     if flag != "--mk-dir":
         print(
             "The directory doesn't exist, to create it add --mk-dir.\n"
@@ -89,11 +89,11 @@ def try_create_dir_argv(img_file_obj: Path, flag: str) -> bool:
     else:
         try:
             img_file_obj.parent.mkdir(parents=True)
-            has_succeeded = True
+            has_failed = False
         except PermissionError:
             print("Permission denied.")
 
-    return has_succeeded
+    return has_failed
 
 
 def handle_cmd_args(argv: list[str]) -> tuple[str, str]:
@@ -108,11 +108,11 @@ def handle_cmd_args(argv: list[str]) -> tuple[str, str]:
         SystemExit
     """
 
-    img_file_path: str
+    img_file_path: str = ""
     file_path: str = argv[1]
     flag: str = argv[2].lower() if len(argv) > 2 else ""
 
-    should_continue: bool = False
+    should_stop: bool = True
     if file_path.lower() == "help" or flag not in ("", "--mk-file", "--mk-dir"):
         program_name: str = argv[0]
         print(
@@ -125,15 +125,15 @@ def handle_cmd_args(argv: list[str]) -> tuple[str, str]:
     else:
         try:
             img_file_obj: Path = Path(file_path).with_suffix(".png")
-            if path.isreserved(img_file_obj):
-                print("Invalid name.")
-            else:
-                should_continue = True
+            if not path.isreserved(img_file_obj):
+                should_stop = False
                 img_file_path = str(img_file_obj)
+            else:
+                print("Invalid name.")
         except ValueError:
             print("Invalid path.")
 
-    if not should_continue:
+    if should_stop:
         raise SystemExit
     return img_file_path, flag
 

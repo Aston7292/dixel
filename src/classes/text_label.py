@@ -8,7 +8,6 @@ from src.type_utils import PosPair, Color, LayeredBlitInfo
 from src.consts import WHITE, BG_LAYER, TEXT_LAYER
 
 renderers_cache: dict[int, pg.Font] = {}
-C = {}
 
 
 class TextLabel:
@@ -78,9 +77,9 @@ class TextLabel:
             renderers_cache[h] = pg.font.SysFont("helvetica", h)
         self._renderer = renderers_cache[h]
 
-        self._imgs = [
-            self._renderer.render(line, True, WHITE, self._bg_color) for line in self._lines
-        ]
+        lines: list[str] = self._lines
+
+        self._imgs = [self._renderer.render(line, True, WHITE, self._bg_color) for line in lines]
         self._get_rects(xy)
 
     def _get_rects(self, xy: PosPair) -> None:
@@ -88,7 +87,7 @@ class TextLabel:
         Calculates the rects and rect depending on the position coordinate.
 
         Args:
-            position
+            xy
         """
 
         self.rects.clear()
@@ -106,26 +105,26 @@ class TextLabel:
 
             line_rect_y += self.rects[-1].h
 
-    def move_rect(self, init_x: int, init_y: int, win_ratio: Ratio) -> None:
+    def move_rect(self, init_xy: PosPair, win_ratio: Ratio) -> None:
         """
         Moves the rects and rect to a specific coordinate.
 
         Args:
-            initial x, initial y, window size ratio
+            initial xy, window size ratio
         """
 
-        self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
-        local_init_pos: RectPos = RectPos(
+        self.init_pos.xy = init_xy  # Modifying init_pos is more accurate
+        copy_init_pos: RectPos = RectPos(
             self.init_pos.x, self.init_pos.y, self.init_pos.coord_type
         )
 
         xy: PosPair
-        xy, _ = resize_obj(local_init_pos, 0, 0, win_ratio)
+        xy, _ = resize_obj(copy_init_pos, 0, 0, win_ratio)
         setattr(self.rect, self.init_pos.coord_type, xy)
         for rect in self.rects:
-            xy, _ = resize_obj(local_init_pos, 0, 0, win_ratio)
+            xy, _ = resize_obj(copy_init_pos, 0, 0, win_ratio)
             setattr(rect, self.init_pos.coord_type, xy)
-            local_init_pos.y += rect.h
+            copy_init_pos.y += rect.h
 
     def set_text(self, text: str) -> None:
         """
@@ -136,17 +135,16 @@ class TextLabel:
         """
 
         self.text = text
-        self._lines = self.text.split("\n")
+        lines: list[str] = self.text.split("\n")
+        self._lines = lines
 
-        self._imgs = [
-            self._renderer.render(line, True, WHITE, self._bg_color) for line in self._lines
-        ]
+        self._imgs = [self._renderer.render(line, True, WHITE, self._bg_color) for line in lines]
         xy: PosPair = getattr(self.rect, self.init_pos.coord_type)
         self._get_rects(xy)
 
     def get_pos_at(self, i: int) -> int:
         """
-        Gets the x position of the character at a given index (only for single line text).
+        Gets the x coordinate of the character at a given index (only for single line text).
 
         Args:
             index
@@ -163,7 +161,7 @@ class TextLabel:
         Calculates the index of the closest character to a given x (only for single line text).
 
         Args:
-            x
+            x coordinate
         Returns:
             index (0 - len(text))
         """
@@ -176,4 +174,4 @@ class TextLabel:
 
             prev_x = current_x
 
-        return i + 1
+        return len(self.text)

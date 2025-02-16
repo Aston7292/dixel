@@ -8,7 +8,7 @@ import pygame as pg
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, Ratio, ObjInfo, Mouse, Keyboard, get_img, resize_obj
+from src.utils import RectPos, ObjInfo, Mouse, Keyboard, get_img, resize_obj
 from src.type_utils import PosPair, SizePair, LayeredBlitInfo
 from src.consts import UI_LAYER
 
@@ -29,8 +29,8 @@ class UI(ABC):
     Abstract class to create a default UI with a title, confirm and exit buttons.
 
     Includes:
-        get_blit_sequence() -> layered blit sequence
-        resize(window size ratio) -> None,
+        blit_sequence() -> layered blit sequence
+        resize(window width ratio, window height ratio) -> None,
         base_upt(mouse, keyboard) -> tuple[confirmed, exited]
 
     Children should include:
@@ -38,7 +38,7 @@ class UI(ABC):
     """
 
     __slots__ = (
-        "_init_pos", "_init_img", "_img", "_rect", "_exit", "_confirm", "objs_info"
+        "_init_pos", "_rect", "_exit", "_confirm", "blit_sequence", "objs_info"
     )
 
     def __init__(self, pos: RectPos, title: str) -> None:
@@ -50,51 +50,45 @@ class UI(ABC):
         """
 
         self._init_pos: RectPos = pos
-        self._init_img: pg.Surface = INTERFACE_IMG
 
-        self._img: pg.Surface = self._init_img
-        self._rect: pg.Rect = self._img.get_rect(**{self._init_pos.coord_type: self._init_pos.xy})
+        self._rect: pg.Rect = pg.Rect(0, 0, *INTERFACE_IMG.get_size())
+        setattr(self._rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
-        title_text_label_pos: RectPos = RectPos(self._rect.centerx, self._rect.top + 10, "midtop")
-        title_text_label: TextLabel = TextLabel(title_text_label_pos, title, UI_LAYER, 32)
+        title_text_label: TextLabel = TextLabel(
+            RectPos(self._rect.centerx, self._rect.y + 10, "midtop"), title, UI_LAYER, 32
+        )
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10, self._rect.y + 10, "topright"),
             [CLOSE_IMG_OFF, CLOSE_IMG_ON], None, "(Escape)", UI_LAYER
         )
         self._confirm: Button = Button(
-            RectPos(self._rect.right - 10, self._rect.bottom - 10, "bottomright"),
+            RectPos(self._exit.rect.right, self._rect.bottom - 10, "bottomright"),
             [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "confirm", "(Enter)", UI_LAYER
         )
 
+        self.blit_sequence: list[LayeredBlitInfo] = [(INTERFACE_IMG, self._rect.topleft, UI_LAYER)]
         self.objs_info: list[ObjInfo] = [
             ObjInfo(title_text_label), ObjInfo(self._exit), ObjInfo(self._confirm)
         ]
 
-    def get_blit_sequence(self) -> list[LayeredBlitInfo]:
-        """
-        Gets the blit sequence.
-
-        Returns:
-            sequence to add in the main blit sequence
-        """
-
-        return [(self._img, self._rect.topleft, UI_LAYER)]
-
-    def resize(self, win_ratio: Ratio) -> None:
+    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Resizes the object.
 
         Args:
-            window size ratio
+            window width ratio, window height ratio
         """
 
         xy: PosPair
         wh: SizePair
-        xy, wh = resize_obj(self._init_pos, *self._init_img.get_size(), win_ratio)
 
-        self._img = pg.transform.scale(self._init_img, wh)
-        self._rect = self._img.get_rect(**{self._init_pos.coord_type: xy})
+        xy, wh = resize_obj(self._init_pos, *INTERFACE_IMG.get_size(), win_w_ratio, win_h_ratio)
+        img: pg.Surface = pg.transform.scale(INTERFACE_IMG, wh)
+        self._rect.size = wh
+        setattr(self._rect, self._init_pos.coord_type, xy)
+
+        self.blit_sequence[0] = (img, self._rect.topleft, UI_LAYER)
 
     def _base_upt(self, mouse: Mouse, keys: list[int]) -> tuple[bool, bool]:
         """

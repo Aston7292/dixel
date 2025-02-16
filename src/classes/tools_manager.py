@@ -26,10 +26,11 @@ from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
 
 from src.utils import RectPos, ObjInfo, Mouse, Keyboard, get_img
-from src.type_utils import CheckboxInfo, ToolInfo
+from src.type_utils import CheckboxInfo, ToolInfo, LayeredBlitInfo
 from src.consts import SPECIAL_LAYER
 
 ToolsInfo = dict[str, dict[str, Any]]
+ToolExtraInfo = list[dict[str, Any]]
 ToolsExtraInfo = list[tuple[dict[str, Any], ...]]
 
 PENCIL_IMG: Final[Surface] = get_img("sprites", "pencil_tool.png")
@@ -72,7 +73,8 @@ class ToolsManager:
     """Class to manage drawing tools."""
 
     __slots__ = (
-        "_names", "tools_grid", "_tools_extra_info", "objs_info", "_tools_objs_info_ranges"
+        "tools_grid", "_tool_name", "_tools_extra_info", "blit_sequence", "objs_info",
+        "_tools_objs_info_ranges"
     )
 
     def __init__(self, pos: RectPos) -> None:
@@ -83,16 +85,23 @@ class ToolsManager:
             position
         """
 
-        self._names: tuple[str, ...] = tuple(TOOLS_INFO.keys())
+        tool_extra_info: ToolExtraInfo
+        tool_range_start_i: int
+        tool_range_end_i: int
+        i: int
+
         checkboxes_info: list[CheckboxInfo] = [info["base_info"] for info in TOOLS_INFO.values()]
-        self.tools_grid: CheckboxGrid = CheckboxGrid(pos, checkboxes_info, 5, (False, True))
+        self.tools_grid: CheckboxGrid = CheckboxGrid(pos, checkboxes_info, 5, False, True)
 
         tools_raw_extra_info: ToolsExtraInfo = [info["extra_info"] for info in TOOLS_INFO.values()]
+
+        self._tool_name: str = tuple(TOOLS_INFO.keys())[self.tools_grid.clicked_i]
         # Added keys: obj, removed keys: type, init_args
-        self._tools_extra_info = [
+        self._tools_extra_info: list[ToolExtraInfo] = [
             self._get_extra_info(raw_extra_info) for raw_extra_info in tools_raw_extra_info
         ]
 
+        self.blit_sequence: list[LayeredBlitInfo] = []
         self.objs_info: list[ObjInfo] = [ObjInfo(self.tools_grid)]
 
         self._tools_objs_info_ranges: list[tuple[int, int]] = []
@@ -101,16 +110,16 @@ class ToolsManager:
             self.objs_info.extend(
                 [ObjInfo(sub_tool_extra_info["obj"]) for sub_tool_extra_info in tool_extra_info]
             )
-            range_end: int = len(self.objs_info)
 
-            self._tools_objs_info_ranges.append((range_start, range_end))
+            self._tools_objs_info_ranges.append((range_start, len(self.objs_info)))
 
-        active_range: tuple[int, int] = self._tools_objs_info_ranges[self.tools_grid.clicked_i]
-        for i in range(self._tools_objs_info_ranges[0][0], self._tools_objs_info_ranges[-1][1]):
-            if i < active_range[0] or i >= active_range[1]:
+        tool_i: int = self.tools_grid.clicked_i
+        tool_range_start_i, tool_range_end_i = self._tools_objs_info_ranges[tool_i]
+        for i in range(self._tools_objs_info_ranges[0][0], self._tools_objs_info_ranges[-1][-1]):
+            if i < tool_range_start_i or i >= tool_range_end_i:
                 self.objs_info[i].set_active(False)
 
-    def _get_extra_info(self, raw_extra_info: tuple[dict[str, Any], ...]) -> list[dict[str, Any]]:
+    def _get_extra_info(self, raw_extra_info: tuple[dict[str, Any], ...]) -> ToolExtraInfo:
         """
         Creates the sub objects of a tool.
 
@@ -120,14 +129,18 @@ class ToolsManager:
             extra info
         """
 
-        extra_info: list[dict[str, Any]] = []
+        obj_x: int
+        obj_y: int
+        raw_sub_tool_extra_info: dict[str, Any]
 
-        obj_x: int = self.tools_grid.rect.x + 20
-        obj_y: int = self.tools_grid.rect.y - 20
+        extra_info: ToolExtraInfo = []
+
+        obj_x, obj_y = self.tools_grid.rect.x + 20, self.tools_grid.rect.y - 20
         for raw_sub_tool_extra_info in raw_extra_info:
+            obj_type: Any = raw_sub_tool_extra_info["type"]
             pos: RectPos = RectPos(obj_x, obj_y, "bottomleft")
             init_args: list[Any] = raw_sub_tool_extra_info["init_args"]
-            obj: Any = raw_sub_tool_extra_info["type"](pos, *init_args, base_layer=SPECIAL_LAYER)
+            obj: Any = obj_type(pos, *init_args, base_layer=SPECIAL_LAYER)
 
             raw_sub_tool_extra_info["obj"] = obj
             del raw_sub_tool_extra_info["type"], raw_sub_tool_extra_info["init_args"]
@@ -145,13 +158,21 @@ class ToolsManager:
             index of the previous tool
         """
 
-        prev_active_range: tuple[int, int] = self._tools_objs_info_ranges[prev_tool_i]
-        for i in range(prev_active_range[0], prev_active_range[1]):
-            self.objs_info[i].set_active(False)
+        prev_active_range_start_i: int
+        prev_active_range_end_i: int
+        active_range_start_i: int
+        active_range_end_i: int
+        obj_info: ObjInfo
 
-        active_range: tuple[int, int] = self._tools_objs_info_ranges[self.tools_grid.clicked_i]
-        for i in range(active_range[0], active_range[1]):
-            self.objs_info[i].set_active(True)
+        self._tool_name = tuple(TOOLS_INFO.keys())[self.tools_grid.clicked_i]
+        objs_info_ranges: list[tuple[int, int]] = self._tools_objs_info_ranges
+        prev_active_range_start_i, prev_active_range_end_i = objs_info_ranges[prev_tool_i]
+        active_range_start_i, active_range_end_i = objs_info_ranges[self.tools_grid.clicked_i]
+
+        for obj_info in self.objs_info[prev_active_range_start_i:prev_active_range_end_i]:
+            obj_info.set_active(False)
+        for obj_info in self.objs_info[active_range_start_i:active_range_end_i]:
+            obj_info.set_active(True)
 
     def _upt_sub_objs(self, local_vars: dict[str, Any]) -> dict[str, Any]:
         """
@@ -162,6 +183,10 @@ class ToolsManager:
         Returns:
             output dictionary
         """
+
+        extra_info: dict[str, Any]
+        key: str
+        value: Any
 
         out_dict: dict[str, Any] = {}
         for extra_info in self._tools_extra_info[self.tools_grid.clicked_i]:
@@ -183,11 +208,11 @@ class ToolsManager:
             tool name, sub options state
         """
 
-        prev_clicked_i: int = self.tools_grid.clicked_i
-        self.tools_grid.upt(mouse, keyboard)
+        prev_tool_i: int = self.tools_grid.clicked_i
+        tool_i: int = self.tools_grid.upt(mouse, keyboard)
+        if tool_i != prev_tool_i:
+            self.refresh_tools(prev_tool_i)
 
-        if self.tools_grid.clicked_i != prev_clicked_i:
-            self.refresh_tools(prev_clicked_i)
         out_dict: dict[str, Any] = self._upt_sub_objs(locals())
 
-        return self._names[self.tools_grid.clicked_i], out_dict
+        return self._tool_name, out_dict

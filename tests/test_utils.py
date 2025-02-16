@@ -11,7 +11,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from src.utils import (
-    Point, RectPos, Size, Ratio, ObjInfo, Mouse, Keyboard,
+    Point, RectPos, Size, ObjInfo, Mouse, Keyboard,
     get_img, get_pixels, add_border, resize_obj, rec_resize, rec_move_rect
 )
 from src.type_utils import PosPair, SizePair, Color
@@ -25,12 +25,12 @@ class SubObj:
     def __init__(self) -> None:
         """Creates the initial position."""
 
-        self.init_pos: RectPos = RectPos(0, 1, "topleft")
+        self.init_pos: RectPos = RectPos(0, 1, "")
 
-    def resize(self, _: Ratio) -> None:
+    def resize(self, _: float, __: float) -> None:
         """Empty method to test the rec_resize function."""
 
-    def move_rect(self, _: PosPair, __: Ratio) -> None:
+    def move_rect(self, _: int, __: int, ___: float, ____: float) -> None:
         """Empty method to test the rec_move_rect function."""
 
 
@@ -40,16 +40,16 @@ class MainObj:
     def __init__(self) -> None:
         """Creates the initial position and objects info."""
 
-        self.init_pos: RectPos = RectPos(0, 1, "topleft")
+        self.init_pos: RectPos = RectPos(0, 1, "")
         self.objs_info: list[ObjInfo] = [ObjInfo(SubObj())]
 
-    def resize(self, _: Ratio) -> None:
+    def resize(self, _: float, __: float) -> None:
         """Empty method to test the rec_resize function."""
 
-    def move_rect(self, init_xy: PosPair, _: Ratio) -> None:
+    def move_rect(self, init_x: int, init_y: int, _: float, __: float) -> None:
         """Method to test the rec_move_rect function."""
 
-        self.init_pos.xy = init_xy
+        self.init_pos.x, self.init_pos.y = init_x, init_y
 
 
 class TestUtils(TestCase):
@@ -61,10 +61,6 @@ class TestUtils(TestCase):
         point: Point = Point(0, 1)
         self.assertEqual(point.x, 0)
         self.assertEqual(point.y, 1)
-        self.assertTupleEqual(point.xy, (0, 1))
-
-        point.xy = (2, 3)
-        self.assertTupleEqual(point.xy, (2, 3))
 
     def test_size(self) -> None:
         """Tests the Size dataclass."""
@@ -72,33 +68,14 @@ class TestUtils(TestCase):
         size: Size = Size(0, 1)
         self.assertEqual(size.w, 0)
         self.assertEqual(size.h, 1)
-        self.assertTupleEqual(size.wh, (0, 1))
-
-        size.wh = (2, 3)
-        self.assertTupleEqual(size.wh, (2, 3))
 
     def test_rect_pos(self) -> None:
         """Tests the RectPos dataclass."""
 
-        pos: RectPos = RectPos(0, 1, "topleft")
+        pos: RectPos = RectPos(0, 1, "")
         self.assertEqual(pos.x, 0)
         self.assertEqual(pos.y, 1)
-        self.assertEqual(pos.coord_type, "topleft")
-        self.assertTupleEqual(pos.xy, (0, 1))
-
-        pos.xy = (2, 3)
-        self.assertTupleEqual(pos.xy, (2, 3))
-
-    def test_ratio(self) -> None:
-        """Tests the Ratio dataclass."""
-
-        ratio: Ratio = Ratio(0, 1)
-        self.assertEqual(ratio.w, 0)
-        self.assertEqual(ratio.h, 1)
-        self.assertTupleEqual(ratio.wh, (0, 1))
-
-        ratio.wh = (2, 3)
-        self.assertTupleEqual(ratio.wh, (2, 3))
+        self.assertEqual(pos.coord_type, "")
 
     def test_obj_info(self) -> None:
         """Tests the ObjInfo dataclass."""
@@ -116,17 +93,13 @@ class TestUtils(TestCase):
     def test_mouse(self) -> None:
         """Tests the Mouse dataclass."""
 
-        mouse: Mouse = Mouse(0, 1, (False,) * 3, (False,) * 5, 2, None)
+        mouse: Mouse = Mouse(0, 1, [False] * 3, [False] * 3, 2, None)
         self.assertEqual(mouse.x, 0)
         self.assertEqual(mouse.y, 1)
-        self.assertTupleEqual(mouse.pressed, (False,) * 3)
-        self.assertTupleEqual(mouse.released, (False,) * 5)
+        self.assertListEqual(mouse.pressed, [False] * 3)
+        self.assertListEqual(mouse.released, [False] * 3)
         self.assertEqual(mouse.scroll_amount, 2)
         self.assertIsNone(mouse.hovered_obj)
-        self.assertTupleEqual(mouse.xy, (0, 1))
-
-        mouse.xy = (2, 3)
-        self.assertTupleEqual(mouse.xy, (2, 3))
 
     def test_keyboard(self) -> None:
         """Tests the keyboard dataclass."""
@@ -153,6 +126,9 @@ class TestUtils(TestCase):
 
     def test_get_pixels(self) -> None:
         """Tests the get_pixels function."""
+
+        y: int
+        x: int
 
         img: pg.Surface = pg.Surface((50, 51), pg.SRCALPHA)
         img.fill((255, 0, 0))
@@ -185,33 +161,38 @@ class TestUtils(TestCase):
     def test_resize_obj(self) -> None:
         """Tests the resize_obj function."""
 
-        init_pos: RectPos = RectPos(1, 2, "topleft")
-
         resized_xy: PosPair
         resized_wh: SizePair
-        resized_xy, resized_wh = resize_obj(init_pos, 3, 4, Ratio(2.1, 3.2))
+        _: int
+        x: int
+        y: int
+        w: float
+        h: float
+        win_w_ratio: float
+        win_h_ratio: float
+
+        init_pos: RectPos = RectPos(1, 2, "")
+
+        resized_xy, resized_wh = resize_obj(init_pos, 3, 4, 2.1, 3.2)
         self.assertTupleEqual(resized_xy, (round(1 * 2.1), round(2 * 3.2)))
         self.assertTupleEqual(resized_wh, (ceil(3 * 2.1), ceil(4 * 3.2)))
 
-        resized_xy, resized_wh = resize_obj(init_pos, 3, 4, Ratio(2.6, 3.4), True)
+        resized_xy, resized_wh = resize_obj(init_pos, 3, 4, 2.6, 3.4, True)
         self.assertTupleEqual(resized_xy, (round(1 * 2.6), round(2 * 3.4)))
         self.assertTupleEqual(resized_wh, (ceil(3 * 2.6), ceil(4 * 2.6)))
 
-        win_ratio: Ratio = Ratio(0, 0)
-        for _ in range(100):
+        for _ in range(1_000):
             # Check gaps
 
-            x: int = RNG.randint(0, 500)
-            y: int = RNG.randint(0, 500)
-            w: float = RNG.uniform(0, 100)
-            h: float = RNG.uniform(0, 100)
-            win_ratio.wh = (RNG.uniform(0, 5), RNG.uniform(0, 5))
+            x, y = RNG.randint(0, 500), RNG.randint(0, 500)
+            w, h = RNG.uniform(0, 100), RNG.uniform(0, 100)
+            win_w_ratio, win_h_ratio = RNG.uniform(0, 5), RNG.uniform(0, 5)
 
-            init_pos.xy = (x, y)
-            resized_xy, resized_wh = resize_obj(init_pos, w, h, win_ratio)
+            init_pos.x, init_pos.y = x, y
+            resized_xy, resized_wh = resize_obj(init_pos, w, h, win_w_ratio, win_h_ratio)
 
-            expected_sum_x: int = round((x * win_ratio.w) + (w * win_ratio.w))
-            expected_sum_y: int = round((y * win_ratio.h) + (h * win_ratio.h))
+            expected_sum_x: int = round((x * win_w_ratio) + (w * win_w_ratio))
+            expected_sum_y: int = round((y * win_h_ratio) + (h * win_h_ratio))
             self.assertGreaterEqual(resized_xy[0] + resized_wh[0], expected_sum_x)
             self.assertGreaterEqual(resized_xy[1] + resized_wh[1], expected_sum_y)
 
@@ -223,10 +204,10 @@ class TestUtils(TestCase):
         """Tests the rec_resize function, mocks MainObj.resize and SubObj.resize."""
 
         obj: MainObj = MainObj()
-        rec_resize([obj], Ratio(0, 1))
+        rec_resize([obj], 0, 1)
 
-        mock_main_obj_resize.assert_called_once_with(obj, Ratio(0, 1))
-        mock_sub_obj_resize.assert_called_once_with(obj.objs_info[0].obj, Ratio(0, 1))
+        mock_main_obj_resize.assert_called_once_with(obj, 0, 1)
+        mock_sub_obj_resize.assert_called_once_with(obj.objs_info[0].obj, 0, 1)
 
     @mock.patch.object(SubObj, "move_rect", autospec=True)
     @mock.patch.object(MainObj, "move_rect", autospec=True, wraps=MainObj.move_rect)
@@ -236,11 +217,10 @@ class TestUtils(TestCase):
         """Tests the rec_move_rect function, mocks MainObj.move_rect and SubObj.move_rect."""
 
         obj: MainObj = MainObj()
-        win_ratio: Ratio = Ratio(0, 1)
         sub_obj: SubObj = obj.objs_info[0].obj
         sub_obj_x: int = sub_obj.init_pos.x + 2 - obj.init_pos.x
         sub_obj_y: int = sub_obj.init_pos.y + 3 - obj.init_pos.y
-        rec_move_rect(obj, 2, 3, win_ratio)
+        rec_move_rect(obj, 2, 3, 0, 1)
 
-        mock_main_obj_move_rect.assert_called_once_with(obj, (2, 3), win_ratio)
-        mock_sub_obj_move_rect.assert_called_once_with(sub_obj, (sub_obj_x, sub_obj_y), win_ratio)
+        mock_main_obj_move_rect.assert_called_once_with(obj, 2, 3, 0, 1)
+        mock_sub_obj_move_rect.assert_called_once_with(sub_obj, sub_obj_x, sub_obj_y, 0, 1)

@@ -7,11 +7,10 @@ import pygame as pg
 
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, Ratio, ObjInfo, Mouse, resize_obj, rec_move_rect, rec_resize
+from src.utils import RectPos, ObjInfo, Mouse, resize_obj, rec_move_rect, rec_resize
 from src.type_utils import PosPair, SizePair, LayeredBlitInfo
 from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
-DEFAULT_RATIO: Final[Ratio] = Ratio(1, 1)
 INIT_CLICK_INTERVAL: Final[int] = 100
 
 
@@ -20,18 +19,18 @@ class Clickable(ABC):
     Abstract class to create a clickable object with two images (with same size) and hovering text.
 
     Includes:
-        get_blit_sequence() -> layered blit sequence
-        get_hovering_info(mouse_xy) -> tuple[is hovering, layer]
+        blit_sequence() -> layered blit sequence
+        get_hovering(mouse_xy) -> is hovering, layer
         leave() -> None
-        resize(window size ratio) -> None
-        move_rect(xy, window size ratio) -> None
+        resize(window width ratio, window height ratio) -> None
+        move_rect(x, y, window width ratio, window height ratio) -> None
 
     Children should include:
         upt(mouse) -> bool
     """
 
     __slots__ = (
-        "init_pos", "init_imgs", "imgs", "rect", "img_i", "_is_hovering", "_layer", "cursor_type",
+        "init_pos", "init_imgs", "imgs", "rect", "img_i", "_is_hovering", "layer", "cursor_type",
         "hovering_text_label"
     )
 
@@ -46,29 +45,32 @@ class Clickable(ABC):
             position, two images, hovering text (can be None), base layer
         """
 
-        self.init_pos: RectPos = pos
-        self.init_imgs: list[pg.Surface] = imgs
+        self.init_imgs: list[pg.Surface]  # Better for scaling
+        self.imgs: list[pg.Surface]
 
-        self.imgs: list[pg.Surface] = self.init_imgs
-        self.rect: pg.Rect = self.imgs[0].get_rect(**{self.init_pos.coord_type: self.init_pos.xy})
+        self.init_pos: RectPos = pos
+
+        self.init_imgs = self.imgs = imgs
+        self.rect: pg.Rect = pg.Rect(0, 0, *self.imgs[0].get_size())
+        setattr(self.rect, self.init_pos.coord_type, (self.init_pos.x, self.init_pos.y))
 
         self.img_i: int = 0
         self._is_hovering: bool = False
 
-        self._layer: int = base_layer + ELEMENT_LAYER
+        self.layer: int = base_layer + ELEMENT_LAYER
         self.cursor_type: int = pg.SYSTEM_CURSOR_HAND
 
-        # Better if it's not in objs_info
-        self.hovering_text_label: Optional[TextLabel]
+        self.hovering_text_label: Optional[TextLabel]  # Better if it's not in objs_info
         if hovering_text is None:
             self.hovering_text_label = None
         else:
-            hovering_text_layer: int = base_layer + TOP_LAYER - TEXT_LAYER
+            hovering_text_base_layer: int = base_layer + TOP_LAYER - TEXT_LAYER
             self.hovering_text_label = TextLabel(
-                RectPos(0, 0, "topleft"), hovering_text, hovering_text_layer, 12, BLACK
+                RectPos(0, 0, "topleft"), hovering_text, hovering_text_base_layer, 12, BLACK
             )
 
-    def get_blit_sequence(self) -> list[LayeredBlitInfo]:
+    @property
+    def blit_sequence(self) -> list[LayeredBlitInfo]:
         """
         Gets the blit sequence.
 
@@ -76,72 +78,72 @@ class Clickable(ABC):
             sequence to add in the main blit sequence
         """
 
-        img: pg.Surface = self.imgs[self.img_i]
-        sequence: list[LayeredBlitInfo] = [(img, self.rect.topleft, self._layer)]
+        mouse_x: int
+        mouse_y: int
 
+        sequence: list[LayeredBlitInfo] = [(self.imgs[self.img_i], self.rect.topleft, self.layer)]
         if self._is_hovering and self.hovering_text_label:
-            mouse_x: int
-            mouse_y: int
             mouse_x, mouse_y = pg.mouse.get_pos()
-            rec_move_rect(self.hovering_text_label, mouse_x + 15, mouse_y, DEFAULT_RATIO)
+            rec_move_rect(self.hovering_text_label, mouse_x + 15, mouse_y, 1, 1)
 
             hovering_text_label_objs: list[Any] = [self.hovering_text_label]
             while hovering_text_label_objs:
                 obj: Any = hovering_text_label_objs.pop()
-                if hasattr(obj, "get_blit_sequence"):
-                    sequence.extend(obj.get_blit_sequence())
+                sequence.extend(obj.blit_sequence)
                 if hasattr(obj, "objs_info"):
                     hovering_text_label_objs.extend([info.obj for info in obj.objs_info])
 
         return sequence
 
-    def get_hovering_info(self, mouse_xy: PosPair) -> tuple[bool, int]:
+    def get_hovering(self, mouse_xy: PosPair) -> bool:
         """
-        Gets the hovering info.
+        Gets the hovering flag.
 
         Args:
             mouse xy
         Returns:
-            hovered flag, hovered object layer
+            hovering flag
         """
 
-        return self.rect.collidepoint(mouse_xy), self._layer
+        return self.rect.collidepoint(mouse_xy)
 
     def leave(self) -> None:
         """Clears all the relevant data when the object state is leaved."""
 
         self._is_hovering = False
 
-    def resize(self, win_ratio: Ratio) -> None:
+    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Resizes the object.
 
         Args:
-            window size ratio
+            window width ratio, window height ratio
         """
 
         xy: PosPair
         wh: SizePair
-        xy, wh = resize_obj(self.init_pos, *self.init_imgs[0].get_size(), win_ratio)
 
+        xy, wh = resize_obj(self.init_pos, *self.init_imgs[0].get_size(), win_w_ratio, win_h_ratio)
         self.imgs = [pg.transform.scale(img, wh) for img in self.init_imgs]
-        self.rect = self.imgs[0].get_rect(**{self.init_pos.coord_type: xy})
+        self.rect.size = wh
+        setattr(self.rect, self.init_pos.coord_type, xy)
 
         if self.hovering_text_label:
-            rec_resize([self.hovering_text_label], win_ratio)
+            rec_resize([self.hovering_text_label], win_w_ratio, win_h_ratio)
 
-    def move_rect(self, init_xy: PosPair, win_ratio: Ratio) -> None:
+    def move_rect(self, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Moves the rect to a specific coordinate.
 
         Args:
-            initial xy, window size ratio
+            initial x, initial y, window width ratio, window height ratio
         """
 
-        self.init_pos.xy = init_xy  # Modifying init_pos is more accurate
-
         xy: PosPair
-        xy, _ = resize_obj(self.init_pos, 0, 0, win_ratio)
+        _: SizePair
+
+        self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
+        xy, _ = resize_obj(self.init_pos, 0, 0, win_w_ratio, win_h_ratio)
         setattr(self.rect, self.init_pos.coord_type, xy)
 
     @abstractmethod
@@ -179,8 +181,9 @@ class Checkbox(Clickable):
 
         self.is_checked: bool = False
 
-        text_label_pos: RectPos = RectPos(self.rect.centerx, self.rect.y - 5, "midbottom")
-        text_label: TextLabel = TextLabel(text_label_pos, text, base_layer, 16)
+        text_label: TextLabel = TextLabel(
+            RectPos(self.rect.centerx, self.rect.y - 5, "midbottom"), text, base_layer, 16
+        )
 
         self.objs_info: list[ObjInfo] = [ObjInfo(text_label)]
 
@@ -229,7 +232,7 @@ class Button(Clickable):
         if text is not None:
             text_label_pos: RectPos = RectPos(*self.rect.center, "center")
             text_label: TextLabel = TextLabel(text_label_pos, text, base_layer, text_h)
-            self.objs_info = [ObjInfo(text_label)]
+            self.objs_info.append(ObjInfo(text_label))
 
     def leave(self) -> None:
         """Clears all the relevant data when the object state is leaved."""

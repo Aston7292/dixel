@@ -112,26 +112,28 @@ def handle_cmd_args(argv: list[str]) -> tuple[str, str]:
     file_path: str = argv[1]
     flag: str = argv[2].lower() if len(argv) > 2 else ""
 
-    should_stop: bool = True
     if file_path.lower() == "help" or flag not in ("", "--mk-file", "--mk-dir"):
         program_name: str = argv[0]
         print(
             f"Usage: {program_name} <file path> <optional flag>\n"
-            f"Example: {program_name} test (.png is not required)\n"
+            f"Example: {program_name} test (.png isn't required)\n"
             "FLAGS:\n"
             f"\t--mk-file: create file ({program_name} new_file --mk-file)\n"
             f"\t--mk-dir: create directory ({program_name} new_dir/new_file --mk-dir)"
         )
-    else:
-        try:
-            img_file_obj: Path = Path(file_path).with_suffix(".png")
-            if not path.isreserved(img_file_obj):
-                should_stop = False
-                img_file_path = str(img_file_obj)
-            else:
-                print("Invalid name.")
-        except ValueError:
-            print("Invalid path.")
+
+        raise SystemExit
+
+    should_stop: bool = True
+    try:
+        img_file_obj: Path = Path(file_path).with_suffix(".png")
+        if path.isreserved(img_file_obj):
+            print("Invalid name.")
+        else:
+            should_stop = False
+            img_file_path = str(img_file_obj)
+    except ValueError:
+        print("Invalid path.")
 
     if should_stop:
         raise SystemExit
@@ -148,7 +150,7 @@ def ask_save_to_file() -> str:
 
     while True:
         file_path: str = filedialog.asksaveasfilename(
-            defaultextension=".png", filetypes=[("png Files", "*.png")], title="Save As"
+            defaultextension=".png", filetypes=[("Png Files", "*.png")], title="Save As"
         )
 
         if not file_path:
@@ -169,7 +171,7 @@ def ask_open_file() -> str:
 
     while True:
         file_path: str = filedialog.askopenfilename(
-            defaultextension=".png", filetypes=[("png Files", "*.png")], title="Open"
+            defaultextension=".png", filetypes=[("Png Files", "*.png")], title="Open"
         )
 
         if not file_path or get_img_state(file_path, False) == IMG_STATE_OK:

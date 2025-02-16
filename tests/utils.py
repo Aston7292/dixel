@@ -1,14 +1,8 @@
 """Functions shared between tests."""
 
-from typing import Final
-
 import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
-
-from src.utils import Ratio
-
-RESIZING_RATIO: Final[Ratio] = Ratio(2, 3)
 
 
 def cmp_imgs(img: pg.Surface, expected_img: pg.Surface, should_cmp_alpha: bool = True) -> bool:

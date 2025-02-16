@@ -1,7 +1,7 @@
 # Dixel
 
-Drawing program for pixel art
-Requires pygame-ce, numpy and portalocker (multi-platform way to detect locked files)
+Drawing program for pixel art.\
+Requires pygame-ce, numpy and portalocker (multi-platform way to detect locked files).
 
 ## Features
 

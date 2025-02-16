@@ -1,10 +1,11 @@
 """Class to simplify text rendering, renderers are cached."""
 
-import pygame as pg
 from typing import Optional
 
-from src.utils import RectPos, Ratio, resize_obj
-from src.type_utils import PosPair, Color, LayeredBlitInfo
+import pygame as pg
+
+from src.utils import RectPos, resize_obj
+from src.type_utils import PosPair, SizePair, Color, LayeredBlitInfo
 from src.consts import WHITE, BG_LAYER, TEXT_LAYER
 
 renderers_cache: dict[int, pg.Font] = {}
@@ -14,8 +15,7 @@ class TextLabel:
     """Class to simplify text rendering."""
 
     __slots__ = (
-        "init_pos", "_init_h", "_renderer", "text", "_lines", "_bg_color",
-        "_imgs", "rect", "rects", "_layer"
+        "init_pos", "_init_h", "_renderer", "text", "_bg_color", "_imgs", "rect", "_rects", "layer"
     )
 
     def __init__(
@@ -38,20 +38,22 @@ class TextLabel:
         self._renderer: pg.Font = renderers_cache[self._init_h]
 
         self.text: str = text
-        self._lines: list[str] = self.text.split("\n")
         self._bg_color: Optional[Color] = bg_color
 
+        lines: list[str] = self.text.split("\n")
+
         self._imgs: list[pg.Surface] = [
-            self._renderer.render(line, True, WHITE, self._bg_color) for line in self._lines
+            self._renderer.render(line, True, WHITE, self._bg_color) for line in lines
         ]
-        self.rect: pg.Rect
-        self.rects: list[pg.Rect] = []
+        self.rect: pg.Rect = pg.Rect()
+        self._rects: list[pg.Rect] = []
 
-        self._layer: int = base_layer + TEXT_LAYER
+        self.layer: int = base_layer + TEXT_LAYER
 
-        self._get_rects(self.init_pos.xy)
+        self._refresh_rects((self.init_pos.x, self.init_pos.y))
 
-    def get_blit_sequence(self) -> list[LayeredBlitInfo]:
+    @property
+    def blit_sequence(self) -> list[LayeredBlitInfo]:
         """
         Gets the blit sequence.
 
@@ -59,72 +61,81 @@ class TextLabel:
             sequence to add in the main blit sequence
         """
 
-        return [(img, rect.topleft, self._layer) for img, rect in zip(self._imgs, self.rects)]
+        return [(img, rect.topleft, self.layer) for img, rect in zip(self._imgs, self._rects)]
 
-    def resize(self, win_ratio: Ratio) -> None:
+    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Resizes the object.
 
         Args:
-            window size ratio
+            window width ratio, window height ratio
         """
 
         xy: PosPair
+        _: int
         h: int
-        xy, (_, h) = resize_obj(self.init_pos, 0, self._init_h, win_ratio, True)
 
+        xy, (_, h) = resize_obj(self.init_pos, 0, self._init_h, win_w_ratio, win_h_ratio, True)
         if h not in renderers_cache:
             renderers_cache[h] = pg.font.SysFont("helvetica", h)
         self._renderer = renderers_cache[h]
 
-        lines: list[str] = self._lines
+        lines: list[str] = self.text.split("\n")
+        bg_color: Optional[Color] = self._bg_color
+        self._imgs = [self._renderer.render(line, True, WHITE, bg_color) for line in lines]
+        self._refresh_rects(xy)
 
-        self._imgs = [self._renderer.render(line, True, WHITE, self._bg_color) for line in lines]
-        self._get_rects(xy)
-
-    def _get_rects(self, xy: PosPair) -> None:
+    def _refresh_rects(self, xy: PosPair) -> None:
         """
-        Calculates the rects and rect depending on the position coordinate.
+        Refreshes the rects and rect depending on the position coordinate.
 
         Args:
             xy
         """
 
-        self.rects.clear()
+        img: pg.Surface
 
-        rect_w: int = max([img.get_width() for img in self._imgs])
-        rect_h: int = sum([img.get_height() for img in self._imgs])
-        self.rect = pg.Rect(0, 0, rect_w, rect_h)
+        self._rects.clear()
+
+        self.rect.w = max([img.get_width() for img in self._imgs])
+        self.rect.h = sum([img.get_height() for img in self._imgs])
         setattr(self.rect, self.init_pos.coord_type, xy)
 
         line_rect_y: int = self.rect.y
         for img in self._imgs:
-            line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, rect_w, img.get_height())
-            line_rect_xy: PosPair = getattr(line_rect, self.init_pos.coord_type)
-            self.rects.append(img.get_rect(**{self.init_pos.coord_type: line_rect_xy}))
+            # Get full line rect and position at coord_type, shrink width to line and move it there
+            line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, self.rect.w, img.get_height())
+            line_xy: PosPair = getattr(line_rect, self.init_pos.coord_type)
 
-            line_rect_y += self.rects[-1].h
+            line_rect.w = img.get_width()
+            setattr(line_rect, self.init_pos.coord_type, line_xy)
+            self._rects.append(line_rect)
 
-    def move_rect(self, init_xy: PosPair, win_ratio: Ratio) -> None:
+            line_rect_y += line_rect.h
+
+    def move_rect(self, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Moves the rects and rect to a specific coordinate.
 
         Args:
-            initial xy, window size ratio
+            initial x, initial y, window width ratio, window height ratio
         """
 
-        self.init_pos.xy = init_xy  # Modifying init_pos is more accurate
-        copy_init_pos: RectPos = RectPos(
+        xy: PosPair
+        _: SizePair
+        rect: pg.Rect
+
+        self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
+        line_init_pos: RectPos = RectPos(
             self.init_pos.x, self.init_pos.y, self.init_pos.coord_type
         )
 
-        xy: PosPair
-        xy, _ = resize_obj(copy_init_pos, 0, 0, win_ratio)
-        setattr(self.rect, self.init_pos.coord_type, xy)
-        for rect in self.rects:
-            xy, _ = resize_obj(copy_init_pos, 0, 0, win_ratio)
-            setattr(rect, self.init_pos.coord_type, xy)
-            copy_init_pos.y += rect.h
+        xy, _ = resize_obj(line_init_pos, 0, 0, win_w_ratio, win_h_ratio)
+        setattr(self.rect, line_init_pos.coord_type, xy)
+        for rect in self._rects:
+            xy, _ = resize_obj(line_init_pos, 0, 0, win_w_ratio, win_h_ratio)
+            setattr(rect, line_init_pos.coord_type, xy)
+            line_init_pos.y += rect.h
 
     def set_text(self, text: str) -> None:
         """
@@ -135,14 +146,14 @@ class TextLabel:
         """
 
         self.text = text
+
         lines: list[str] = self.text.split("\n")
-        self._lines = lines
-
-        self._imgs = [self._renderer.render(line, True, WHITE, self._bg_color) for line in lines]
+        bg_color: Optional[Color] = self._bg_color
+        self._imgs = [self._renderer.render(line, True, WHITE, bg_color) for line in lines]
         xy: PosPair = getattr(self.rect, self.init_pos.coord_type)
-        self._get_rects(xy)
+        self._refresh_rects(xy)
 
-    def get_pos_at(self, i: int) -> int:
+    def get_x_at(self, i: int) -> int:
         """
         Gets the x coordinate of the character at a given index (only for single line text).
 
@@ -166,7 +177,11 @@ class TextLabel:
             index (0 - len(text))
         """
 
+        char: str
+
         prev_x: int = self.rect.x
+
+        i: int = 0
         for i, char in enumerate(self.text):
             current_x: int = prev_x + self._renderer.render(char, False, WHITE, WHITE).get_width()
             if x < current_x:
@@ -174,4 +189,4 @@ class TextLabel:
 
             prev_x = current_x
 
-        return len(self.text)
+        return i + 1

@@ -1,14 +1,56 @@
 """Functions and dataclasses shared between files."""
 
 from pathlib import Path
+from time import time
 from dataclasses import dataclass, field
+from functools import wraps
 from math import ceil
-from typing import Any
+from collections.abc import Callable
+from typing import Final, Any
 
 import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
 from src.type_utils import PosPair, SizePair, Color
+
+
+FUNCS_NAMES: Final[list[str]] = []
+FUNCS_TOT_TIMES: Final[list[float]] = []
+FUNCS_NUM_CALLS: Final[list[int]] = []
+
+
+def profile(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorator to time the average run time of a function."""
+
+    func_i: int = len(FUNCS_NAMES)
+    FUNCS_NAMES.append(f"{func.__module__}.{func.__name__}")
+    FUNCS_TOT_TIMES.append(0)
+    FUNCS_NUM_CALLS.append(0)
+
+    @wraps(func)
+    def upt_info(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Any:
+        """Runs a function and updates its total run time and number of calls."""
+
+        start: float = time()
+        res: Any = func(*args, **kwargs)
+        FUNCS_TOT_TIMES[func_i] += (time() - start) * 10e3
+        FUNCS_NUM_CALLS[func_i] += 1
+
+        return res
+
+    return upt_info
+
+
+def print_funcs_profiles() -> None:
+    """Prints the info of every timed function."""
+
+    name: str
+    tot_time: float
+    num_calls: int
+
+    for name, tot_time, num_calls in zip(FUNCS_NAMES, FUNCS_TOT_TIMES, FUNCS_NUM_CALLS):
+        avg_time: float = tot_time / num_calls if num_calls else 0
+        print(f"{name}: {avg_time:.4f}ms | calls: {num_calls}")
 
 
 @dataclass(slots=True)
@@ -23,28 +65,6 @@ class Point:
     x: int
     y: int
 
-    @property
-    def xy(self) -> PosPair:
-        """
-        Gets the x and y coordinates.
-
-        Returns:
-            x coordinate, y coordinate
-        """
-
-        return self.x, self.y
-
-    @xy.setter
-    def xy(self, xy: PosPair) -> None:
-        """
-        Sets the x and y coordinates.
-
-        Args:
-            xy
-        """
-
-        self.x, self.y = xy
-
 
 @dataclass(slots=True)
 class Size:
@@ -57,63 +77,6 @@ class Size:
 
     w: int
     h: int
-
-    @property
-    def wh(self) -> SizePair:
-        """
-        Gets the width and height.
-
-        Returns:
-            width, height
-        """
-
-        return self.w, self.h
-
-    @wh.setter
-    def wh(self, wh: SizePair) -> None:
-        """
-        Sets the width and height.
-
-        Args:
-            wh
-        """
-
-        self.w, self.h = wh
-
-
-@dataclass(slots=True)
-class Ratio:
-    """
-    Dataclass for representing a ratio.
-
-    Args:
-        width ratio, height ratio
-    """
-
-    w: float
-    h: float
-
-    @property
-    def wh(self) -> tuple[float, float]:
-        """
-        Gets the width and height ratios.
-
-        Returns:
-            width ratio, height ratio
-        """
-
-        return self.w, self.h
-
-    @wh.setter
-    def wh(self, wh: SizePair) -> None:
-        """
-        Sets the width and height ratios.
-
-        Args:
-            wh ratio
-        """
-
-        self.w, self.h = wh
 
 
 @dataclass(slots=True)
@@ -128,28 +91,6 @@ class RectPos:
     x: int
     y: int
     coord_type: str
-
-    @property
-    def xy(self) -> PosPair:
-        """
-        Gets the x and y coordinates.
-
-        Returns:
-            x coordinate, y coordinate
-        """
-
-        return self.x, self.y
-
-    @xy.setter
-    def xy(self, xy: PosPair) -> None:
-        """
-        Sets the x and y coordinates.
-
-        Args:
-            xy
-        """
-
-        self.x, self.y = xy
 
 
 @dataclass(slots=True)
@@ -196,32 +137,10 @@ class Mouse:
 
     x: int
     y: int
-    pressed: tuple[bool, bool, bool]
-    released: tuple[bool, bool, bool, bool, bool]
+    pressed: list[bool]
+    released: list[bool]
     scroll_amount: int
     hovered_obj: Any
-
-    @property
-    def xy(self) -> PosPair:
-        """
-        Gets the x and y coordinates.
-
-        Returns:
-            x coordinate, y coordinate
-        """
-
-        return self.x, self.y
-
-    @xy.setter
-    def xy(self, xy: PosPair) -> None:
-        """
-        Sets the x and y coordinates.
-
-        Args:
-            xy
-        """
-
-        self.x, self.y = xy
 
 
 @dataclass(slots=True)
@@ -270,8 +189,7 @@ def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
     pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
     pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, pixels_alpha))
 
-    # Swaps columns and rows, because pygame uses it like this
-    return np.transpose(pixels, (1, 0, 2))
+    return np.transpose(pixels, (1, 0, 2))  # Swaps cols and rows, because pygame uses it like this
 
 
 def add_border(img: pg.Surface, border_color: Color) -> pg.Surface:
@@ -284,67 +202,72 @@ def add_border(img: pg.Surface, border_color: Color) -> pg.Surface:
         image
     """
 
-    copy_img: pg.Surface = img.copy()
-    border_dim: int = round(min(copy_img.get_size()) / 10)
-    pg.draw.rect(copy_img, border_color, copy_img.get_rect(), border_dim)
+    new_img: pg.Surface = img.copy()
+    border_dim: int = round(min(new_img.get_size()) / 10)
+    pg.draw.rect(new_img, border_color, new_img.get_rect(), border_dim)
 
-    return copy_img
+    return new_img
 
 
 def resize_obj(
-        init_pos: RectPos, init_w: float, init_h: float, win_ratio: Ratio,
-        should_keep_size_ratio: bool = False
+        init_pos: RectPos, init_w: float, init_h: float, win_w_ratio: float, win_h_ratio: float,
+        should_keep_wh_ratio: bool = False
 ) -> tuple[PosPair, SizePair]:
     """
     Scales position and size of an object without creating gaps between attached objects.
 
     Args:
-        initial position, initial width, initial height, window size ratio,
+        initial position, initial width, initial height, window width ratio, window height ratio
         keep size ratio flag (default = False)
     Returns:
         position, size
     """
 
-    img_ratio_w: float
-    img_ratio_h: float
-    if should_keep_size_ratio:
-        img_ratio_w = img_ratio_h = min(win_ratio.wh)
-    else:
-        img_ratio_w, img_ratio_h = win_ratio.wh
+    img_w_ratio: float
+    img_h_ratio: float
 
-    resized_xy: PosPair = (round(init_pos.x * win_ratio.w), round(init_pos.y * win_ratio.h))
-    resized_wh: SizePair = (ceil(init_w * img_ratio_w), ceil(init_h * img_ratio_h))
+    if should_keep_wh_ratio:
+        img_w_ratio = img_h_ratio = min(win_w_ratio, win_h_ratio)
+    else:
+        img_w_ratio, img_h_ratio = win_w_ratio, win_h_ratio
+
+    resized_xy: PosPair = (round(init_pos.x * win_w_ratio), round(init_pos.y * win_h_ratio))
+    resized_wh: SizePair = (ceil(init_w * img_w_ratio), ceil(init_h * img_h_ratio))
 
     return resized_xy, resized_wh
 
 
-def rec_resize(main_objs: list[Any], win_ratio: Ratio) -> None:
+def rec_resize(main_objs: list[Any], win_w_ratio: float, win_h_ratio: float) -> None:
     """
     Resizes objects and their sub objects, modifies the original list.
 
     Args:
-        objects, window size ratio
+        objects, window width ratio, window height ratio
     """
 
-    ptr_objs_hierarchy: list[Any] = main_objs
-    while ptr_objs_hierarchy:
-        obj: Any = ptr_objs_hierarchy.pop()
+    objs_hierarchy: list[Any] = main_objs
+    while objs_hierarchy:
+        obj: Any = objs_hierarchy.pop()
         if hasattr(obj, "resize"):
-            obj.resize(win_ratio)
+            obj.resize(win_w_ratio, win_h_ratio)
         if hasattr(obj, "objs_info"):
-            ptr_objs_hierarchy.extend([info.obj for info in obj.objs_info])
+            objs_hierarchy.extend([info.obj for info in obj.objs_info])
 
 
-def rec_move_rect(main_obj: Any, init_x: int, init_y: int, win_ratio: Ratio) -> None:
+def rec_move_rect(
+        main_obj: Any, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float
+) -> None:
     """
     Moves an object and all it's sub objects.
 
     Args:
-        object, initial x, initial y, window size ratio.
+        object, initial x, initial y, window width ratio, window height ratio
     """
 
-    change_x: int = 0
-    change_y: int = 0
+    change_x: int
+    change_y: int
+
+    change_x = change_y = 0
     objs_hierarchy: list[Any] = [main_obj]
 
     is_sub_obj: bool = False
@@ -352,12 +275,12 @@ def rec_move_rect(main_obj: Any, init_x: int, init_y: int, win_ratio: Ratio) -> 
         obj: Any = objs_hierarchy.pop()
         if hasattr(obj, "move_rect"):
             if is_sub_obj:
-                sub_obj_init_xy: PosPair = (obj.init_pos.x + change_x, obj.init_pos.y + change_y)
-                obj.move_rect(sub_obj_init_xy, win_ratio)
+                obj.move_rect(
+                    obj.init_pos.x + change_x, obj.init_pos.y + change_y, win_w_ratio, win_h_ratio
+                )
             else:
-                change_x = init_x - obj.init_pos.x
-                change_y = init_y - obj.init_pos.y
-                obj.move_rect((init_x, init_y), win_ratio)
+                change_x, change_y = init_x - obj.init_pos.x, init_y - obj.init_pos.y
+                obj.move_rect(init_x, init_y, win_w_ratio, win_h_ratio)
                 is_sub_obj = True
         if hasattr(obj, "objs_info"):
             objs_hierarchy.extend([info.obj for info in obj.objs_info])

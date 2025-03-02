@@ -1,6 +1,7 @@
 """Tests for the checkbox_grid file."""
 
-from unittest import TestCase, mock
+from unittest import TestCase
+from unittest.mock import patch, Mock, _Call as mock_Call
 from collections.abc import Iterator
 from typing import Final, Optional
 
@@ -49,10 +50,10 @@ class TestLockedCheckbox(TestCase):
             self._locked_checkbox.init_pos.x, self._locked_checkbox.init_pos.y, coord_type
         )
         imgs: list[pg.Surface] = self._locked_checkbox.init_imgs
-        if self._locked_checkbox.hovering_text_label:
-            hovering_text = self._locked_checkbox.hovering_text_label.text
-        else:
+        if self._locked_checkbox.hovering_text_label is None:
             hovering_text = None
+        else:
+            hovering_text = self._locked_checkbox.hovering_text_label.text
         layer: int = self._locked_checkbox.layer - ELEMENT_LAYER
 
         copy_locked_checkbox: LockedCheckbox = LockedCheckbox(pos, imgs, hovering_text, layer)
@@ -60,8 +61,8 @@ class TestLockedCheckbox(TestCase):
 
         return copy_locked_checkbox
 
-    @mock.patch.object(Clickable, "__init__", autospec=True)
-    def test_init(self, mock_clickable_init: mock.Mock) -> None:
+    @patch.object(Clickable, "__init__", autospec=True)
+    def test_init(self, mock_clickable_init: Mock) -> None:
         """Tests the init method, mocks Clickable.__init__."""
 
         pos: RectPos = RectPos(1, 2, "center")
@@ -71,8 +72,8 @@ class TestLockedCheckbox(TestCase):
 
         self.assertFalse(test_locked_checkbox.is_checked)
 
-    @mock.patch.object(TextLabel, "set_text", autospec=True)
-    def test_set_info(self, mock_set_text: mock.Mock) -> None:
+    @patch.object(TextLabel, "set_text", autospec=True)
+    def test_set_info(self, mock_set_text: Mock) -> None:
         """Tests the set_info method, mocks TextLabel.set_text."""
 
         copy_locked_checkbox: LockedCheckbox = self._copy_locked_checkbox()
@@ -86,8 +87,8 @@ class TestLockedCheckbox(TestCase):
         copy_locked_checkbox.hovering_text_label = None
         copy_locked_checkbox.set_info([IMG_ON, IMG_OFF], "world")  # Assert it doesn't crash
 
-    @mock.patch.object(Clickable, "_handle_hover", autospec=True, wraps=Clickable._handle_hover)
-    def test_upt(self, mock_handle_hover: mock.Mock) -> None:
+    @patch.object(Clickable, "_handle_hover", autospec=True, wraps=Clickable._handle_hover)
+    def test_upt(self, mock_handle_hover: Mock) -> None:
         """Tests the upt method, mocks Clickable._handle_hover."""
 
         copy_locked_checkbox: LockedCheckbox = self._copy_locked_checkbox()
@@ -124,8 +125,8 @@ class TestCheckboxGrid(TestCase):
     def setUpClass(cls: type["TestCheckboxGrid"]) -> None:
         """Creates the checkbox grid."""
 
-        surfs: list[pg.Surface] = [IMG_OFF, IMG_ON, IMG_OFF, IMG_ON, IMG_OFF]
-        cls._init_info = [(surf, str(i)) for i, surf in enumerate(surfs)]
+        imgs: list[pg.Surface] = [IMG_OFF, IMG_ON, IMG_OFF, IMG_ON, IMG_OFF]
+        cls._init_info = [(img, str(i)) for i, img in enumerate(imgs)]
         cls._inverted_axes = (True, True)
 
         cls._checkbox_grid = CheckboxGrid(
@@ -146,9 +147,9 @@ class TestCheckboxGrid(TestCase):
 
         return CheckboxGrid(pos, self._init_info, num_cols, self._inverted_axes, layer)
 
-    def _check_info(self, checkbox_grid: CheckboxGrid) -> None:
+    def _control_info(self, checkbox_grid: CheckboxGrid) -> None:
         """
-        Checks the rect and objects info.
+        Controls the rect and objects info.
 
         Args:
             checkbox grid
@@ -171,8 +172,8 @@ class TestCheckboxGrid(TestCase):
         ]
         self.assertListEqual(checkbox_grid.objs_info, expected_objs_info)
 
-    @mock.patch.object(CheckboxGrid, "set_grid", autospec=True)
-    def test_init(self, mock_set_grid: mock.Mock) -> None:
+    @patch.object(CheckboxGrid, "set_grid", autospec=True)
+    def test_init(self, mock_set_grid: Mock) -> None:
         """Tests the init method, mocks CheckboxGrid.set_grid."""
 
         test_checkbox_grid: CheckboxGrid = CheckboxGrid(
@@ -224,19 +225,19 @@ class TestCheckboxGrid(TestCase):
         copy_checkbox_grid.clicked_i = len(copy_checkbox_grid.checkboxes)
         copy_checkbox_grid.check(0)
 
-    @mock.patch.object(CheckboxGrid, "check", autospec=True)
-    @mock.patch.object(LockedCheckbox, "resize", autospec=True)
-    @mock.patch.object(LockedCheckbox, "__init__", autospec=True, wraps=LockedCheckbox.__init__)
+    @patch.object(CheckboxGrid, "check", autospec=True)
+    @patch.object(LockedCheckbox, "resize", autospec=True)
+    @patch.object(LockedCheckbox, "__init__", autospec=True, wraps=LockedCheckbox.__init__)
     def test_set_grid(
-            self, mock_locked_checkbox_init: mock.Mock, mock_locked_checkbox_resize: mock.Mock,
-            mock_check: mock.Mock
+            self, mock_locked_checkbox_init: Mock, mock_locked_checkbox_resize: Mock,
+            mock_check: Mock
     ) -> None:
         """Tests the set_grid method, mocks __init__, resize and check."""
 
         init_x: int
         init_y: int
         i: int
-        call: mock._Call
+        call: mock_Call
         img: pg.Surface
         expected_img: pg.Surface
         locked_checkbox: LockedCheckbox
@@ -252,7 +253,7 @@ class TestCheckboxGrid(TestCase):
         self.assertEqual(num_locked_checkbox_init_calls, expected_num_locked_checkbox_init_calls)
         self.assertEqual(mock_check.call_count, init_num_check_calls + 1)
 
-        locked_checkbox_init_calls: list[mock._Call] = (
+        locked_checkbox_init_calls: list[mock_Call] = (
             mock_locked_checkbox_init.call_args_list[init_num_locked_checkbox_init_calls:]
         )
 
@@ -270,29 +271,29 @@ class TestCheckboxGrid(TestCase):
             for img, expected_img in zip(expected_imgs, expected_imgs, strict=True):
                 self.assertTrue(cmp_imgs(img, expected_img))
 
-            if (i + 1) % 2:
-                expected_pos.x += copy_checkbox_grid._increment.x
-            else:
+            if (i + 1) % 2 == 0:
                 expected_pos.x = copy_checkbox_grid._init_pos.x
                 expected_pos.y += copy_checkbox_grid._increment.y
+            else:
+                expected_pos.x += copy_checkbox_grid._increment.x
 
-        locked_checkbox_resize_calls: list[mock._Call] = (
+        locked_checkbox_resize_calls: list[mock_Call] = (
             mock_locked_checkbox_resize.call_args_list[init_num_locked_checkbox_resize_calls:]
         )
-        zip_resize_calls_checkboxes: Iterator[tuple[mock._Call, LockedCheckbox]] = zip(
+        zip_resize_calls_checkboxes: Iterator[tuple[mock_Call, LockedCheckbox]] = zip(
             locked_checkbox_resize_calls, copy_checkbox_grid.checkboxes, strict=True
         )
         for call, locked_checkbox in zip_resize_calls_checkboxes:
             self.assertTupleEqual(call[0], (locked_checkbox, 2, 3))
         self.assertEqual(len(copy_checkbox_grid.checkboxes), 10)
 
-        self._check_info(copy_checkbox_grid)
+        self._control_info(copy_checkbox_grid)
 
         mock_check.assert_called_with(copy_checkbox_grid, 0)
 
-    @mock.patch.object(LockedCheckbox, "resize", autospec=True)
-    @mock.patch.object(LockedCheckbox, "set_info", autospec=True)
-    def test_edit(self, mock_set_info: mock.Mock, mock_locked_checkbox_resize: mock.Mock) -> None:
+    @patch.object(LockedCheckbox, "resize", autospec=True)
+    @patch.object(LockedCheckbox, "set_info", autospec=True)
+    def test_edit(self, mock_set_info: Mock, mock_locked_checkbox_resize: Mock) -> None:
         """Tests the edit method, mocks LockedCheckbox.set_info and LockedCheckbox.resize."""
 
         img: pg.Surface
@@ -340,14 +341,14 @@ class TestCheckboxGrid(TestCase):
         self.assertEqual(copy_checkbox_grid._unresized_last_point.x, expected_last_x)
         self.assertEqual(copy_checkbox_grid._unresized_last_point.y, expected_last_y)
 
-        self._check_info(copy_checkbox_grid)
+        self._control_info(copy_checkbox_grid)
 
-    @mock.patch.object(CheckboxGrid, "check", autospec=True)
-    @mock.patch.object(
+    @patch.object(CheckboxGrid, "check", autospec=True)
+    @patch.object(
         CheckboxGrid, "_get_grid_from_fallback", autospec=True,
         wraps=CheckboxGrid._get_grid_from_fallback
     )
-    def test_remove(self, mock_get_grid_from_fallback: mock.Mock, mock_check: mock.Mock) -> None:
+    def test_remove(self, mock_get_grid_from_fallback: Mock, mock_check: Mock) -> None:
         """Tests the remove method, mocks from CheckboxGrid: _get_grid_from_fallback and check."""
 
         locked_checkbox: LockedCheckbox
@@ -359,26 +360,25 @@ class TestCheckboxGrid(TestCase):
             locked_checkbox.resize(2, 3)
         init_num_check_calls: int = mock_check.call_count
 
-        fallback_info: CheckboxInfo = (IMG_OFF, "hello")
         expected_locked_checkboxes: list[LockedCheckbox] = copy_checkbox_grid.checkboxes.copy()
         expected_locked_checkboxes.pop(2)
 
-        copy_checkbox_grid.remove(2, fallback_info, 2, 3)
+        copy_checkbox_grid.remove(2, IMG_OFF, "hello", 2, 3)
         self.assertListEqual(copy_checkbox_grid.checkboxes, expected_locked_checkboxes)
 
         expected_last_x, expected_last_y = self._checkbox_grid.checkboxes[-1].rect.center
         self.assertEqual(copy_checkbox_grid._unresized_last_point.x, expected_last_x)
         self.assertEqual(copy_checkbox_grid._unresized_last_point.y, expected_last_y)
 
-        self._check_info(copy_checkbox_grid)
+        self._control_info(copy_checkbox_grid)
 
         # Remove last and clicked_i greater than remove_i
         copy_checkbox_grid.clicked_i = 1
         copy_checkbox_grid.checkboxes = [copy_checkbox_grid.checkboxes[0]]
-        copy_checkbox_grid.remove(0, fallback_info, 2, 3)
+        copy_checkbox_grid.remove(0, IMG_OFF, "hello", 2, 3)
 
         mock_get_grid_from_fallback.assert_called_once_with(
-            copy_checkbox_grid, *fallback_info, 2, 3
+            copy_checkbox_grid, IMG_OFF, "hello", 2, 3
         )
         self.assertEqual(mock_check.call_count, init_num_check_calls + 1)
         mock_check.assert_called_with(copy_checkbox_grid, 0)
@@ -387,7 +387,7 @@ class TestCheckboxGrid(TestCase):
         copy_checkbox_grid.edit(None, IMG_OFF, "hello", 2, 3)
         copy_checkbox_grid.clicked_i = 1
         copy_checkbox_grid.checkboxes[0].is_checked = False
-        copy_checkbox_grid.remove(1, fallback_info, 2, 3)
+        copy_checkbox_grid.remove(1, IMG_OFF, "hello", 2, 3)
 
         self.assertEqual(copy_checkbox_grid.clicked_i, 0)
         self.assertEqual(copy_checkbox_grid.checkboxes[0].img_i, 1)
@@ -453,16 +453,16 @@ class TestCheckboxGrid(TestCase):
         clicked_i = copy_checkbox_grid._move_with_keys([pg.K_DOWN])
         self.assertEqual(clicked_i, copy_checkbox_grid.clicked_i + num_cols)
 
-    @mock.patch.object(CheckboxGrid, "check", autospec=True)
-    @mock.patch.object(CheckboxGrid, "_move_with_keys", autospec=True, return_value=1)
-    @mock.patch.object(LockedCheckbox, "upt", autospec=True, wraps=LockedCheckbox.upt)
+    @patch.object(CheckboxGrid, "check", autospec=True)
+    @patch.object(CheckboxGrid, "_move_with_keys", autospec=True, return_value=1)
+    @patch.object(LockedCheckbox, "upt", autospec=True, wraps=LockedCheckbox.upt)
     def test_upt(
-            self, mock_locked_checkbox_upt: mock.Mock, mock_move_with_keys: mock.Mock,
-            mock_check: mock.Mock
+            self, mock_locked_checkbox_upt: Mock, mock_move_with_keys: Mock,
+            mock_check: Mock
     ) -> None:
         """Tests the upt method, mocks upt, move_with_keys and check."""
 
-        call: mock._Call
+        call: mock_Call
         locked_checkbox: LockedCheckbox
 
         copy_checkbox_grid: CheckboxGrid = self._copy_checkbox_grid()
@@ -474,8 +474,8 @@ class TestCheckboxGrid(TestCase):
         clicked_i: int = copy_checkbox_grid.upt(hovered_locked_checkbox, mouse_info, [])
         self.assertEqual(clicked_i, expected_clicked_i)
 
-        locked_checkbox_upt_calls: list[mock._Call] = mock_locked_checkbox_upt.call_args_list
-        zip_upt_calls_locked_checkboxes: Iterator[tuple[mock._Call, LockedCheckbox]] = zip(
+        locked_checkbox_upt_calls: list[mock_Call] = mock_locked_checkbox_upt.call_args_list
+        zip_upt_calls_locked_checkboxes: Iterator[tuple[mock_Call, LockedCheckbox]] = zip(
             locked_checkbox_upt_calls, copy_checkbox_grid.checkboxes, strict=True
         )
         for call, locked_checkbox in zip_upt_calls_locked_checkboxes:

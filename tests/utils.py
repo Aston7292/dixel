@@ -1,11 +1,12 @@
 """Functions shared between tests."""
 
-import pygame as pg
-import numpy as np
+from pygame import Surface
+from pygame.surfarray import pixels3d, pixels_alpha
+from numpy import array_equal, dstack, uint8
 from numpy.typing import NDArray
 
 
-def cmp_imgs(img: pg.Surface, expected_img: pg.Surface, should_cmp_alpha: bool = True) -> bool:
+def cmp_imgs(img: Surface, expected_img: Surface, should_cmp_alpha: bool = True) -> bool:
     """
     Compares two images.
 
@@ -15,17 +16,17 @@ def cmp_imgs(img: pg.Surface, expected_img: pg.Surface, should_cmp_alpha: bool =
         equal flag
     """
 
-    pixels: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
+    pixels: NDArray[uint8] = pixels3d(img)
     if should_cmp_alpha:
-        pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
-        pixels = np.dstack((pixels, pixels_alpha))
+        alpha_values: NDArray[uint8] = pixels_alpha(img)
+        pixels = dstack((pixels, alpha_values))
 
-    expected_pixels: NDArray[np.uint8] = pg.surfarray.pixels3d(expected_img)
+    expected_pixels: NDArray[uint8] = pixels3d(expected_img)
     if should_cmp_alpha:
-        expected_pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(expected_img)
-        expected_pixels = np.dstack((expected_pixels, expected_pixels_alpha))
+        expected_alpha_values: NDArray[uint8] = pixels_alpha(expected_img)
+        expected_pixels = dstack((expected_pixels, expected_alpha_values))
 
     if pixels.shape != expected_pixels.shape:
         print(f"Size differs: {pixels.shape} {expected_pixels.shape}", end="")
 
-    return np.array_equal(pixels, expected_pixels)
+    return array_equal(pixels, expected_pixels)

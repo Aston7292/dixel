@@ -4,8 +4,8 @@ from tkinter import filedialog
 from os import path
 from pathlib import Path
 
-import pygame as pg
-from portalocker import lock, unlock, LOCK_EX, LOCK_NB, LockException
+from pygame import error as pg_error
+import portalocker
 
 from src.utils import get_img
 from src.consts import (
@@ -27,8 +27,8 @@ def get_img_state(file_path: str, should_create: bool) -> int:
     try:
         mode: str = "ab+" if should_create else "rb+"
         with Path(file_path).open(mode) as f:
-            lock(f, LOCK_EX | LOCK_NB)  # Fails if already locked
-            unlock(f)
+            portalocker.lock(f, portalocker.LOCK_EX | portalocker.LOCK_NB)  # Fails if locked
+            portalocker.unlock(f)
 
         if not should_create:
             get_img(file_path)  # Fails if corrupted
@@ -36,9 +36,9 @@ def get_img_state(file_path: str, should_create: bool) -> int:
         state = IMG_STATE_MISSING
     except PermissionError:
         state = IMG_STATE_DENIED
-    except LockException:
+    except portalocker.LockException:
         state = IMG_STATE_LOCKED
-    except pg.error:
+    except pg_error:
         state = IMG_STATE_CORRUPTED
 
     return state
@@ -58,7 +58,7 @@ def try_create_file_argv(img_file_obj: Path, flag: str) -> bool:
     if flag != "--mk-file":
         print(
             "The file doesn't exist, to create it add --mk-file.\n"
-            f"\"{img_file_obj}\" --mk-file"
+            f'"{img_file_obj}" --mk-file'
         )
     else:
         try:
@@ -84,7 +84,7 @@ def try_create_dir_argv(img_file_obj: Path, flag: str) -> bool:
     if flag != "--mk-dir":
         print(
             "The directory doesn't exist, to create it add --mk-dir.\n"
-            f"\"{img_file_obj}\" --mk-dir"
+            f'"{img_file_obj}" --mk-dir'
         )
     else:
         try:
@@ -96,22 +96,18 @@ def try_create_dir_argv(img_file_obj: Path, flag: str) -> bool:
     return has_failed
 
 
-def handle_cmd_args(argv: list[str]) -> tuple[str, str]:
+def handle_cmd_args(argv: list[str]) -> tuple[str, str, bool]:
     """
     Handles info from cmd arguments.
 
     Args:
         argv
     Returns:
-        image file path, flag
-    Raises:
-        SystemExit
+        image file path, flag, invalid argv flag
     """
 
-    img_file_path: str = ""
     file_path: str = argv[1]
     flag: str = argv[2].lower() if len(argv) > 2 else ""
-
     if file_path.lower() == "help" or flag not in ("", "--mk-file", "--mk-dir"):
         program_name: str = argv[0]
         print(
@@ -122,22 +118,21 @@ def handle_cmd_args(argv: list[str]) -> tuple[str, str]:
             f"\t--mk-dir: create directory ({program_name} new_dir/new_file --mk-dir)"
         )
 
-        raise SystemExit
+        return "", "", True
 
-    should_stop: bool = True
+    img_file_path: str = ""
+    are_argv_invalid: bool = True
     try:
         img_file_obj: Path = Path(file_path).with_suffix(".png")
-        if path.isreserved(img_file_obj):
-            print("Invalid name.")
-        else:
-            should_stop = False
+        if not path.isreserved(img_file_obj):
             img_file_path = str(img_file_obj)
+            are_argv_invalid = False
+        else:
+            print("Invalid name.")
     except ValueError:
         print("Invalid path.")
 
-    if should_stop:
-        raise SystemExit
-    return img_file_path, flag
+    return img_file_path, flag, are_argv_invalid
 
 
 def ask_save_to_file() -> str:
@@ -150,10 +145,11 @@ def ask_save_to_file() -> str:
 
     while True:
         file_path: str = filedialog.asksaveasfilename(
-            defaultextension=".png", filetypes=[("Png Files", "*.png")], title="Save As"
+            defaultextension=".png", filetypes=[("Png Files", "*.png")],
+            title="Save As"
         )
 
-        if not file_path:
+        if file_path == "":
             return file_path
 
         file_path = str(Path(file_path).with_suffix(".png"))
@@ -171,8 +167,9 @@ def ask_open_file() -> str:
 
     while True:
         file_path: str = filedialog.askopenfilename(
-            defaultextension=".png", filetypes=[("Png Files", "*.png")], title="Open"
+            defaultextension=".png", filetypes=[("Png Files", "*.png")],
+            title="Open"
         )
 
-        if not file_path or get_img_state(file_path, False) == IMG_STATE_OK:
+        if file_path == "" or get_img_state(file_path, False) == IMG_STATE_OK:
             return file_path

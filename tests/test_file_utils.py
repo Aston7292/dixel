@@ -1,6 +1,7 @@
 """Tests for the file_utils file."""
 
-from unittest import TestCase, mock
+from unittest import TestCase
+from unittest.mock import patch, Mock
 from tkinter import filedialog
 from os import path
 from pathlib import Path
@@ -16,9 +17,9 @@ class TestFileUtils(TestCase):
 
     # How to test get_img_state (problems with mocking portalocker)
 
-    @mock.patch.object(Path, "touch", autospec=True)
-    @mock.patch("builtins.print", autospec=True)
-    def test_try_create_file_argv(self, mock_print: mock.Mock, mock_path_touch: mock.Mock) -> None:
+    @patch.object(Path, "touch", autospec=True)
+    @patch("builtins.print", autospec=True)
+    def test_try_create_file_argv(self, mock_print: Mock, mock_path_touch: Mock) -> None:
         """Tests the try_create_file_argv function, mocks print and the Path.touch."""
 
         img_file_obj: Path = Path("a.png")
@@ -33,9 +34,9 @@ class TestFileUtils(TestCase):
         self.assertTrue(try_create_file_argv(img_file_obj, "--mk-file"))
         self.assertEqual(mock_print.call_count, 2)
 
-    @mock.patch.object(Path, "mkdir", autospec=True)
-    @mock.patch("builtins.print", autospec=True)
-    def test_try_create_dir_argv(self, mock_print: mock.Mock, mock_path_mkdir: mock.Mock) -> None:
+    @patch.object(Path, "mkdir", autospec=True)
+    @patch("builtins.print", autospec=True)
+    def test_try_create_dir_argv(self, mock_print: Mock, mock_path_mkdir: Mock) -> None:
         """Tests the try_create_dir_argv function, mocks print and the Path.mkdir."""
 
         img_file_obj: Path = Path("a", "a.png")
@@ -50,9 +51,9 @@ class TestFileUtils(TestCase):
         self.assertTrue(try_create_dir_argv(img_file_obj, "--mk-dir"))
         self.assertEqual(mock_print.call_count, 2)
 
-    @mock.patch.object(path, "isreserved", autospec=True, return_value=False)
-    @mock.patch("builtins.print", autospec=True)
-    def test_handle_argv(self, mock_print: mock.Mock, mock_isreserved: mock.Mock) -> None:
+    @patch.object(path, "isreserved", autospec=True, return_value=False)
+    @patch("builtins.print", autospec=True)
+    def test_handle_argv(self, mock_print: Mock, mock_isreserved: Mock) -> None:
         """Tests the handle_cmd_args function, mocks print and os.path.isreserved."""
 
         with self.assertRaises(SystemExit):
@@ -75,10 +76,10 @@ class TestFileUtils(TestCase):
             handle_cmd_args(["", "a"])
         mock_print.assert_called_with("Invalid path.")
 
-    @mock.patch("src.file_utils.get_img_state", autospec=True)
-    @mock.patch.object(filedialog, "asksaveasfilename", autospec=True)
+    @patch("src.file_utils.get_img_state", autospec=True)
+    @patch.object(filedialog, "asksaveasfilename", autospec=True)
     def test_ask_save_to_file(
-            self, mock_ask_save_as_file_name: mock.Mock, mock_get_img_state: mock.Mock
+            self, mock_ask_save_as_file_name: Mock, mock_get_img_state: Mock
     ) -> None:
         """Test the ask_save_to_file function, mocks asksaveasfilename and get_img_state."""
 
@@ -98,10 +99,10 @@ class TestFileUtils(TestCase):
         mock_ask_save_as_file_name.side_effect = ("a.txt", "")
         self.assertEqual(ask_save_to_file(), "")
 
-    @mock.patch("src.file_utils.get_img_state", autospec=True)
-    @mock.patch.object(filedialog, "askopenfilename", autospec=True)
+    @patch("src.file_utils.get_img_state", autospec=True)
+    @patch.object(filedialog, "askopenfilename", autospec=True)
     def test_ask_open_file(
-            self, mock_ask_open_file_name: mock.Mock, mock_get_img_state: mock.Mock
+            self, mock_ask_open_file_name: Mock, mock_get_img_state: Mock
     ) -> None:
         """Test the ask_open_file function, mocks filedialog.askopenfilename and get_img_state."""
 

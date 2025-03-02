@@ -2,30 +2,36 @@
 
 from typing import Final
 
-import numpy as np
+from pygame import Color
+from numpy import array as np_array, uint8
 from numpy.typing import NDArray
 
-from src.type_utils import Color
+from src.type_utils import RGBColor, HexColor
 
 CHR_LIMIT: Final[int] = 1_114_111
 MOUSE_LEFT: Final[int] = 0
 MOUSE_WHEEL: Final[int] = 1
 MOUSE_RIGHT: Final[int] = 2
 
-BLACK: Final[Color] = [0, 0, 0]
-WHITE: Final[Color] = [255, 255, 255]
-LIGHT_GRAY: Final[Color] = [85, 85, 85]
-DARK_GRAY: Final[Color] = [75, 75, 75]
+BLACK: Final[Color] = Color(0, 0, 0)
+WHITE: Final[Color] = Color(255, 255, 255)
+DARKER_GRAY: Final[Color] = Color(50, 50, 50)
 
-EMPTY_TILE_ARR: Final[NDArray[np.uint8]] = np.array(
-    [
-        [LIGHT_GRAY, DARK_GRAY],
-        [DARK_GRAY, LIGHT_GRAY]
-    ],
-    np.uint8
-)
-NUM_TILE_ROWS: Final[int] = EMPTY_TILE_ARR.shape[0]
-NUM_TILE_COLS: Final[int] = EMPTY_TILE_ARR.shape[1]
+RGB_LIGHT_GRAY: Final[RGBColor] = [70, 70, 70]
+RGB_DARK_GRAY: Final[RGBColor] = [60, 60, 60]
+HEX_BLACK: Final[HexColor] = "000000"
+
+# Flip x and y, when making it a surface, pygame uses it like this
+EMPTY_TILE_ARR: Final[NDArray[uint8]] = np_array(
+    (
+        (RGB_LIGHT_GRAY, RGB_DARK_GRAY),
+        (RGB_DARK_GRAY, RGB_LIGHT_GRAY)
+    ),
+    uint8
+).transpose((1, 0, 2))
+NUM_TILE_COLS: Final[int] = EMPTY_TILE_ARR.shape[0]
+NUM_TILE_ROWS: Final[int] = EMPTY_TILE_ARR.shape[1]
+
 NUM_VISIBLE_CHECKBOX_GRID_ROWS: Final[int] = 10
 
 BG_LAYER: Final[int] = 0

@@ -1,7 +1,7 @@
 """Functions and dataclasses shared between files."""
 
 from pathlib import Path
-from time import time
+from time import time as get_time
 from dataclasses import dataclass, field
 from functools import wraps
 from math import ceil
@@ -9,9 +9,9 @@ from collections.abc import Callable
 from typing import Final, Any
 
 import pygame as pg
-import numpy as np
+from numpy import dstack, uint8
 from numpy.typing import NDArray
-from src.type_utils import PosPair, SizePair, Color
+from src.type_utils import XY, WH
 
 
 FUNCS_NAMES: Final[list[str]] = []
@@ -23,7 +23,7 @@ def profile(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator to time the average run time of a function."""
 
     func_i: int = len(FUNCS_NAMES)
-    FUNCS_NAMES.append(f"{func.__module__}.{func.__name__}")
+    FUNCS_NAMES.append(func.__qualname__)
     FUNCS_TOT_TIMES.append(0)
     FUNCS_NUM_CALLS.append(0)
 
@@ -31,9 +31,9 @@ def profile(func: Callable[..., Any]) -> Callable[..., Any]:
     def upt_info(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Any:
         """Runs a function and updates its total run time and number of calls."""
 
-        start: float = time()
+        start: float = get_time()
         res: Any = func(*args, **kwargs)
-        FUNCS_TOT_TIMES[func_i] += (time() - start) * 10e3
+        FUNCS_TOT_TIMES[func_i] += (get_time() - start) * 10e3
         FUNCS_NUM_CALLS[func_i] += 1
 
         return res
@@ -175,7 +175,7 @@ def get_img(*path_sections: str) -> pg.Surface:
     return pg.image.load(img_file_obj).convert_alpha()
 
 
-def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
+def get_pixels(img: pg.Surface) -> NDArray[uint8]:
     """
     Gets the rgba values of the pixels in an image.
 
@@ -185,14 +185,12 @@ def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
         pixels
     """
 
-    pixels_rgb: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
-    pixels_alpha: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
-    pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, pixels_alpha))
-
-    return np.transpose(pixels, (1, 0, 2))  # Swaps cols and rows, because pygame uses it like this
+    return dstack(
+        (pg.surfarray.pixels3d(img), pg.surfarray.pixels_alpha(img))
+    )
 
 
-def add_border(img: pg.Surface, border_color: Color) -> pg.Surface:
+def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
     """
     Adds a border to an image.
 
@@ -203,8 +201,8 @@ def add_border(img: pg.Surface, border_color: Color) -> pg.Surface:
     """
 
     new_img: pg.Surface = img.copy()
-    border_dim: int = round(min(new_img.get_size()) / 10)
-    pg.draw.rect(new_img, border_color, new_img.get_rect(), border_dim)
+    width: int = round(min(new_img.get_size()) / 10)
+    pg.draw.rect(new_img, border_color, new_img.get_rect(), width)
 
     return new_img
 
@@ -212,7 +210,7 @@ def add_border(img: pg.Surface, border_color: Color) -> pg.Surface:
 def resize_obj(
         init_pos: RectPos, init_w: float, init_h: float, win_w_ratio: float, win_h_ratio: float,
         should_keep_wh_ratio: bool = False
-) -> tuple[PosPair, SizePair]:
+) -> tuple[XY, WH]:
     """
     Scales position and size of an object without creating gaps between attached objects.
 
@@ -231,8 +229,8 @@ def resize_obj(
     else:
         img_w_ratio, img_h_ratio = win_w_ratio, win_h_ratio
 
-    resized_xy: PosPair = (round(init_pos.x * win_w_ratio), round(init_pos.y * win_h_ratio))
-    resized_wh: SizePair = (ceil(init_w * img_w_ratio), ceil(init_h * img_h_ratio))
+    resized_xy: XY = (round(init_pos.x * win_w_ratio), round(init_pos.y * win_h_ratio))
+    resized_wh: WH = (ceil(init_w * img_w_ratio), ceil(init_h * img_h_ratio))
 
     return resized_xy, resized_wh
 
@@ -245,13 +243,12 @@ def rec_resize(main_objs: list[Any], win_w_ratio: float, win_h_ratio: float) -> 
         objects, window width ratio, window height ratio
     """
 
-    objs_hierarchy: list[Any] = main_objs
-    while objs_hierarchy:
-        obj: Any = objs_hierarchy.pop()
+    while main_objs:
+        obj: Any = main_objs.pop()
         if hasattr(obj, "resize"):
             obj.resize(win_w_ratio, win_h_ratio)
         if hasattr(obj, "objs_info"):
-            objs_hierarchy.extend([info.obj for info in obj.objs_info])
+            main_objs.extend([info.obj for info in obj.objs_info])
 
 
 def rec_move_rect(
@@ -276,11 +273,13 @@ def rec_move_rect(
         if hasattr(obj, "move_rect"):
             if is_sub_obj:
                 obj.move_rect(
-                    obj.init_pos.x + change_x, obj.init_pos.y + change_y, win_w_ratio, win_h_ratio
+                    obj.init_pos.x + change_x, obj.init_pos.y + change_y,
+                    win_w_ratio, win_h_ratio
                 )
             else:
                 change_x, change_y = init_x - obj.init_pos.x, init_y - obj.init_pos.y
                 obj.move_rect(init_x, init_y, win_w_ratio, win_h_ratio)
                 is_sub_obj = True
+
         if hasattr(obj, "objs_info"):
             objs_hierarchy.extend([info.obj for info in obj.objs_info])

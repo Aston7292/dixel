@@ -2,10 +2,10 @@
 
 from unittest import TestLoader, TestSuite, TextTestRunner
 
-import pygame as pg
+from pygame import init as pg_init, Window
 
-pg.init()
-pg.display.set_mode(flags=pg.HIDDEN)
+pg_init()
+Window(hidden=True).get_surface()
 
 test_suite: TestSuite = TestLoader().discover("tests")
-TextTestRunner().run(test_suite)  # The resize method is first to test methods with different sizes
+TextTestRunner().run(test_suite)

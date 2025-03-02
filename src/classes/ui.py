@@ -9,11 +9,11 @@ from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, ObjInfo, Mouse, Keyboard, get_img, resize_obj
-from src.type_utils import PosPair, SizePair, LayeredBlitInfo
-from src.consts import UI_LAYER
+from src.type_utils import XY, WH, LayeredBlitInfo
+from src.consts import DARKER_GRAY, UI_LAYER
 
 INTERFACE_IMG: Final[pg.Surface] = pg.Surface((500, 700))
-INTERFACE_IMG.fill((60, 60, 60))
+INTERFACE_IMG.fill(DARKER_GRAY)
 
 BUTTON_M_OFF_IMG: Final[pg.Surface] = get_img("sprites", "button_m_off.png")
 BUTTON_M_ON_IMG: Final[pg.Surface] = get_img("sprites", "button_m_on.png")
@@ -55,7 +55,8 @@ class UI(ABC):
         setattr(self._rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
         title_text_label: TextLabel = TextLabel(
-            RectPos(self._rect.centerx, self._rect.y + 10, "midtop"), title, UI_LAYER, 32
+            RectPos(self._rect.centerx, self._rect.y + 10, "midtop"),
+            title, UI_LAYER, 32
         )
 
         self._exit: Button = Button(
@@ -67,7 +68,7 @@ class UI(ABC):
             [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "confirm", "(Enter)", UI_LAYER
         )
 
-        self.blit_sequence: list[LayeredBlitInfo] = [(INTERFACE_IMG, self._rect.topleft, UI_LAYER)]
+        self.blit_sequence: list[LayeredBlitInfo] = [(INTERFACE_IMG, self._rect, UI_LAYER)]
         self.objs_info: list[ObjInfo] = [
             ObjInfo(title_text_label), ObjInfo(self._exit), ObjInfo(self._confirm)
         ]
@@ -80,15 +81,15 @@ class UI(ABC):
             window width ratio, window height ratio
         """
 
-        xy: PosPair
-        wh: SizePair
+        xy: XY
+        wh: WH
 
         xy, wh = resize_obj(self._init_pos, *INTERFACE_IMG.get_size(), win_w_ratio, win_h_ratio)
         img: pg.Surface = pg.transform.scale(INTERFACE_IMG, wh)
         self._rect.size = wh
         setattr(self._rect, self._init_pos.coord_type, xy)
 
-        self.blit_sequence[0] = (img, self._rect.topleft, UI_LAYER)
+        self.blit_sequence[0] = (img, self._rect, UI_LAYER)
 
     def _base_upt(self, mouse: Mouse, keys: list[int]) -> tuple[bool, bool]:
         """
@@ -109,7 +110,7 @@ class UI(ABC):
         return is_exiting, is_confirming
 
     @abstractmethod
-    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[bool, bool, Any]:
+    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[Any, ...]:
         """
         Should implement a way to make the object interactable.
 

@@ -23,7 +23,7 @@ Objects info:
     the attributes/methods below are automatically used.
 
 Blitting:
-    The blit_sequence attribute is a list with tuples of image, position and layer,
+    The blit_sequence attribute is a list with tuples of image, rect and layer,
     objects with an higher layer will be blitted on top of objects with a lower one.
     Every object must have a blit_sequence
 
@@ -74,8 +74,10 @@ Interacting with elements:
 
 ----------TODO----------
 - indicate file
+- acceleration in grid movement
 - option to change the palette to match the current colors/multiple palettes
 - CTRL Z/Y (UI to view history)
+- Save window info
 - option to make drawing only affect the visible_area?
 - save button (indicate unsaved file)
 - way to close without auto saving?
@@ -85,6 +87,7 @@ Interacting with elements:
 - UIs as separate windows?
 - asking before closing unsaved file?
 - error messages as windows?
+- touch and pen support
 
 - COLOR_PICKER:
     - hex_text as input box
@@ -113,12 +116,12 @@ optimizations:
 """
 
 from pathlib import Path
-import json
+from json import load as json_load, dumps as json_dumps
 from sys import argv
-from typing import Final, Optional, Any
+from typing import TypeAlias, Final, Optional, Any
 
 import pygame as pg
-import numpy as np
+from numpy import uint8
 from numpy.typing import NDArray
 
 from src.classes.grid_manager import GridManager
@@ -133,9 +136,9 @@ from src.file_utils import (
     get_img_state, try_create_file_argv, try_create_dir_argv, handle_cmd_args,
     ask_save_to_file, ask_open_file
 )
-from src.type_utils import PosPair, SizePair, Color, CheckboxInfo, ToolInfo, LayeredBlitInfo
+from src.type_utils import XY, RGBColor, HexColor, CheckboxInfo, ToolInfo, LayeredBlitInfo
 from src.consts import (
-    CHR_LIMIT, BLACK, BG_LAYER, STATE_I_MAIN, STATE_I_COLOR, STATE_I_GRID,
+    CHR_LIMIT, BLACK, HEX_BLACK, BG_LAYER, STATE_I_MAIN, STATE_I_COLOR, STATE_I_GRID,
     IMG_STATE_OK, IMG_STATE_MISSING, IMG_STATE_DENIED, IMG_STATE_LOCKED, IMG_STATE_CORRUPTED
 )
 
@@ -143,8 +146,9 @@ pg.init()
 
 WIN_INIT_W: Final[int] = 1_200
 WIN_INIT_H: Final[int] = 900
-WIN: Final[pg.Window] = pg.window.Window(
-    "Dixel", (WIN_INIT_W, WIN_INIT_H), hidden=True, resizable=True, allow_high_dpi=True
+WIN: Final[pg.Window] = pg.Window(
+    "Dixel", (WIN_INIT_W, WIN_INIT_H),
+    hidden=True, resizable=True, allow_high_dpi=True
 )
 WIN_SURF: Final[pg.Surface] = WIN.get_surface()
 
@@ -158,8 +162,8 @@ from src.classes.ui import BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 from src.classes.tools_manager import ToolsManager
 from src.classes.palette_manager import PaletteManager, BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG
 
-NumPadMap = dict[int, tuple[int, int]]
-StatesObjInfo = tuple[list[ObjInfo], ...]
+NumPadMap: TypeAlias = dict[int, tuple[int, int]]
+StatesObjInfo: TypeAlias = tuple[list[ObjInfo], ...]
 
 NUMPAD_MAP: Final[NumPadMap] = {
     pg.K_KP_0: (pg.K_INSERT, pg.K_0), pg.K_KP_1: (pg.K_END, pg.K_1),
@@ -179,14 +183,15 @@ MODIFY_GRID: Final[Button] = Button(
 )
 
 SAVE_AS: Final[Button] = Button(
-    RectPos(0, 0, "topleft"), [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], "save as", "(CTRL+S)", text_h=15
+    RectPos(0, 0, "topleft"),
+    [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], "save as", "(CTRL+S)", text_h=15
 )
 OPEN: Final[Button] = Button(
-    RectPos(*SAVE_AS.rect.topright, "topleft"),
+    RectPos(SAVE_AS.rect.right, SAVE_AS.rect.y, "topleft"),
     [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], "open file", "(CTRL+O)", text_h=15
 )
 CLOSE: Final[Button] = Button(
-    RectPos(*OPEN.rect.topright, "topleft"),
+    RectPos(OPEN.rect.right, OPEN.rect.y, "topleft"),
     [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], "close file", "(CTRL+Q)", text_h=15
 )
 
@@ -195,22 +200,27 @@ GRID_MANAGER: Final[GridManager] = GridManager(
     RectPos(WIN_INIT_W - 10, 10, "topright")
 )
 
-BRUSH_SIZES_INFO: Final[list[CheckboxInfo]] = [
-    (get_img("sprites", f"size_{i}_off.png"), f"{i}px\n(CTRL+{i})") for i in range(1, 6)
+# TODO: Update these imgs
+brush_dims_info: list[CheckboxInfo] = [
+    (get_img("sprites", f"size_{i}_off.png"), f"{i}px\n(CTRL+{i})")
+    for i in range(1, 6)
 ]
-BRUSH_SIZES: Final[CheckboxGrid] = CheckboxGrid(
+BRUSH_DIMS: Final[CheckboxGrid] = CheckboxGrid(
     RectPos(10, SAVE_AS.rect.bottom + 10, "topleft"),
-    BRUSH_SIZES_INFO, len(BRUSH_SIZES_INFO), False, False
+    brush_dims_info, len(brush_dims_info), False, False
 )
 
 PALETTE_MANAGER: Final[PaletteManager] = PaletteManager(
     RectPos(ADD_COLOR.rect.centerx, ADD_COLOR.rect.y - 25, "bottomright")
 )
 TOOLS_MANAGER: Final[ToolsManager] = ToolsManager(
-    RectPos(BRUSH_SIZES.rect.x, WIN_INIT_H - 10, "bottomleft")
+    RectPos(BRUSH_DIMS.rect.x, WIN_INIT_H - 10, "bottomleft")
 )
 
-FPS_TEXT_LABEL: Final[TextLabel] = TextLabel(RectPos(round(WIN_INIT_W / 2), 0, "midtop"), "FPS: 0")
+FPS_TEXT_LABEL: Final[TextLabel] = TextLabel(
+    RectPos(round(WIN_INIT_W / 2), 0, "midtop"),
+    "FPS: 0"
+)
 
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
     RectPos(round(WIN_INIT_W / 2), round(WIN_INIT_H / 2), "center")
@@ -221,16 +231,16 @@ GRID_UI: Final[GridUI] = GridUI(
 
 MAIN_STATES_OBJS_INFO: Final[StatesObjInfo] = (
     [
-        ObjInfo(ADD_COLOR), ObjInfo(MODIFY_GRID), ObjInfo(SAVE_AS), ObjInfo(OPEN), ObjInfo(CLOSE),
+        ObjInfo(ADD_COLOR), ObjInfo(MODIFY_GRID),
+        ObjInfo(SAVE_AS), ObjInfo(OPEN), ObjInfo(CLOSE),
         ObjInfo(GRID_MANAGER),
-        ObjInfo(BRUSH_SIZES), ObjInfo(PALETTE_MANAGER), ObjInfo(TOOLS_MANAGER),
+        ObjInfo(BRUSH_DIMS), ObjInfo(PALETTE_MANAGER), ObjInfo(TOOLS_MANAGER),
         ObjInfo(FPS_TEXT_LABEL)
     ],
-    [ObjInfo(COLOR_PICKER)],
-    [ObjInfo(GRID_UI)]
+    [ObjInfo(COLOR_PICKER)], [ObjInfo(GRID_UI)]
 )
 
-CLOCK: Final[pg.Clock] = pg.time.Clock()
+CLOCK: Final[pg.Clock] = pg.Clock()
 
 FPSUPDATE: Final[int] = pg.USEREVENT + 1
 pg.time.set_timer(FPSUPDATE, 1_000)
@@ -246,27 +256,28 @@ def _try_create_argv(img_file_path: str, flag: str) -> bool:
         failed flag
     """
 
-    should_stop: bool
+    has_failed: bool
 
     img_file_obj: Path = Path(img_file_path)
     if img_file_obj.parent.is_dir():
-        should_stop = try_create_file_argv(img_file_obj, flag)
+        has_failed = try_create_file_argv(img_file_obj, flag)
     else:
-        should_stop = try_create_dir_argv(img_file_obj, flag)
+        has_failed = try_create_dir_argv(img_file_obj, flag)
 
-    if not should_stop:
+    if not has_failed:
         GRID_MANAGER.grid.try_save_to_file(img_file_path)
 
-    return should_stop
+    return has_failed
 
 
 class Dixel:
     """Drawing program for pixel art."""
 
     __slots__ = (
-        "_is_fullscreen", "_mouse", "_prev_cursor_type", "_keyboard", "_timed_keys_interval",
-        "_prev_timed_keys_update", "_alt_k", "_state_i", "_states_objs_info", "_state_active_objs",
-        "_data_file_obj", "_file_path", "_new_file_path", "_is_opening_file"
+        "_is_fullscreen", "_cursor_arrow", "_mouse", "_prev_cursor_type", "_keyboard",
+        "_timed_keys_interval", "_prev_timed_keys_update", "_alt_k", "_state_i",
+        "_states_objs_info", "_state_active_objs", "_data_file_obj", "_file_path",
+        "_new_file_path", "_is_opening_file"
     )
 
     def __init__(self) -> None:
@@ -274,9 +285,10 @@ class Dixel:
 
         self._is_fullscreen: bool = False
 
+        self._cursor_arrow = pg.SYSTEM_CURSOR_ARROW
         # Position and released buttons are set at the start
         self._mouse: Mouse = Mouse(-1, -1, [False, False, False, False, False], [], 0, None)
-        self._prev_cursor_type: int = pg.SYSTEM_CURSOR_ARROW
+        self._prev_cursor_type: int = self._cursor_arrow
         self._keyboard: Keyboard = Keyboard([], [], False, False, False, False)
 
         self._timed_keys_interval: int = 150
@@ -297,34 +309,27 @@ class Dixel:
 
         if len(argv) > 1:
             self._handle_path_from_argv()
-        elif self._file_path:
+        elif self._file_path != "":
             self._check_file_path_state()
 
-        grid_img: Optional[pg.Surface] = get_img(self._file_path) if self._file_path else None
-        GRID_MANAGER.grid.set_tiles(grid_img)
-        GRID_MANAGER.grid.set_selected_tile_dim(BRUSH_SIZES.clicked_i + 1)
+        GRID_MANAGER.grid.set_tiles(get_img(self._file_path) if self._file_path else None)
+        GRID_MANAGER.grid.set_selected_tile_dim(BRUSH_DIMS.clicked_i + 1)
         self._refresh_objs()
 
     def _load_data_from_file(self) -> None:
         """Loads the data from the data file."""
 
         with self._data_file_obj.open(encoding="utf-8") as f:
-            data: dict[str, Any] = json.load(f)
+            data: dict[str, Any] = json_load(f)
         self._file_path = data["file"]
 
-        rgb_colors: list[Color] = [
-            [int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)]
-            for color in data["colors"]
-        ]
-        prev_tool_i: int = TOOLS_MANAGER.tools_grid.clicked_i
-
         PALETTE_MANAGER.set_info(
-            rgb_colors, data["color_i"], data["color_offset"], data["dropdown_i"]
+            data["colors"], data["color_i"], data["color_offset"], data["dropdown_i"]
         )
-        BRUSH_SIZES.check(data["brush_size_i"])
+        BRUSH_DIMS.check(data["brush_dim_i"])
         TOOLS_MANAGER.tools_grid.check(data["tool_i"])
-        TOOLS_MANAGER.refresh_tools(prev_tool_i)
-        if data["grid_ratio"]:
+        TOOLS_MANAGER.refresh_tools(0)
+        if data["grid_ratio"] is not None:
             GRID_UI.checkbox.img_i = 1
             GRID_UI.checkbox.is_checked = True
             GRID_UI.w_ratio, GRID_UI.h_ratio = data["grid_ratio"]
@@ -346,24 +351,26 @@ class Dixel:
 
         img_file_path: str
         flag: str
+        are_argv_invalid: bool
 
-        img_file_path, flag = handle_cmd_args(argv)
+        img_file_path, flag, are_argv_invalid = handle_cmd_args(argv)
+        if are_argv_invalid:
+            raise SystemExit
 
         img_state: int = get_img_state(img_file_path, False)
-        should_stop: bool = True
-        if img_state == IMG_STATE_OK:
-            should_stop = False
-        elif img_state == IMG_STATE_MISSING:
-            should_stop = _try_create_argv(img_file_path, flag)
-        elif img_state == IMG_STATE_DENIED:
-            print("Permission denied.")
-        elif img_state == IMG_STATE_LOCKED:
-            print("File locked.")
-        elif img_state == IMG_STATE_CORRUPTED:
-            print("Failed to load file. Might be corrupted.")
+        if img_state != IMG_STATE_OK:
+            has_failed: bool = True
+            if img_state == IMG_STATE_MISSING:
+                has_failed = _try_create_argv(img_file_path, flag)
+            elif img_state == IMG_STATE_DENIED:
+                print("Permission denied.")
+            elif img_state == IMG_STATE_LOCKED:
+                print("File locked.")
+            elif img_state == IMG_STATE_CORRUPTED:
+                print("Failed to load file. Might be corrupted.")
 
-        if should_stop:
-            raise SystemExit
+            if has_failed:
+                raise SystemExit
 
         self._file_path = img_file_path
 
@@ -407,8 +414,9 @@ class Dixel:
         for obj in blittable_objs:
             main_sequence.extend(obj.blit_sequence)
         main_sequence.sort(key=_get_layer)
+
         WIN_SURF.fill(BLACK)
-        WIN_SURF.fblits([(img, pos) for img, pos, _ in main_sequence])
+        WIN_SURF.fblits([(img, rect) for img, rect, _ in main_sequence])
         WIN.flip()
 
     def _refresh_objs(self) -> None:
@@ -417,13 +425,14 @@ class Dixel:
         state_info: list[ObjInfo]
         info: ObjInfo
 
-        self._states_objs_info.clear()
+        self._states_objs_info = []
         for state_info in MAIN_STATES_OBJS_INFO:
             full_state_objs_info: list[ObjInfo] = state_info.copy()
             for info in full_state_objs_info:
                 if hasattr(info.obj, "objs_info"):
                     full_state_objs_info.extend(info.obj.objs_info)
-            # Sub objects appear before the main one
+
+            # Reverse so sub objects are before the main one
             # When resizing the main object can use the resized attributes of the sub objects
             full_state_objs_info.reverse()
             self._states_objs_info.append(full_state_objs_info)
@@ -437,7 +446,7 @@ class Dixel:
         obj: Any
 
         max_layer: int = BG_LAYER
-        xy: PosPair = (self._mouse.x, self._mouse.y)
+        xy: XY = (self._mouse.x, self._mouse.y)
         for obj in self._state_active_objs:
             if hasattr(obj, "get_hovering") and obj.get_hovering(xy) and obj.layer >= max_layer:
                 self._mouse.hovered_obj = obj
@@ -446,11 +455,8 @@ class Dixel:
     def _set_cursor_type(self) -> None:
         """Sets the cursor type using the cursor_type attribute of the hovered object."""
 
-        cursor_type: int
-
         has_type: bool = hasattr(self._mouse.hovered_obj, "cursor_type")
-        cursor_type = self._mouse.hovered_obj.cursor_type if has_type else pg.SYSTEM_CURSOR_ARROW
-
+        cursor_type: int = self._mouse.hovered_obj.cursor_type if has_type else self._cursor_arrow
         if cursor_type != self._prev_cursor_type:
             pg.mouse.set_cursor(cursor_type)
 
@@ -464,14 +470,15 @@ class Dixel:
         for obj in self._state_active_objs:
             if hasattr(obj, "leave"):
                 obj.leave()
+
         state_objs_info: list[ObjInfo] = self._states_objs_info[self._state_i]
         self._state_active_objs = [info.obj for info in state_objs_info if info.is_active]
-
         for obj in self._state_active_objs:
             if hasattr(obj, "enter"):
                 obj.enter()
+
         self._resize_objs()
-        pg.mouse.set_cursor(pg.SYSTEM_CURSOR_ARROW)
+        pg.mouse.set_cursor(self._cursor_arrow)
 
     def _resize_objs(self) -> None:
         """Resizes every object of the main and current state with a resize method."""
@@ -482,13 +489,13 @@ class Dixel:
         win_h_ratio: float
         obj: Any
 
-        state_objs: list[Any] = [info.obj for info in self._states_objs_info[self._state_i]]
+        resizable_objs: list[Any] = [info.obj for info in self._states_objs_info[self._state_i]]
         if self._state_i != STATE_I_MAIN:
-            state_objs.extend([info.obj for info in self._states_objs_info[STATE_I_MAIN]])
+            resizable_objs.extend([info.obj for info in self._states_objs_info[STATE_I_MAIN]])
 
         win_w, win_h = WIN_SURF.get_size()
         win_w_ratio, win_h_ratio = win_w / WIN_INIT_W, win_h / WIN_INIT_H
-        for obj in state_objs:
+        for obj in resizable_objs:
             if hasattr(obj, "resize"):
                 obj.resize(win_w_ratio, win_h_ratio)
 
@@ -500,16 +507,14 @@ class Dixel:
             key
         """
 
-        converted_k: int = k
         if k in NUMPAD_MAP:
             numpad_map_i: int = int(self._keyboard.is_numpad_on)
-            converted_k = NUMPAD_MAP[k][numpad_map_i]
+            k = NUMPAD_MAP[k][numpad_map_i]
 
-        if self._keyboard.is_alt_on and (pg.K_0 <= converted_k <= pg.K_9):
-            self._alt_k += chr(converted_k)
+        if self._keyboard.is_alt_on and (pg.K_0 <= k <= pg.K_9):
+            self._alt_k += chr(k)
             if int(self._alt_k) > CHR_LIMIT:
                 self._alt_k = self._alt_k[-1]
-
             self._alt_k = self._alt_k.lstrip("0")
         else:
             self._keyboard.pressed.append(k)
@@ -526,21 +531,21 @@ class Dixel:
             raise KeyboardInterrupt
 
         if k == pg.K_F1:
+            self._is_fullscreen = False
             WIN.size = WIN.minimum_size
             WIN.set_windowed()
-            self._is_fullscreen = False
         elif k == pg.K_F11:
+            self._is_fullscreen = not self._is_fullscreen
             # Triggers the VIDEORESIZE event, calling resize_objs is unnecessary
             if self._is_fullscreen:
-                WIN.set_windowed()
-            else:
                 WIN.set_fullscreen(True)
-            self._is_fullscreen = not self._is_fullscreen
+            else:
+                WIN.set_windowed()
 
-        self._keyboard.is_ctrl_on = bool(pg.key.get_mods() & pg.KMOD_CTRL)
-        self._keyboard.is_shift_on = bool(pg.key.get_mods() & pg.KMOD_SHIFT)
-        self._keyboard.is_alt_on = bool(pg.key.get_mods() & pg.KMOD_ALT)
-        self._keyboard.is_numpad_on = bool(pg.key.get_mods() & pg.KMOD_NUM)
+        self._keyboard.is_ctrl_on = pg.key.get_mods() & pg.KMOD_CTRL != 0
+        self._keyboard.is_shift_on = pg.key.get_mods() & pg.KMOD_SHIFT != 0
+        self._keyboard.is_alt_on = pg.key.get_mods() & pg.KMOD_ALT != 0
+        self._keyboard.is_numpad_on = pg.key.get_mods() & pg.KMOD_NUM != 0
         self._add_to_keys(k)
 
         self._prev_timed_keys_update = -self._timed_keys_interval
@@ -553,10 +558,10 @@ class Dixel:
             key
         """
 
-        self._keyboard.is_ctrl_on = bool(pg.key.get_mods() & pg.KMOD_CTRL)
-        self._keyboard.is_shift_on = bool(pg.key.get_mods() & pg.KMOD_SHIFT)
-        self._keyboard.is_alt_on = bool(pg.key.get_mods() & pg.KMOD_ALT)
-        self._keyboard.is_numpad_on = bool(pg.key.get_mods() & pg.KMOD_NUM)
+        self._keyboard.is_ctrl_on = pg.key.get_mods() & pg.KMOD_CTRL != 0
+        self._keyboard.is_shift_on = pg.key.get_mods() & pg.KMOD_SHIFT != 0
+        self._keyboard.is_alt_on = pg.key.get_mods() & pg.KMOD_ALT != 0
+        self._keyboard.is_numpad_on = pg.key.get_mods() & pg.KMOD_NUM != 0
 
         if k in self._keyboard.pressed:
             self._keyboard.pressed.remove(k)
@@ -569,33 +574,32 @@ class Dixel:
         self._mouse.released = [False, False, False, False, False]
         self._mouse.scroll_amount = 0
         self._mouse.hovered_obj = None
-        self._keyboard.timed.clear()
+        self._keyboard.timed = []
 
         for event in pg.event.get():
-            event_type: int = event.type
-            if event_type == pg.WINDOWCLOSE:
+            if event.type == pg.WINDOWCLOSE:
                 raise KeyboardInterrupt
 
-            if event_type == pg.WINDOWSIZECHANGED:
+            if event.type == pg.WINDOWSIZECHANGED:
                 self._resize_objs()
 
-            elif event_type == pg.MOUSEMOTION:
+            elif event.type == pg.MOUSEMOTION:
                 self._mouse.x, self._mouse.y = event.pos
-            elif event_type == pg.WINDOWLEAVE:
+            elif event.type == pg.WINDOWLEAVE:
                 self._mouse.x = self._mouse.y = -1
-            elif event_type == pg.MOUSEBUTTONDOWN:
+            elif event.type == pg.MOUSEBUTTONDOWN:
                 self._mouse.pressed[event.button - 1] = True
-            elif event_type == pg.MOUSEBUTTONUP:
+            elif event.type == pg.MOUSEBUTTONUP:
                 self._mouse.pressed[event.button - 1] = False
                 self._mouse.released[event.button - 1] = True
-            elif event_type == pg.MOUSEWHEEL:
+            elif event.type == pg.MOUSEWHEEL:
                 self._mouse.scroll_amount = event.y
 
-            elif event_type == pg.KEYDOWN:
+            elif event.type == pg.KEYDOWN:
                 self._handle_key_press(event.key)
-            elif event_type == pg.KEYUP:
+            elif event.type == pg.KEYUP:
                 self._handle_key_release(event.key)
-            elif event_type == FPSUPDATE:
+            elif event.type == FPSUPDATE:
                 FPS_TEXT_LABEL.set_text(f"FPS: {CLOCK.get_fps():.2f}")
 
     def _refresh_timed_keys(self) -> None:
@@ -610,7 +614,7 @@ class Dixel:
 
             self._prev_timed_keys_update = pg.time.get_ticks()
 
-        if self._alt_k and not self._keyboard.is_alt_on:
+        if self._alt_k != "" and not self._keyboard.is_alt_on:
             self._keyboard.timed.append(int(self._alt_k))
             self._alt_k = ""
 
@@ -640,7 +644,7 @@ class Dixel:
         is_ctrl_a_pressed: bool = self._keyboard.is_ctrl_on and pg.K_a in self._keyboard.pressed
         if is_add_color_clicked or is_ctrl_a_pressed:
             self._state_i = STATE_I_COLOR
-            COLOR_PICKER.set_color(BLACK, True)
+            COLOR_PICKER.set_color(HEX_BLACK, True)
 
         is_modify_grid_clicked: bool = MODIFY_GRID.upt(self._mouse)
         is_ctrl_m_pressed: bool = self._keyboard.is_ctrl_on and pg.K_m in self._keyboard.pressed
@@ -652,11 +656,9 @@ class Dixel:
         """Saves the file."""
 
         grid_ratio: Optional[tuple[float, float]]
-        hex_colors: list[str]
         palette_dropdown_i: Optional[int]
 
         grid_ratio = (GRID_UI.w_ratio, GRID_UI.h_ratio) if GRID_UI.checkbox.is_checked else None
-        hex_colors = ["{:02x}{:02x}{:02x}".format(*color) for color in PALETTE_MANAGER.colors]
         palette_dropdown_i = PALETTE_MANAGER.dropdown_i if PALETTE_MANAGER.is_dropdown_on else None
 
         data: dict[str, Any] = {
@@ -667,19 +669,21 @@ class Dixel:
             "grid_vis_rows": GRID_MANAGER.grid.visible_area.h,
             "grid_offset_x": GRID_MANAGER.grid.offset.x,
             "grid_offset_y": GRID_MANAGER.grid.offset.y,
-            "brush_size_i": BRUSH_SIZES.clicked_i,
+            "brush_dim_i": BRUSH_DIMS.clicked_i,
             "color_i": PALETTE_MANAGER.colors_grid.clicked_i,
             "color_offset": PALETTE_MANAGER.colors_grid.offset_y,
             "dropdown_i": palette_dropdown_i,
             "tool_i": TOOLS_MANAGER.tools_grid.clicked_i,
             "grid_ratio": grid_ratio,
-            "colors": hex_colors
+            "colors": PALETTE_MANAGER.colors
         }
+        json_data: str = json_dumps(data, ensure_ascii=False, indent=4)
+        json_bytes: bytes = json_data.encode("utf-8")
 
-        if self._file_path:
+        if self._file_path != "":
             GRID_MANAGER.grid.try_save_to_file(self._file_path)
-        with self._data_file_obj.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4)
+        with self._data_file_obj.open("wb") as f:
+            f.write(json_bytes)
 
     def _upt_file_saving(self) -> None:
         """Updates the save as button."""
@@ -691,7 +695,7 @@ class Dixel:
             self._draw()  # Applies the leave method changes since tkinter stops the execution
 
             file_path: str = ask_save_to_file()
-            if file_path:
+            if file_path != "":
                 GRID_MANAGER.grid.try_save_to_file(file_path)
                 self._file_path = file_path
 
@@ -705,19 +709,20 @@ class Dixel:
             self._draw()  # Applies the leave method changes since tkinter stops the execution
 
             file_path: str = ask_open_file()
-            if file_path:
+            if file_path != "":
                 self._new_file_path = file_path
-                self._state_i = STATE_I_GRID
-                img_pixels: NDArray[np.uint8] = get_pixels(get_img(self._new_file_path))
-                GRID_UI.set_info(GRID_MANAGER.grid.area, img_pixels)
                 self._is_opening_file = True
+
+                self._state_i = STATE_I_GRID
+                img_pixels: NDArray[uint8] = get_pixels(get_img(self._new_file_path))
+                GRID_UI.set_info(GRID_MANAGER.grid.area, img_pixels)
 
     def _upt_file_closing(self) -> None:
         """Updates the close file button."""
 
         is_close_clicked: bool = CLOSE.upt(self._mouse)
         is_ctrl_q_pressed: bool = self._keyboard.is_ctrl_on and pg.K_q in self._keyboard.pressed
-        if (is_close_clicked or is_ctrl_q_pressed) and self._file_path:
+        if (is_close_clicked or is_ctrl_q_pressed) and self._file_path != "":
             GRID_MANAGER.grid.try_save_to_file(self._file_path)
 
             self._file_path = ""
@@ -727,46 +732,49 @@ class Dixel:
         """Handles the main interface."""
 
         i: int
-        color: Color
-        should_refresh_palette_objs: bool
-        color_to_edit: Optional[Color]
+        hex_color: HexColor
+        should_refresh_colors_objs: bool
+        hex_color_to_edit: Optional[HexColor]
 
         mouse: Mouse = self._mouse
         keyboard: Keyboard = self._keyboard
 
         if keyboard.is_ctrl_on:  # Independent shortcuts
-            max_brush_size_ctrl_shortcut: int = min(len(BRUSH_SIZES.checkboxes), 9)
-            for i in range(pg.K_1, pg.K_1 + max_brush_size_ctrl_shortcut):
+            max_brush_dim_ctrl_shortcut: int = min(len(BRUSH_DIMS.checkboxes), 9)
+            for i in range(pg.K_1, pg.K_1 + max_brush_dim_ctrl_shortcut):
                 if i in keyboard.pressed:
-                    BRUSH_SIZES.check(i - pg.K_1)
-                    GRID_MANAGER.grid.set_selected_tile_dim(BRUSH_SIZES.clicked_i + 1)
+                    BRUSH_DIMS.check(i - pg.K_1)
+                    GRID_MANAGER.grid.set_selected_tile_dim(BRUSH_DIMS.clicked_i + 1)
 
-        prev_brush_i: int = BRUSH_SIZES.clicked_i
-        brush_i: int = BRUSH_SIZES.upt(mouse, keyboard)
+        prev_brush_i: int = BRUSH_DIMS.clicked_i
+        brush_i: int = BRUSH_DIMS.upt(mouse, keyboard)
         if brush_i != prev_brush_i:
             GRID_MANAGER.grid.set_selected_tile_dim(brush_i + 1)
 
-        color, should_refresh_palette_objs, color_to_edit = PALETTE_MANAGER.upt(mouse, keyboard)
+        hex_color, should_refresh_colors_objs, hex_color_to_edit = PALETTE_MANAGER.upt(
+            mouse, keyboard
+        )
 
         tool_info: ToolInfo = TOOLS_MANAGER.upt(mouse, keyboard)
-        GRID_MANAGER.upt(mouse, keyboard, color, brush_i + 1, tool_info)
+        GRID_MANAGER.upt(mouse, keyboard, hex_color, tool_info)
 
         self._upt_file_saving()
         self._upt_file_opening()
         self._upt_file_closing()
 
         self._upt_ui_openers()
-        if color_to_edit:
+        if hex_color_to_edit is not None:
             self._state_i = STATE_I_COLOR
-            COLOR_PICKER.set_color(color_to_edit, True)
+            COLOR_PICKER.set_color(hex_color_to_edit, True)
 
-        if should_refresh_palette_objs:  # Changes the hovered checkbox image immediately
+        if should_refresh_colors_objs:  # Changes the hovered checkbox image immediately
             mouse.hovered_obj = None
             self._refresh_objs()
             self._refresh_hovered_obj()
             # Checkbox won't be clicked immediately if the dropdown menu moves
             PALETTE_MANAGER.colors_grid.upt_checkboxes(
-                Mouse(0, 0, [False, False, False], [False, False, False], 0, mouse.hovered_obj)
+                Mouse(0, 0, [False, False, False], [False, False, False], 0, mouse.hovered_obj),
+                PALETTE_MANAGER.colors_grid.hovered_checkbox
             )
 
     def _color_ui(self) -> None:
@@ -774,14 +782,14 @@ class Dixel:
 
         has_exited: bool
         has_confirmed: bool
-        color: Color
+        rgb_color: RGBColor
 
-        has_exited, has_confirmed, color = COLOR_PICKER.upt(self._mouse, self._keyboard)
+        has_exited, has_confirmed, rgb_color = COLOR_PICKER.upt(self._mouse, self._keyboard)
         if has_exited:
             PALETTE_MANAGER.is_editing_color = False
             self._state_i = STATE_I_MAIN
         elif has_confirmed:
-            should_refresh_objs: bool = PALETTE_MANAGER.add(color)
+            should_refresh_objs: bool = PALETTE_MANAGER.add(rgb_color)
             if should_refresh_objs:
                 self._refresh_objs()
             self._state_i = STATE_I_MAIN
@@ -791,17 +799,20 @@ class Dixel:
 
         has_exited: bool
         has_confirmed: bool
-        area: SizePair
+        cols: int
+        rows: int
 
-        has_exited, has_confirmed, area = GRID_UI.upt(self._mouse, self._keyboard)
+        has_exited, has_confirmed, cols, rows = GRID_UI.upt(self._mouse, self._keyboard)
         if has_exited:
             self._state_i = STATE_I_MAIN
             self._is_opening_file = False
         elif has_confirmed:
-            if self._is_opening_file and self._file_path:
+            if self._is_opening_file and self._file_path != "":
                 GRID_MANAGER.grid.try_save_to_file(self._file_path)  # Save before setting info
+
             GRID_MANAGER.grid.set_info(
-                Size(*area), GRID_MANAGER.grid.visible_area.w, GRID_MANAGER.grid.visible_area.h,
+                Size(cols, rows),
+                GRID_MANAGER.grid.visible_area.w, GRID_MANAGER.grid.visible_area.h,
                 GRID_MANAGER.grid.offset.x, GRID_MANAGER.grid.offset.y
             )
 
@@ -830,12 +841,14 @@ class Dixel:
     def _handle_crash(self) -> None:
         """Saves the file before crashing."""
 
-        if not self._file_path:
+        if self._file_path == "":
             duplicate_name_counter: int = 0
-            self._file_path = "new_file.png"
-            while Path(self._file_path).exists():
+            file_path: str = "new_file.png"
+            while Path(file_path).exists():
                 duplicate_name_counter += 1
-                self._file_path = f"new_file_{duplicate_name_counter}.png"
+                file_path = f"new_file_{duplicate_name_counter}.png"
+            self._file_path = file_path
+
         self._save_to_file()
 
     def run(self) -> None:
@@ -844,7 +857,7 @@ class Dixel:
         WIN.show()
         try:
             while True:
-                CLOCK.tick(60)
+                CLOCK.tick(6000)
 
                 self._handle_events()
                 state_objs_info: list[ObjInfo] = self._states_objs_info[self._state_i]
@@ -854,7 +867,7 @@ class Dixel:
                 self._refresh_hovered_obj()
                 self._set_cursor_type()
 
-                if self._keyboard.timed and not self._is_fullscreen:
+                if self._keyboard.timed != [] and not self._is_fullscreen:
                     self._resize_with_keys()
                 self._handle_states()
 

@@ -8,7 +8,7 @@ import pygame as pg
 from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, ObjInfo, Mouse, resize_obj, rec_move_rect, rec_resize
-from src.type_utils import PosPair, SizePair, LayeredBlitInfo
+from src.type_utils import XY, WH, LayeredBlitInfo
 from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
 INIT_CLICK_INTERVAL: Final[int] = 100
@@ -66,7 +66,8 @@ class Clickable(ABC):
         else:
             hovering_text_base_layer: int = base_layer + TOP_LAYER - TEXT_LAYER
             self.hovering_text_label = TextLabel(
-                RectPos(0, 0, "topleft"), hovering_text, hovering_text_base_layer, 12, BLACK
+                RectPos(0, 0, "topleft"),
+                hovering_text, hovering_text_base_layer, 12, BLACK
             )
 
     @property
@@ -81,8 +82,8 @@ class Clickable(ABC):
         mouse_x: int
         mouse_y: int
 
-        sequence: list[LayeredBlitInfo] = [(self.imgs[self.img_i], self.rect.topleft, self.layer)]
-        if self._is_hovering and self.hovering_text_label:
+        sequence: list[LayeredBlitInfo] = [(self.imgs[self.img_i], self.rect, self.layer)]
+        if self._is_hovering and self.hovering_text_label is not None:
             mouse_x, mouse_y = pg.mouse.get_pos()
             rec_move_rect(self.hovering_text_label, mouse_x + 15, mouse_y, 1, 1)
 
@@ -95,7 +96,7 @@ class Clickable(ABC):
 
         return sequence
 
-    def get_hovering(self, mouse_xy: PosPair) -> bool:
+    def get_hovering(self, mouse_xy: XY) -> bool:
         """
         Gets the hovering flag.
 
@@ -120,15 +121,15 @@ class Clickable(ABC):
             window width ratio, window height ratio
         """
 
-        xy: PosPair
-        wh: SizePair
+        xy: XY
+        wh: WH
 
         xy, wh = resize_obj(self.init_pos, *self.init_imgs[0].get_size(), win_w_ratio, win_h_ratio)
         self.imgs = [pg.transform.scale(img, wh) for img in self.init_imgs]
         self.rect.size = wh
         setattr(self.rect, self.init_pos.coord_type, xy)
 
-        if self.hovering_text_label:
+        if self.hovering_text_label is not None:
             rec_resize([self.hovering_text_label], win_w_ratio, win_h_ratio)
 
     def move_rect(self, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float) -> None:
@@ -139,8 +140,8 @@ class Clickable(ABC):
             initial x, initial y, window width ratio, window height ratio
         """
 
-        xy: PosPair
-        _: SizePair
+        xy: XY
+        _: WH
 
         self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
         xy, _ = resize_obj(self.init_pos, 0, 0, win_w_ratio, win_h_ratio)
@@ -182,7 +183,8 @@ class Checkbox(Clickable):
         self.is_checked: bool = False
 
         text_label: TextLabel = TextLabel(
-            RectPos(self.rect.centerx, self.rect.y - 5, "midbottom"), text, base_layer, 16
+            RectPos(self.rect.centerx, self.rect.y - 5, "midbottom"),
+            text, base_layer, 16
         )
 
         self.objs_info: list[ObjInfo] = [ObjInfo(text_label)]
@@ -207,6 +209,55 @@ class Checkbox(Clickable):
         return has_toggled and self.is_checked
 
 
+class LockedCheckbox(Clickable):
+    """Class to create a checkbox that can't be unchecked."""
+
+    __slots__ = (
+        "is_checked",
+    )
+
+    def __init__(
+            self, pos: RectPos, imgs: list[pg.Surface], hovering_text: Optional[str],
+            base_layer: int = BG_LAYER
+    ) -> None:
+        """
+        Creates the checkbox.
+
+        Args:
+            position, two images, hovering text (can be None), base layer (default = BG_LAYER)
+        """
+
+        super().__init__(pos, imgs, hovering_text, base_layer)
+
+        self.is_checked: bool = False
+
+    def leave(self) -> None:
+        """Clears all the relevant data when the object state is leaved."""
+
+        super().leave()
+        self.img_i = int(self.is_checked)
+
+    def upt(self, mouse: Mouse) -> bool:
+        """
+        Changes the checkbox image if the mouse is hovering it and checks it if clicked.
+
+        Args:
+            mouse
+        Returns:
+           checked flag
+        """
+
+        self._is_hovering = mouse.hovered_obj == self
+
+        checked: bool = mouse.released[MOUSE_LEFT] and self._is_hovering
+        if checked:
+            self.is_checked = True
+
+        self.img_i = int(self.is_checked or self._is_hovering)
+
+        return checked
+
+
 class Button(Clickable):
     """Class to create a button, when hovered changes image."""
 
@@ -229,9 +280,12 @@ class Button(Clickable):
         super().__init__(pos, imgs, hovering_text, base_layer)
 
         self.objs_info: list[ObjInfo] = []
+
         if text is not None:
-            text_label_pos: RectPos = RectPos(*self.rect.center, "center")
-            text_label: TextLabel = TextLabel(text_label_pos, text, base_layer, text_h)
+            text_label: TextLabel = TextLabel(
+                RectPos(self.rect.centerx, self.rect.centery, "center"),
+                text, base_layer, text_h
+            )
             self.objs_info.append(ObjInfo(text_label))
 
     def leave(self) -> None:

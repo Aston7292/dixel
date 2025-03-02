@@ -1,20 +1,21 @@
 """Tests for the utils file."""
 
-from unittest import TestCase, mock
+from unittest import TestCase
+from unittest.mock import patch, create_autospec, Mock
 from pathlib import Path
 from random import SystemRandom
 from math import ceil
 from typing import Final
 
-import pygame as pg
-import numpy as np
+from pygame import Surface, SRCALPHA, image
+from numpy import uint8
 from numpy.typing import NDArray
 
 from src.utils import (
     Point, RectPos, Size, ObjInfo, Mouse, Keyboard,
     get_img, get_pixels, add_border, resize_obj, rec_resize, rec_move_rect
 )
-from src.type_utils import PosPair, SizePair, Color
+from src.type_utils import XY, WH, RGBAColor
 
 RNG: Final[SystemRandom] = SystemRandom()
 
@@ -112,13 +113,13 @@ class TestUtils(TestCase):
         self.assertFalse(keyboard.is_alt_on)
         self.assertTrue(keyboard.is_numpad_on)
 
-    @mock.patch.object(pg.image, "load", autospec=True)
-    def test_load_img_from_path(self, mock_load: mock.Mock) -> None:
+    @patch.object(image, "load", autospec=True)
+    def test_load_img_from_path(self, mock_load: Mock) -> None:
         """Tests the load_img_from_path function, mocks pygame.image.load."""
 
-        mock_surface: mock.Mock = mock.create_autospec(pg.Surface, spec_set=True)
+        mock_surface: Mock = create_autospec(Surface, spec_set=True)
         mock_load.return_value = mock_surface
-        mock_convert_alpha: mock.Mock = mock_surface.convert_alpha
+        mock_convert_alpha: Mock = mock_surface.convert_alpha
 
         get_img("test", "test.png")
         mock_load.assert_called_once_with(Path("test", "test.png"))
@@ -127,42 +128,42 @@ class TestUtils(TestCase):
     def test_get_pixels(self) -> None:
         """Tests the get_pixels function."""
 
-        y: int
         x: int
+        y: int
 
-        img: pg.Surface = pg.Surface((50, 51), pg.SRCALPHA)
+        img: Surface = Surface((50, 51), SRCALPHA)
         img.fill((255, 0, 0))
         img.set_at((0, 1), (255, 0, 1))
 
-        pixels: NDArray[np.uint8] = get_pixels(img.copy())
-        for y in range(img.get_height()):
-            for x in range(img.get_width()):
-                color: Color = list(pixels[y, x])
-                expected_color: Color = list(img.get_at((x, y)))
-                self.assertListEqual(color, expected_color)
+        pixels: NDArray[uint8] = get_pixels(img.copy())
+        for x in range(img.get_width()):
+            for y in range(img.get_height()):
+                rgba_color: RGBAColor = tuple(pixels[x, y])
+                expected_rgba_color: RGBAColor = tuple(img.get_at((x, y)))
+                self.assertTupleEqual(rgba_color, expected_rgba_color)
 
     def test_add_border(self) -> None:
         """Tests the add_border function."""
 
-        expected_color: Color = [0, 0, 1, 255]
+        expected_rgba_color: RGBAColor = (0, 0, 1, 255)
 
-        img: pg.Surface = pg.Surface((10, 11))
-        img_with_border: pg.Surface = add_border(img, expected_color)
+        img: Surface = Surface((10, 11))
+        img_with_border: Surface = add_border(img, expected_rgba_color)
 
-        color_topleft: Color = list(img_with_border.get_at((0, 0)))
-        color_topright: Color = list(img_with_border.get_at((9, 0)))
-        color_bottomleft: Color = list(img_with_border.get_at((0, 9)))
-        color_bottomright: Color = list(img_with_border.get_at((9, 9)))
-        self.assertListEqual(color_topleft, expected_color)
-        self.assertListEqual(color_topright, expected_color)
-        self.assertListEqual(color_bottomleft, expected_color)
-        self.assertListEqual(color_bottomright, expected_color)
+        rgba_color_topleft: RGBAColor = tuple(img_with_border.get_at((0, 0)))
+        rgba_color_topright: RGBAColor = tuple(img_with_border.get_at((9, 0)))
+        rgba_color_bottomleft: RGBAColor = tuple(img_with_border.get_at((0, 9)))
+        rgba_color_bottomright: RGBAColor = tuple(img_with_border.get_at((9, 9)))
+        self.assertTupleEqual(rgba_color_topleft, expected_rgba_color)
+        self.assertTupleEqual(rgba_color_topright, expected_rgba_color)
+        self.assertTupleEqual(rgba_color_bottomleft, expected_rgba_color)
+        self.assertTupleEqual(rgba_color_bottomright, expected_rgba_color)
 
     def test_resize_obj(self) -> None:
         """Tests the resize_obj function."""
 
-        resized_xy: PosPair
-        resized_wh: SizePair
+        resized_xy: XY
+        resized_wh: WH
         _: int
         x: int
         y: int
@@ -191,16 +192,14 @@ class TestUtils(TestCase):
             init_pos.x, init_pos.y = x, y
             resized_xy, resized_wh = resize_obj(init_pos, w, h, win_w_ratio, win_h_ratio)
 
-            expected_sum_x: int = round((x * win_w_ratio) + (w * win_w_ratio))
-            expected_sum_y: int = round((y * win_h_ratio) + (h * win_h_ratio))
+            expected_sum_x: int = round(x * win_w_ratio + w * win_w_ratio)
+            expected_sum_y: int = round(y * win_h_ratio + h * win_h_ratio)
             self.assertGreaterEqual(resized_xy[0] + resized_wh[0], expected_sum_x)
             self.assertGreaterEqual(resized_xy[1] + resized_wh[1], expected_sum_y)
 
-    @mock.patch.object(SubObj, "resize", autospec=True)
-    @mock.patch.object(MainObj, "resize", autospec=True)
-    def test_rec_resize(
-            self, mock_main_obj_resize: mock.Mock, mock_sub_obj_resize: mock.Mock
-    ) -> None:
+    @patch.object(SubObj, "resize", autospec=True)
+    @patch.object(MainObj, "resize", autospec=True)
+    def test_rec_resize(self, mock_main_obj_resize: Mock, mock_sub_obj_resize: Mock) -> None:
         """Tests the rec_resize function, mocks MainObj.resize and SubObj.resize."""
 
         obj: MainObj = MainObj()
@@ -209,10 +208,10 @@ class TestUtils(TestCase):
         mock_main_obj_resize.assert_called_once_with(obj, 0, 1)
         mock_sub_obj_resize.assert_called_once_with(obj.objs_info[0].obj, 0, 1)
 
-    @mock.patch.object(SubObj, "move_rect", autospec=True)
-    @mock.patch.object(MainObj, "move_rect", autospec=True, wraps=MainObj.move_rect)
+    @patch.object(SubObj, "move_rect", autospec=True)
+    @patch.object(MainObj, "move_rect", autospec=True, wraps=MainObj.move_rect)
     def test_rec_move_rect(
-            self, mock_main_obj_move_rect: mock.Mock, mock_sub_obj_move_rect: mock.Mock
+            self, mock_main_obj_move_rect: Mock, mock_sub_obj_move_rect: Mock
     ) -> None:
         """Tests the rec_move_rect function, mocks MainObj.move_rect and SubObj.move_rect."""
 

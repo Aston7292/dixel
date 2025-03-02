@@ -1,14 +1,14 @@
 """Class to simplify text rendering, renderers are cached."""
 
-from typing import Optional
+from typing import Final, Optional
 
 import pygame as pg
 
 from src.utils import RectPos, resize_obj
-from src.type_utils import PosPair, SizePair, Color, LayeredBlitInfo
+from src.type_utils import XY, WH, LayeredBlitInfo
 from src.consts import WHITE, BG_LAYER, TEXT_LAYER
 
-renderers_cache: dict[int, pg.Font] = {}
+RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
 
 
 class TextLabel:
@@ -20,7 +20,7 @@ class TextLabel:
 
     def __init__(
             self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 24,
-            bg_color: Optional[Color] = None
+            bg_color: Optional[pg.Color] = None
     ) -> None:
         """
         Creates the text images.
@@ -33,12 +33,12 @@ class TextLabel:
         self.init_pos: RectPos = pos
         self._init_h: int = h
 
-        if self._init_h not in renderers_cache:
-            renderers_cache[self._init_h] = pg.font.SysFont("helvetica", self._init_h)
-        self._renderer: pg.Font = renderers_cache[self._init_h]
+        if self._init_h not in RENDERERS_CACHE:
+            RENDERERS_CACHE[self._init_h] = pg.font.SysFont("helvetica", self._init_h)
+        self._renderer: pg.Font = RENDERERS_CACHE[self._init_h]
 
         self.text: str = text
-        self._bg_color: Optional[Color] = bg_color
+        self._bg_color: Optional[pg.Color] = bg_color
 
         lines: list[str] = self.text.split("\n")
 
@@ -61,7 +61,7 @@ class TextLabel:
             sequence to add in the main blit sequence
         """
 
-        return [(img, rect.topleft, self.layer) for img, rect in zip(self._imgs, self._rects)]
+        return [(img, rect, self.layer) for img, rect in zip(self._imgs, self._rects)]
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -71,21 +71,20 @@ class TextLabel:
             window width ratio, window height ratio
         """
 
-        xy: PosPair
+        xy: XY
         _: int
         h: int
 
         xy, (_, h) = resize_obj(self.init_pos, 0, self._init_h, win_w_ratio, win_h_ratio, True)
-        if h not in renderers_cache:
-            renderers_cache[h] = pg.font.SysFont("helvetica", h)
-        self._renderer = renderers_cache[h]
+        if h not in RENDERERS_CACHE:
+            RENDERERS_CACHE[h] = pg.font.SysFont("helvetica", h)
+        self._renderer = RENDERERS_CACHE[h]
 
         lines: list[str] = self.text.split("\n")
-        bg_color: Optional[Color] = self._bg_color
-        self._imgs = [self._renderer.render(line, True, WHITE, bg_color) for line in lines]
+        self._imgs = [self._renderer.render(line, True, WHITE, self._bg_color) for line in lines]
         self._refresh_rects(xy)
 
-    def _refresh_rects(self, xy: PosPair) -> None:
+    def _refresh_rects(self, xy: XY) -> None:
         """
         Refreshes the rects and rect depending on the position coordinate.
 
@@ -93,21 +92,24 @@ class TextLabel:
             xy
         """
 
-        img: pg.Surface
+        img_width: int
+        img_height: int
 
-        self._rects.clear()
+        img_sizes: list[XY] = [img.get_size() for img in self._imgs]
+        imgs_widths: list[int] = [img_width for img_width, _ in img_sizes]
+        imgs_heights: list[int] = [img_height for _, img_height in img_sizes]
 
-        self.rect.w = max([img.get_width() for img in self._imgs])
-        self.rect.h = sum([img.get_height() for img in self._imgs])
+        self.rect.size = (max(imgs_widths), sum(imgs_heights))
         setattr(self.rect, self.init_pos.coord_type, xy)
 
+        self._rects = []
         line_rect_y: int = self.rect.y
-        for img in self._imgs:
+        for img_width, img_height in zip(imgs_widths, imgs_heights):
             # Get full line rect and position at coord_type, shrink width to line and move it there
-            line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, self.rect.w, img.get_height())
-            line_xy: PosPair = getattr(line_rect, self.init_pos.coord_type)
+            line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, self.rect.w, img_height)
+            line_xy: XY = getattr(line_rect, self.init_pos.coord_type)
 
-            line_rect.w = img.get_width()
+            line_rect.w = img_width
             setattr(line_rect, self.init_pos.coord_type, line_xy)
             self._rects.append(line_rect)
 
@@ -121,14 +123,13 @@ class TextLabel:
             initial x, initial y, window width ratio, window height ratio
         """
 
-        xy: PosPair
-        _: SizePair
+        line_init_pos: RectPos
+        xy: XY
+        _: WH
         rect: pg.Rect
 
         self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
-        line_init_pos: RectPos = RectPos(
-            self.init_pos.x, self.init_pos.y, self.init_pos.coord_type
-        )
+        line_init_pos = RectPos(self.init_pos.x, self.init_pos.y, self.init_pos.coord_type)
 
         xy, _ = resize_obj(line_init_pos, 0, 0, win_w_ratio, win_h_ratio)
         setattr(self.rect, line_init_pos.coord_type, xy)
@@ -148,9 +149,8 @@ class TextLabel:
         self.text = text
 
         lines: list[str] = self.text.split("\n")
-        bg_color: Optional[Color] = self._bg_color
-        self._imgs = [self._renderer.render(line, True, WHITE, bg_color) for line in lines]
-        xy: PosPair = getattr(self.rect, self.init_pos.coord_type)
+        self._imgs = [self._renderer.render(line, True, WHITE, self._bg_color) for line in lines]
+        xy: XY = getattr(self.rect, self.init_pos.coord_type)
         self._refresh_rects(xy)
 
     def get_x_at(self, i: int) -> int:
@@ -163,9 +163,7 @@ class TextLabel:
             character x
         """
 
-        w: int = self._renderer.render(self.text[:i], False, WHITE, WHITE).get_width()
-
-        return self.rect.x + w
+        return self.rect.x + self._renderer.render(self.text[:i], False, WHITE, WHITE).get_width()
 
     def get_closest_to(self, x: int) -> int:
         """
@@ -177,11 +175,10 @@ class TextLabel:
             index (0 - len(text))
         """
 
+        i: int
         char: str
 
         prev_x: int = self.rect.x
-
-        i: int = 0
         for i, char in enumerate(self.text):
             current_x: int = prev_x + self._renderer.render(char, False, WHITE, WHITE).get_width()
             if x < current_x:
@@ -189,4 +186,4 @@ class TextLabel:
 
             prev_x = current_x
 
-        return i + 1
+        return len(self.text)

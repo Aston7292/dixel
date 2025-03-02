@@ -1,15 +1,15 @@
 """Types shared between files."""
 
-from typing import Any
+from typing import TypeAlias, Any
 
-import pygame as pg
+from pygame import Surface, Rect
 
-PosPair = tuple[int, int]
-SizePair = tuple[int, int]
-Color = list[int]
+XY: TypeAlias = tuple[int, int]
+WH: TypeAlias = tuple[int, int]
+RGBColor: TypeAlias = list[int]
+RGBAColor: TypeAlias = tuple[int, int, int, int]
+HexColor: TypeAlias = str
 
-CheckboxInfo = tuple[pg.Surface, str]
-ToolInfo = tuple[str, dict[str, Any]]
-
-BlitSequence = list[tuple[pg.Surface, PosPair]]
-LayeredBlitInfo = tuple[pg.Surface, PosPair, int]
+CheckboxInfo: TypeAlias = tuple[Surface, str]
+ToolInfo: TypeAlias = tuple[str, dict[str, Any]]
+LayeredBlitInfo: TypeAlias = tuple[Surface, Rect, int]

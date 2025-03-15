@@ -1,7 +1,21 @@
 # Dixel
 
 Drawing program for pixel art.\
-Requires pygame-ce, numpy and portalocker (multi-platform way to detect locked files).
+
+## Install instructions
+* git clone this repository in your local system
+* Open your terminal and cd into the cloned repository folder
+* execute
+```python main.py```
+or,
+```python3 main.py```
+
+### Requirements:
+pygame-ce, numpy and portalocker (multi-platform way to detect locked files).
+They can be installed in the terminal with
+```pip install <package>```
+If that doesn't work, returning a 'externally-managed-environment' error, you could try to
+```pip install <package> --break-system-packages```
 
 ## Features
 

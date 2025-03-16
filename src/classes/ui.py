@@ -8,20 +8,35 @@ import pygame as pg
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, ObjInfo, Mouse, Keyboard, get_img, resize_obj
+from src.utils import RectPos, ObjInfo, Mouse, Keyboard, resize_obj
+from src.file_utils import try_get_img
 from src.type_utils import XY, WH, LayeredBlitInfo
 from src.consts import DARKER_GRAY, UI_LAYER
 
 INTERFACE_IMG: Final[pg.Surface] = pg.Surface((500, 700))
 INTERFACE_IMG.fill(DARKER_GRAY)
 
-BUTTON_M_OFF_IMG: Final[pg.Surface] = get_img("sprites", "button_m_off.png")
-BUTTON_M_ON_IMG: Final[pg.Surface] = get_img("sprites", "button_m_on.png")
-CLOSE_IMG_OFF: Final[pg.Surface] = get_img("sprites", "close_button_off.png")
-CLOSE_IMG_ON: Final[pg.Surface] = get_img("sprites", "close_button_on.png")
+CLOSE_IMG_DIM: Final[int] = 32
 
-CHECKBOX_IMG_OFF: Final[pg.Surface] = get_img("sprites", "checkbox_off.png")
-CHECKBOX_IMG_ON: Final[pg.Surface] = get_img("sprites", "checkbox_on.png")
+CLOSE_IMG_OFF: Final[pg.Surface] = pg.Surface((CLOSE_IMG_DIM, CLOSE_IMG_DIM), pg.SRCALPHA)
+CLOSE_IMG_ON: Final[pg.Surface] = pg.Surface((CLOSE_IMG_DIM, CLOSE_IMG_DIM), pg.SRCALPHA)
+pg.draw.line(CLOSE_IMG_OFF, (255, 0, 0), (0, 0), (CLOSE_IMG_DIM, CLOSE_IMG_DIM), 3)
+pg.draw.line(CLOSE_IMG_OFF, (255, 0, 0), (CLOSE_IMG_DIM, 0), (0, CLOSE_IMG_DIM), 3)
+pg.draw.line(CLOSE_IMG_ON, (150, 0, 0), (0, 0), (CLOSE_IMG_DIM, CLOSE_IMG_DIM), 3)
+pg.draw.line(CLOSE_IMG_ON, (150, 0, 0), (CLOSE_IMG_DIM, 0), (0, CLOSE_IMG_DIM), 3)
+
+BUTTON_M_OFF_IMG: Final[pg.Surface] = try_get_img(
+    "sprites", "button_m_off.png", missing_img_wh=(128, 64)
+)
+BUTTON_M_ON_IMG: Final[pg.Surface] = try_get_img(
+    "sprites", "button_m_on.png", missing_img_wh=(128, 64)
+)
+CHECKBOX_IMG_OFF: Final[pg.Surface] = try_get_img(
+    "sprites", "checkbox_off.png", missing_img_wh=(48, 48)
+)
+CHECKBOX_IMG_ON: Final[pg.Surface] = try_get_img(
+    "sprites", "checkbox_on.png", missing_img_wh=(48, 48)
+)
 
 
 class UI(ABC):
@@ -55,7 +70,7 @@ class UI(ABC):
         setattr(self._rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
         title_text_label: TextLabel = TextLabel(
-            RectPos(self._rect.centerx, self._rect.y + 10, "midtop"),
+            RectPos(self._rect.centerx, self._rect.y + 20, "midtop"),
             title, UI_LAYER, 32
         )
 
@@ -65,7 +80,7 @@ class UI(ABC):
         )
         self._confirm: Button = Button(
             RectPos(self._exit.rect.right, self._rect.bottom - 10, "bottomright"),
-            [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "confirm", "(Enter)", UI_LAYER
+            [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Confirm", "(Enter)", UI_LAYER
         )
 
         self.blit_sequence: list[LayeredBlitInfo] = [(INTERFACE_IMG, self._rect, UI_LAYER)]

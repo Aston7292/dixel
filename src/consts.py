@@ -21,7 +21,7 @@ RGB_LIGHT_GRAY: Final[RGBColor] = [70, 70, 70]
 RGB_DARK_GRAY: Final[RGBColor] = [60, 60, 60]
 HEX_BLACK: Final[HexColor] = "000000"
 
-# Flip x and y, when making it a surface, pygame uses it like this
+# Flip x and y because, when making it a surface, pygame uses it like this
 EMPTY_TILE_ARR: Final[NDArray[uint8]] = np_array(
     (
         (RGB_LIGHT_GRAY, RGB_DARK_GRAY),
@@ -33,6 +33,8 @@ NUM_TILE_COLS: Final[int] = EMPTY_TILE_ARR.shape[0]
 NUM_TILE_ROWS: Final[int] = EMPTY_TILE_ARR.shape[1]
 
 NUM_VISIBLE_CHECKBOX_GRID_ROWS: Final[int] = 10
+GRID_TRANSITION_START: Final[int] = 35
+GRID_TRANSITION_END: Final[int] = 200
 
 BG_LAYER: Final[int] = 0
 ELEMENT_LAYER: Final[int] = 1

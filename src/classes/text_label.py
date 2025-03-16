@@ -19,14 +19,14 @@ class TextLabel:
     )
 
     def __init__(
-            self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 24,
+            self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 25,
             bg_color: Optional[pg.Color] = None
     ) -> None:
         """
         Creates the text images.
 
         Args:
-            position, text, base_layer (default = BG_LAYER), height (default = 24),
+            position, text, base_layer (default = BG_LAYER), height (default = 25),
             background color (default = None)
         """
 
@@ -72,10 +72,10 @@ class TextLabel:
         """
 
         xy: XY
-        _: int
+        _w: int
         h: int
 
-        xy, (_, h) = resize_obj(self.init_pos, 0, self._init_h, win_w_ratio, win_h_ratio, True)
+        xy, (_w, h) = resize_obj(self.init_pos, 0, self._init_h, win_w_ratio, win_h_ratio, True)
         if h not in RENDERERS_CACHE:
             RENDERERS_CACHE[h] = pg.font.SysFont("helvetica", h)
         self._renderer = RENDERERS_CACHE[h]
@@ -96,16 +96,18 @@ class TextLabel:
         img_height: int
 
         img_sizes: list[XY] = [img.get_size() for img in self._imgs]
-        imgs_widths: list[int] = [img_width for img_width, _ in img_sizes]
-        imgs_heights: list[int] = [img_height for _, img_height in img_sizes]
+        imgs_widths: list[int] = [img_width for img_width, _img_height in img_sizes]
+        imgs_heights: list[int] = [img_height for _img_width, img_height in img_sizes]
 
         self.rect.size = (max(imgs_widths), sum(imgs_heights))
         setattr(self.rect, self.init_pos.coord_type, xy)
 
         self._rects = []
         line_rect_y: int = self.rect.y
-        for img_width, img_height in zip(imgs_widths, imgs_heights):
-            # Get full line rect and position at coord_type, shrink width to line and move it there
+        for img_width, img_height in img_sizes:
+            # Create full line rect to get the position at coord_type
+            # Shrink it to the line width and move it there
+
             line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, self.rect.w, img_height)
             line_xy: XY = getattr(line_rect, self.init_pos.coord_type)
 
@@ -125,16 +127,16 @@ class TextLabel:
 
         line_init_pos: RectPos
         xy: XY
-        _: WH
+        _wh: WH
         rect: pg.Rect
 
         self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
         line_init_pos = RectPos(self.init_pos.x, self.init_pos.y, self.init_pos.coord_type)
 
-        xy, _ = resize_obj(line_init_pos, 0, 0, win_w_ratio, win_h_ratio)
+        xy, _wh = resize_obj(line_init_pos, 0, 0, win_w_ratio, win_h_ratio)
         setattr(self.rect, line_init_pos.coord_type, xy)
         for rect in self._rects:
-            xy, _ = resize_obj(line_init_pos, 0, 0, win_w_ratio, win_h_ratio)
+            xy, _wh = resize_obj(line_init_pos, 0, 0, win_w_ratio, win_h_ratio)
             setattr(rect, line_init_pos.coord_type, xy)
             line_init_pos.y += rect.h
 

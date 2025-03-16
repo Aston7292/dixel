@@ -182,12 +182,12 @@ class TestCheckbox(TestCase):
         """Tests the move_rect method."""
 
         expected_xy: XY
-        _: WH
+        _expected_wh: WH
 
         checkbox: Checkbox = self._make_checkbox()
         checkbox.move_rect(3, 4, 2, 3)
 
-        expected_xy, _ = resize_obj(checkbox.init_pos, 0, 0, 2, 3)
+        expected_xy, _expected_wh = resize_obj(checkbox.init_pos, 0, 0, 2, 3)
         self.assertEqual(checkbox.init_pos.x, 3)
         self.assertEqual(checkbox.init_pos.y, 4)
         self.assertTupleEqual(checkbox.rect.center, expected_xy)

@@ -1,13 +1,13 @@
 """Class to create various clickable objects."""
 
 from abc import ABC, abstractmethod
-from typing import Final, Optional, Any
+from typing import Final, Optional
 
 import pygame as pg
 
 from src.classes.text_label import TextLabel
 
-from src.utils import RectPos, ObjInfo, Mouse, resize_obj, rec_move_rect, rec_resize
+from src.utils import RectPos, ObjInfo, Mouse, resize_obj
 from src.type_utils import XY, WH, LayeredBlitInfo
 from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
@@ -35,14 +35,13 @@ class Clickable(ABC):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: list[pg.Surface], hovering_text: Optional[str],
-            base_layer: int
+            self, pos: RectPos, imgs: list[pg.Surface], hovering_text: str, base_layer: int
     ) -> None:
         """
         Creates the object.
 
         Args:
-            position, two images, hovering text (can be None), base layer
+            position, two images, hovering text, base layer
         """
 
         self.init_imgs: list[pg.Surface]  # Better for scaling
@@ -60,15 +59,12 @@ class Clickable(ABC):
         self.layer: int = base_layer + ELEMENT_LAYER
         self.cursor_type: int = pg.SYSTEM_CURSOR_HAND
 
-        self.hovering_text_label: Optional[TextLabel]  # Better if it's not in objs_info
-        if hovering_text is None:
-            self.hovering_text_label = None
-        else:
-            hovering_text_base_layer: int = base_layer + TOP_LAYER - TEXT_LAYER
-            self.hovering_text_label = TextLabel(
-                RectPos(0, 0, "topleft"),
-                hovering_text, hovering_text_base_layer, 12, BLACK
-            )
+        # Better if it's not in objs_info, activating a dropdown-menu will activate it too
+        hovering_text_base_layer: int = base_layer + TOP_LAYER - TEXT_LAYER
+        self.hovering_text_label: TextLabel = TextLabel(
+            RectPos(0, 0, "topleft"),
+            hovering_text, hovering_text_base_layer, 12, BLACK
+        )
 
     @property
     def blit_sequence(self) -> list[LayeredBlitInfo]:
@@ -83,16 +79,10 @@ class Clickable(ABC):
         mouse_y: int
 
         sequence: list[LayeredBlitInfo] = [(self.imgs[self.img_i], self.rect, self.layer)]
-        if self._is_hovering and self.hovering_text_label is not None:
+        if self._is_hovering:
             mouse_x, mouse_y = pg.mouse.get_pos()
-            rec_move_rect(self.hovering_text_label, mouse_x + 15, mouse_y, 1, 1)
-
-            hovering_text_label_objs: list[Any] = [self.hovering_text_label]
-            while hovering_text_label_objs:
-                obj: Any = hovering_text_label_objs.pop()
-                sequence.extend(obj.blit_sequence)
-                if hasattr(obj, "objs_info"):
-                    hovering_text_label_objs.extend([info.obj for info in obj.objs_info])
+            self.hovering_text_label.move_rect(mouse_x + 15, mouse_y, 1, 1)
+            sequence.extend(self.hovering_text_label.blit_sequence)
 
         return sequence
 
@@ -129,8 +119,7 @@ class Clickable(ABC):
         self.rect.size = wh
         setattr(self.rect, self.init_pos.coord_type, xy)
 
-        if self.hovering_text_label is not None:
-            rec_resize([self.hovering_text_label], win_w_ratio, win_h_ratio)
+        self.hovering_text_label.resize(win_w_ratio, win_h_ratio)
 
     def move_rect(self, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -141,10 +130,10 @@ class Clickable(ABC):
         """
 
         xy: XY
-        _: WH
+        _wh: WH
 
         self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
-        xy, _ = resize_obj(self.init_pos, 0, 0, win_w_ratio, win_h_ratio)
+        xy, _wh = resize_obj(self.init_pos, 0, 0, win_w_ratio, win_h_ratio)
         setattr(self.rect, self.init_pos.coord_type, xy)
 
     @abstractmethod
@@ -167,15 +156,14 @@ class Checkbox(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: list[pg.Surface], text: str, hovering_text: Optional[str],
+            self, pos: RectPos, imgs: list[pg.Surface], text: str, hovering_text: str,
             base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the checkbox and text.
 
         Args:
-            position, two images, text, hovering text (can be None),
-            base layer (default = BG_LAYER)
+            position, two images, text, hovering text, base layer (default = BG_LAYER)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
@@ -217,14 +205,14 @@ class LockedCheckbox(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: list[pg.Surface], hovering_text: Optional[str],
+            self, pos: RectPos, imgs: list[pg.Surface], hovering_text: str,
             base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the checkbox.
 
         Args:
-            position, two images, hovering text (can be None), base layer (default = BG_LAYER)
+            position, two images, hovering text, base layer (default = BG_LAYER)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
@@ -253,7 +241,7 @@ class LockedCheckbox(Clickable):
         if checked:
             self.is_checked = True
 
-        self.img_i = int(self.is_checked or self._is_hovering)
+        self.img_i = int(self._is_hovering or self.is_checked)
 
         return checked
 
@@ -266,15 +254,15 @@ class Button(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: list[pg.Surface], text: Optional[str],
-            hovering_text: Optional[str], base_layer: int = BG_LAYER, text_h: int = 24
+            self, pos: RectPos, imgs: list[pg.Surface], text: Optional[str], hovering_text: str,
+            base_layer: int = BG_LAYER, text_h: int = 25
     ) -> None:
         """
         Creates the button and text.
 
         Args:
-            position, two images, text (can be None), hovering text (can be None),
-            base layer (default = BG_LAYER), text height (default = 24)
+            position, two images, text (can be None), hovering text,
+            base layer (default = BG_LAYER), text height (default = 25)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
@@ -317,15 +305,18 @@ class SpammableButton(Clickable):
         "_click_interval", "_last_click_time", "_is_first_click"
     )
 
-    def __init__(self, pos: RectPos, imgs: list[pg.Surface], base_layer: int = BG_LAYER) -> None:
+    def __init__(
+            self, pos: RectPos, imgs: list[pg.Surface], hovering_text: str,
+            base_layer: int = BG_LAYER
+    ) -> None:
         """
         Creates the button and text.
 
         Args:
-            position, two images, base layer (default = BG_LAYER)
+            position, two images, hovering_text, base layer (default = BG_LAYER)
         """
 
-        super().__init__(pos, imgs, "", base_layer)
+        super().__init__(pos, imgs, hovering_text, base_layer)
 
         self._click_interval: int = INIT_CLICK_INTERVAL
         self._last_click_time: int = -INIT_CLICK_INTERVAL
@@ -361,7 +352,7 @@ class SpammableButton(Clickable):
             time: int = pg.time.get_ticks()
             if self._is_first_click:
                 self._click_interval = INIT_CLICK_INTERVAL
-                self._last_click_time = time + 150  # Takes longer for second click
+                self._last_click_time = time + 200  # Takes longer for second click
                 self._is_first_click = False
                 is_clicked = True
             elif time - self._last_click_time >= self._click_interval:

@@ -1,24 +1,139 @@
 """Functions to operate with files."""
 
-from tkinter import filedialog
 from os import path
 from pathlib import Path
+from typing import Literal, TextIO, BinaryIO, Final, Optional, overload
 
-from pygame import error as pg_error
+import pygame as pg
 import portalocker
 
 from src.utils import get_img
+from src.type_utils import WH
 from src.consts import (
-    IMG_STATE_OK, IMG_STATE_MISSING, IMG_STATE_DENIED, IMG_STATE_LOCKED, IMG_STATE_CORRUPTED
+    WHITE, IMG_STATE_OK, IMG_STATE_MISSING, IMG_STATE_DENIED, IMG_STATE_LOCKED, IMG_STATE_CORRUPTED
 )
 
+SUPPORTED_IMG_TYPES: Final[tuple[str, ...]] = (".png", ".bmp")
+MISSING_IMG: Final[pg.Surface] = pg.Surface((50, 50))
+MISSING_IMG.fill((255, 0, 0))
+pg.draw.rect(MISSING_IMG, WHITE, MISSING_IMG.get_rect(), 2)
 
-def get_img_state(file_path: str, should_create: bool) -> int:
+
+def ensure_valid_img_format(file_str: str) -> str:
+    """
+    Changes the extensions of a path if it's not a supported format.
+
+    Path.with_suffix doesn't always produce the intended result,
+    for example Path(".txt").with_suffix(".png") is Path(".txt.png"),
+    it also raises ValueError on empty names.
+
+    Args:
+        file string
+    Returns:
+        file string
+    """
+
+    file_obj: Path = Path(file_str)
+    sections: list[str] = file_obj.name.rsplit(".", 1)
+
+    if len(sections) == 1:
+        sections.append("png")
+    elif sections[-1] not in ("png", "bmp"):
+        sections[-1] = "png"
+    file_name: str = f"{sections[0]}.{sections[1]}"
+
+    return str(file_obj.parent / file_name)
+
+
+def try_lock_file(file_obj: TextIO | BinaryIO, flag: int) -> None:
+    """
+    Locks a file.
+
+    Args:
+        file object, flag (portalocker.LOCK_NB is added)
+    """
+
+    failed_attempts: int = 0
+    while failed_attempts < 5:
+        try:
+            portalocker.lock(file_obj, flag | portalocker.LOCK_NB)
+        except portalocker.LockException:
+            failed_attempts += 1
+            pg.time.wait(50 * failed_attempts)
+        else:
+            return
+
+    raise portalocker.LockException
+
+
+@overload
+def try_get_img(
+        *path_sections: str, missing_img_wh: WH = (64, 64), is_grid_img: Literal[False] = False
+) -> pg.Surface:
+    ...
+
+
+@overload
+def try_get_img(
+        *path_sections: str, missing_img_wh: WH = (64, 64), is_grid_img: Literal[True]
+) -> Optional[pg.Surface]:
+    ...
+
+
+def try_get_img(
+        *path_sections: str, missing_img_wh: WH = (64, 64), is_grid_img: bool = False
+) -> Optional[pg.Surface]:
+    """
+    Loads an image with transparency.
+
+    Args:
+        path section (args), missing image size (default = 64x64),
+        grid image flag (default = False),
+    Returns:
+        image (if it fails and the grid image flag is True it returns None else MISSING_IMG)
+    """
+
+    img: Optional[pg.Surface] = None
+    file_obj: Path = Path(*path_sections)
+    failed_open_attempts: int = 0
+    while True:
+        try:
+            with file_obj.open("rb") as f:
+                try_lock_file(f, portalocker.LOCK_SH)
+                img = pg.image.load(f, file_obj.name).convert_alpha()
+            break
+        except FileNotFoundError:
+            print(f'Failed to load image "{file_obj.name}". File is missing')
+            break
+        except PermissionError:
+            print(f'Failed to load image "{file_obj.name}". Permission denied.')
+            break
+        except portalocker.LockException:
+            print(f'Failed to load image "{file_obj.name}". File is locked.')
+            break
+        except pg.error as e:
+            print(f'Failed to load image "{file_obj.name}". {e}.')
+            break
+        except OSError as e:
+            failed_open_attempts += 1
+            if failed_open_attempts == 5:
+                print(f'Failed to load image "{file_obj.name}". {e}.')
+                break
+
+            pg.time.wait(50 * failed_open_attempts)
+
+    if img is None and not is_grid_img:
+        img = pg.transform.scale(MISSING_IMG, missing_img_wh)
+
+    return img
+
+
+def get_img_state(file_str: str, should_create: bool) -> int:
     """
     Gest the state of an image.
 
     Args:
-        path, create flag
+        file string, create flag
     Returns:
         state
     """
@@ -26,30 +141,30 @@ def get_img_state(file_path: str, should_create: bool) -> int:
     state: int = IMG_STATE_OK
     try:
         mode: str = "ab+" if should_create else "rb+"
-        with Path(file_path).open(mode) as f:
+        with Path(file_str).open(mode) as f:
             portalocker.lock(f, portalocker.LOCK_EX | portalocker.LOCK_NB)  # Fails if locked
             portalocker.unlock(f)
 
         if not should_create:
-            get_img(file_path)  # Fails if corrupted
+            get_img(file_str)  # Fails if corrupted
     except FileNotFoundError:
         state = IMG_STATE_MISSING
     except PermissionError:
         state = IMG_STATE_DENIED
     except portalocker.LockException:
         state = IMG_STATE_LOCKED
-    except pg_error:
+    except pg.error:
         state = IMG_STATE_CORRUPTED
 
     return state
 
 
-def try_create_file_argv(img_file_obj: Path, flag: str) -> bool:
+def try_create_file_argv(file_obj: Path, flag: str) -> bool:
     """
     Creates a file if the flag is --mk-file.
 
     Args:
-        image file object, flag
+        file, flag
     Returns:
         failed flag
     """
@@ -58,11 +173,11 @@ def try_create_file_argv(img_file_obj: Path, flag: str) -> bool:
     if flag != "--mk-file":
         print(
             "The file doesn't exist, to create it add --mk-file.\n"
-            f'"{img_file_obj}" --mk-file'
+            f'"{file_obj}" --mk-file'
         )
     else:
         try:
-            img_file_obj.touch()
+            file_obj.touch()
             has_failed = False
         except PermissionError:
             print("Permission denied.")
@@ -70,12 +185,12 @@ def try_create_file_argv(img_file_obj: Path, flag: str) -> bool:
     return has_failed
 
 
-def try_create_dir_argv(img_file_obj: Path, flag: str) -> bool:
+def try_create_dir_argv(file_obj: Path, flag: str) -> bool:
     """
     Creates a directory if the flag is --mk-dir.
 
     Args:
-        image file object, flag
+        file, flag
     Returns:
         failed flag
     """
@@ -84,11 +199,11 @@ def try_create_dir_argv(img_file_obj: Path, flag: str) -> bool:
     if flag != "--mk-dir":
         print(
             "The directory doesn't exist, to create it add --mk-dir.\n"
-            f'"{img_file_obj}" --mk-dir'
+            f'"{file_obj}" --mk-dir'
         )
     else:
         try:
-            img_file_obj.parent.mkdir(parents=True)
+            file_obj.parent.mkdir(parents=True)
             has_failed = False
         except PermissionError:
             print("Permission denied.")
@@ -103,16 +218,16 @@ def handle_cmd_args(argv: list[str]) -> tuple[str, str, bool]:
     Args:
         argv
     Returns:
-        image file path, flag, invalid argv flag
+        file string, flag, invalid argv flag
     """
 
-    file_path: str = argv[1]
+    file_str: str = argv[1]
     flag: str = argv[2].lower() if len(argv) > 2 else ""
-    if file_path.lower() == "help" or flag not in ("", "--mk-file", "--mk-dir"):
+    if file_str.lower() == "help" or flag not in ("", "--mk-file", "--mk-dir"):
         program_name: str = argv[0]
         print(
             f"Usage: {program_name} <file path> <optional flag>\n"
-            f"Example: {program_name} test (.png isn't required)\n"
+            f"Example: {program_name} test (.png is default)\n"
             "FLAGS:\n"
             f"\t--mk-file: create file ({program_name} new_file --mk-file)\n"
             f"\t--mk-dir: create directory ({program_name} new_dir/new_file --mk-dir)"
@@ -120,56 +235,18 @@ def handle_cmd_args(argv: list[str]) -> tuple[str, str, bool]:
 
         return "", "", True
 
-    img_file_path: str = ""
     are_argv_invalid: bool = True
-    try:
-        img_file_obj: Path = Path(file_path).with_suffix(".png")
-        if not path.isreserved(img_file_obj):
-            img_file_path = str(img_file_obj)
+    file_obj: Path = Path(file_str)
+    if file_obj.name == "":
+        print("Invalid name.")
+    else:
+        if file_obj.suffix not in SUPPORTED_IMG_TYPES:
+            file_obj = file_obj.with_suffix(".png")
+
+        if not path.isreserved(file_obj):
+            file_str = str(file_obj)
             are_argv_invalid = False
         else:
             print("Invalid name.")
-    except ValueError:
-        print("Invalid path.")
 
-    return img_file_path, flag, are_argv_invalid
-
-
-def ask_save_to_file() -> str:
-    """
-    Asks the user to save a file with a GUI.
-
-    Returns:
-        file path
-    """
-
-    while True:
-        file_path: str = filedialog.asksaveasfilename(
-            defaultextension=".png", filetypes=[("Png Files", "*.png")],
-            title="Save As"
-        )
-
-        if file_path == "":
-            return file_path
-
-        file_path = str(Path(file_path).with_suffix(".png"))
-        if get_img_state(file_path, True) == IMG_STATE_OK:
-            return file_path
-
-
-def ask_open_file() -> str:
-    """
-    Asks the user to open a file with a GUI.
-
-    Returns:
-        file path
-    """
-
-    while True:
-        file_path: str = filedialog.askopenfilename(
-            defaultextension=".png", filetypes=[("Png Files", "*.png")],
-            title="Open"
-        )
-
-        if file_path == "" or get_img_state(file_path, False) == IMG_STATE_OK:
-            return file_path
+    return file_str, flag, are_argv_invalid

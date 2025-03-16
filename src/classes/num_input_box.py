@@ -54,7 +54,7 @@ class NumInputBox:
         self.max_limit: int = max_limit
 
         self._is_selected: bool = False
-        self._cursor_i: int
+        self._cursor_i: int = 0
 
         self.layer, self._cursor_layer = base_layer + ELEMENT_LAYER, base_layer + TOP_LAYER
         self.cursor_type: int = pg.SYSTEM_CURSOR_IBEAM
@@ -66,7 +66,9 @@ class NumInputBox:
 
         self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
-        self.cursor_rect: pg.Rect = pg.Rect(0, self.text_label.rect.y, 0, 0)
+        self.cursor_rect: pg.Rect = pg.Rect(
+            self.text_label.rect.topleft, self._cursor_img.get_size()
+        )
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self.text_label)]
 
@@ -97,12 +99,10 @@ class NumInputBox:
 
         return self.rect.collidepoint(mouse_xy)
 
-    def leave(self) -> None:
-        """Clears all the relevant data when the object state is leaved."""
+    def enter(self) -> None:
+        """Initializes all the relevant data when the object state is entered."""
 
         self._is_selected = False
-        self._cursor_i = 0
-        self.cursor_rect.x = self.text_label.get_x_at(self._cursor_i)
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -178,7 +178,7 @@ class NumInputBox:
             self.text_label.text = first_part + second_part
             self._cursor_i -= 1
 
-        if self.text_label.text.startswith("0"):  # If empty keep it empty
+        if self.text_label.text.startswith("0"):  # If it's empty keep it empty
             self.text_label.text = self.text_label.text.lstrip("0") or str(self.min_limit)
 
     def _insert_char(self, char: str) -> None:

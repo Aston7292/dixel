@@ -28,10 +28,12 @@ class SubObj:
 
         self.init_pos: RectPos = RectPos(0, 1, "")
 
-    def resize(self, _: float, __: float) -> None:
+    def resize(self, _win_ratio_w: float, _win_ratio_h: float) -> None:
         """Empty method to test the rec_resize function."""
 
-    def move_rect(self, _: int, __: int, ___: float, ____: float) -> None:
+    def move_rect(
+            self, _init_x: int, _init_y: int, _win_ratio_w: float, _win_ratio_h: float
+    ) -> None:
         """Empty method to test the rec_move_rect function."""
 
 
@@ -44,10 +46,12 @@ class MainObj:
         self.init_pos: RectPos = RectPos(0, 1, "")
         self.objs_info: list[ObjInfo] = [ObjInfo(SubObj())]
 
-    def resize(self, _: float, __: float) -> None:
+    def resize(self, _win_ratio_w: float, _win_ratio_h: float) -> None:
         """Empty method to test the rec_resize function."""
 
-    def move_rect(self, init_x: int, init_y: int, _: float, __: float) -> None:
+    def move_rect(
+            self, init_x: int, init_y: int, _win_ratio_w: float, _win_ratio_h: float
+    ) -> None:
         """Method to test the rec_move_rect function."""
 
         self.init_pos.x, self.init_pos.y = init_x, init_y
@@ -136,8 +140,9 @@ class TestUtils(TestCase):
         img.set_at((0, 1), (255, 0, 1))
 
         pixels: NDArray[uint8] = get_pixels(img.copy())
+        img_h: int = img.get_height()
         for x in range(img.get_width()):
-            for y in range(img.get_height()):
+            for y in range(img_h):
                 rgba_color: RGBAColor = tuple(pixels[x, y])
                 expected_rgba_color: RGBAColor = tuple(img.get_at((x, y)))
                 self.assertTupleEqual(rgba_color, expected_rgba_color)
@@ -164,7 +169,7 @@ class TestUtils(TestCase):
 
         resized_xy: XY
         resized_wh: WH
-        _: int
+        _i: int
         x: int
         y: int
         w: float
@@ -182,7 +187,7 @@ class TestUtils(TestCase):
         self.assertTupleEqual(resized_xy, (round(1 * 2.6), round(2 * 3.4)))
         self.assertTupleEqual(resized_wh, (ceil(3 * 2.6), ceil(4 * 2.6)))
 
-        for _ in range(1_000):
+        for _i in range(1_000):
             # Check gaps
 
             x, y = RNG.randint(0, 500), RNG.randint(0, 500)

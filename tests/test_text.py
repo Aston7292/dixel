@@ -25,7 +25,7 @@ class TestTextLabel(TestCase):
             text label
         """
 
-        text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 30, WHITE)
+        text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 20, WHITE)
         text_label.resize(2, 3)
 
         return text_label
@@ -37,12 +37,13 @@ class TestTextLabel(TestCase):
         img: pg.Surface
         line: str
 
-        text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 30, WHITE)
+        text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 20, WHITE)
+        expected_renderer: pg.Font = RENDERERS_CACHE[text_label._init_h]
 
         self.assertEqual(text_label.init_pos, RectPos(1, 2, "center"))
 
-        self.assertEqual(text_label._init_h, 30)
-        self.assertIs(RENDERERS_CACHE[text_label._init_h], text_label._renderer)
+        self.assertEqual(text_label._init_h, 20)
+        self.assertIs(expected_renderer, text_label._renderer)
 
         self.assertEqual(text_label.text, "hello\n!")
         self.assertEqual(text_label._bg_color, WHITE)
@@ -50,9 +51,8 @@ class TestTextLabel(TestCase):
         self.assertEqual(text_label.layer, 1 + TEXT_LAYER)
 
         lines: list[str] = text_label.text.split("\n")
-        renderer: pg.Font = pg.font.SysFont("helvetica", 30)
         for img, line in zip(text_label._imgs, lines, strict=True):
-            expected_img: pg.Surface = renderer.render(line, True, WHITE, WHITE).convert()
+            expected_img: pg.Surface = expected_renderer.render(line, True, WHITE, WHITE).convert()
             self.assertTrue(cmp_imgs(img.convert(), expected_img, False))
 
         mock_refresh_rects.assert_called_once_with(
@@ -79,24 +79,24 @@ class TestTextLabel(TestCase):
         """Tests the resize method, mocks TextLabel.refresh_rects."""
 
         expected_xy: XY
-        _: int
+        _expected_w: int
         expected_h: int
         img: pg.Surface
         line: str
 
-        text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 30, WHITE)
+        text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 20, WHITE)
         init_num_get_rects_calls: int = mock_refresh_rects.call_count
 
         text_label.resize(2, 3)
 
-        expected_xy, (_, expected_h) = resize_obj(
+        expected_xy, (_expected_w, expected_h) = resize_obj(
             text_label.init_pos, 0, text_label._init_h, 2, 3, True
         )
 
-        self.assertIs(RENDERERS_CACHE[expected_h], text_label._renderer)
+        expected_renderer: pg.Font = RENDERERS_CACHE[expected_h]
+        self.assertIs(text_label._renderer, expected_renderer)
 
         lines: list[str] = text_label.text.split("\n")
-        expected_renderer: pg.Font = pg.font.SysFont("helvetica", 60)
         for img, line in zip(text_label._imgs, lines, strict=True):
             expected_img: pg.Surface = expected_renderer.render(line, True, WHITE, WHITE).convert()
             self.assertTrue(cmp_imgs(img.convert(), expected_img, False))
@@ -142,7 +142,7 @@ class TestTextLabel(TestCase):
         """Tests the move_rect method."""
 
         expected_xy: XY
-        _: WH
+        _expected_wh: WH
         rect: pg.Rect
 
         text_label: TextLabel = self._make_text_label()
@@ -151,10 +151,10 @@ class TestTextLabel(TestCase):
         expected_line_init_pos: RectPos = RectPos(3, 4, "center")
         self.assertEqual(text_label.init_pos, expected_line_init_pos)
 
-        expected_xy, _ = resize_obj(expected_line_init_pos, 0, 0, 2, 3)
+        expected_xy, _expected_wh = resize_obj(expected_line_init_pos, 0, 0, 2, 3)
         self.assertTupleEqual(text_label.rect.center, expected_xy)
         for rect in text_label._rects:
-            expected_xy, _ = resize_obj(expected_line_init_pos, 0, 0, 2, 3)
+            expected_xy, _expected_wh = resize_obj(expected_line_init_pos, 0, 0, 2, 3)
             self.assertTupleEqual(rect.center, expected_xy)
             expected_line_init_pos.y += rect.h
 

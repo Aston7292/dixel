@@ -1,10 +1,11 @@
-"""Interface to modify the grid, preview is refreshed automatically."""
+"""Interface to edit the grid, preview is refreshed automatically."""
 
 from typing import TypeAlias, Final
 
 import pygame as pg
 import numpy as np
 from numpy.typing import NDArray
+from cv2 import resize as resize_arr, INTER_AREA
 
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI, CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON
@@ -13,12 +14,14 @@ from src.classes.text_label import TextLabel
 
 from src.utils import RectPos, Size, ObjInfo, Mouse, Keyboard, resize_obj
 from src.type_utils import XY, WH, LayeredBlitInfo
-from src.consts import MOUSE_LEFT, EMPTY_TILE_ARR, NUM_TILE_ROWS, NUM_TILE_COLS, UI_LAYER
+from src.consts import (
+    MOUSE_LEFT, EMPTY_TILE_ARR, NUM_TILE_ROWS, NUM_TILE_COLS,
+    GRID_TRANSITION_START, GRID_TRANSITION_END, UI_LAYER
+)
 
 SelectionType: TypeAlias = NumInputBox
 
-MOVEMENT_THRESHOLD: Final[int] = 10
-SPEED_SCALING_FACTOR: Final[int] = MOVEMENT_THRESHOLD * 15
+MOVEMENT_THRESHOLD: Final[int] = 20
 
 
 class NumSlider:
@@ -37,10 +40,10 @@ class NumSlider:
             position, extra text, base layer (default = UI_LAYER)
         """
 
-        self.value: int
-        self.input_box: NumInputBox = NumInputBox(pos, 1, 512, base_layer)
+        self.value: int = 1
+        self.input_box: NumInputBox = NumInputBox(pos, 1, 999, base_layer)
 
-        self._prev_mouse_x: int
+        self._prev_mouse_x: int = pg.mouse.get_pos()[0]
         self._traveled_x: int = 0
         self._speeds: list[int] = []
         self._is_sliding: bool = False
@@ -56,15 +59,11 @@ class NumSlider:
     def enter(self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
+        self.input_box.cursor_type = pg.SYSTEM_CURSOR_IBEAM
         self._prev_mouse_x = pg.mouse.get_pos()[0]
-
-    def leave(self) -> None:
-        """Clears all the relevant data when the object state is leaved."""
-
         self._traveled_x = 0
         self._speeds = []
         self._is_sliding = False
-        self.input_box.cursor_type = pg.SYSTEM_CURSOR_IBEAM
 
     def set_value(self, value: int) -> None:
         """
@@ -93,8 +92,8 @@ class NumSlider:
 
         if abs(self._traveled_x) >= MOVEMENT_THRESHOLD:
             units_traveled: float = self._traveled_x / MOVEMENT_THRESHOLD
-            avg_speed: float = sum(self._speeds) / len(self._speeds)
-            scaled_avg_speed: float = max(avg_speed / SPEED_SCALING_FACTOR, 1)
+            avg_speed: float = abs(sum(self._speeds) / len(self._speeds))
+            scaled_avg_speed: float = max(avg_speed / 75, 1)
             scaled_units: int = int(units_traveled * scaled_avg_speed)
 
             min_limit, max_limit = self.input_box.min_limit, self.input_box.max_limit
@@ -115,13 +114,13 @@ class NumSlider:
         """
 
         if not mouse.pressed[MOUSE_LEFT]:
+            self.input_box.cursor_type = pg.SYSTEM_CURSOR_IBEAM
             self._traveled_x = 0
             self._speeds = []
             self._is_sliding = False
-            self.input_box.cursor_type = pg.SYSTEM_CURSOR_IBEAM
         elif self.input_box == mouse.hovered_obj:
-            self._is_sliding = True
             self.input_box.cursor_type = pg.SYSTEM_CURSOR_SIZEWE
+            self._is_sliding = True
 
         prev_input_box_text: str = self.input_box.text_label.text
 
@@ -138,7 +137,7 @@ class NumSlider:
 
 
 class GridUI(UI):
-    """Class to create an interface that allows modifying the grid, has a preview."""
+    """Class to create an interface that allows editing the grid, has a preview."""
 
     __slots__ = (
         "_preview_init_pos", "_preview_dim_cap", "w_ratio", "h_ratio", "_preview_tiles",
@@ -153,45 +152,44 @@ class GridUI(UI):
             position
         """
 
-        # Tiles dimension is a float to represent the full area more accurately when resizing
-
-        self._win_w_ratio: float
-        self._win_h_ratio: float
         self.w_ratio: float
         self.h_ratio: float
+        self._win_w_ratio: float
+        self._win_h_ratio: float
 
-        super().__init__(pos, "MODIFY GRID")
+        super().__init__(pos, "EDIT GRID")
 
         self._preview_init_pos: RectPos = RectPos(
-            self._rect.centerx, self._rect.centery + 40, "center"
+            self._rect.centerx, self._rect.centery + 20, "center"
         )
-        self._preview_dim_cap: int = 300
+        self._preview_dim_cap: int = 325
 
         preview_rect: pg.Rect = pg.Rect(0, 0, self._preview_dim_cap, self._preview_dim_cap)
         preview_init_xy: XY = (self._preview_init_pos.x, self._preview_init_pos.y)
         setattr(preview_rect, self._preview_init_pos.coord_type, preview_init_xy)
 
-        self.w_ratio, self.h_ratio = 1, 1
-        self._preview_tiles: NDArray[np.uint8]
+        self.w_ratio = self.h_ratio = 1
+        self._preview_tiles: NDArray[np.uint8] = np.zeros((1, 1, 4), np.uint8)
 
         self._h_slider: NumSlider = NumSlider(
-            RectPos(preview_rect.x + 20, preview_rect.y - 25, "bottomleft"),
-            "height"
+            RectPos(preview_rect.x, preview_rect.y - 25, "bottomleft"),
+            "Height"
         )
         self._w_slider: NumSlider = NumSlider(
-            RectPos(preview_rect.x + 20, self._h_slider.input_box.rect.y - 25, "bottomleft"),
-            "width"
+            RectPos(preview_rect.x, self._h_slider.input_box.rect.y - 25, "bottomleft"),
+            "Width"
         )
-
-        self._selection_i: int
+        self._selection_i: int = 0
 
         self.checkbox: Checkbox = Checkbox(
-            RectPos(preview_rect.right - 20, self._h_slider.input_box.rect.centery, "midright"),
-            [CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON], "keep ratio", "(CTRL+K)", UI_LAYER
+            RectPos(preview_rect.right - 20, preview_rect.bottom + 30, "topright"),
+            [CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON], "Keep Ratio", "(CTRL+K)", UI_LAYER
         )
 
-        self.blit_sequence.append((pg.Surface((0, 0)), preview_rect, UI_LAYER))
-        self._win_w_ratio, self._win_h_ratio = 1, 1
+        self.blit_sequence.append(
+            (pg.Surface((self._preview_dim_cap, self._preview_dim_cap)), preview_rect, UI_LAYER)
+        )
+        self._win_w_ratio = self._win_h_ratio = 1
         self.objs_info.extend(
             [ObjInfo(self._w_slider), ObjInfo(self._h_slider), ObjInfo(self.checkbox)]
         )
@@ -222,7 +220,6 @@ class GridUI(UI):
             area, tiles
         """
 
-        self.w_ratio, self.h_ratio = area.h / area.w, area.w / area.h
         self._preview_tiles = tiles
         self._w_slider.set_value(area.w)
         self._h_slider.set_value(area.h)
@@ -264,6 +261,9 @@ class GridUI(UI):
         wh: WH
         init_w: float
         init_h: float
+        w: int
+        h: int
+        img: pg.Surface
 
         dim_cap: int = self._preview_dim_cap
         init_tile_dim: float = min(dim_cap / self._w_slider.value, dim_cap / self._h_slider.value)
@@ -272,11 +272,23 @@ class GridUI(UI):
         xy, wh = resize_obj(
             self._preview_init_pos, init_w, init_h, self._win_w_ratio, self._win_h_ratio, True
         )
-        preview_img: pg.Surface = pg.transform.scale(small_preview_img, wh)
-        preview_rect: pg.Rect = pg.Rect(0, 0, *preview_img.get_size())
-        setattr(preview_rect, self._preview_init_pos.coord_type, xy)
 
-        self.blit_sequence[1] = (preview_img, preview_rect, UI_LAYER)
+        max_visible_dim: int = max(self._w_slider.value, self._h_slider.value)
+        if max_visible_dim < GRID_TRANSITION_START:
+            img = pg.transform.scale(small_preview_img, wh)
+        elif max_visible_dim > GRID_TRANSITION_END:
+            img = pg.transform.smoothscale(small_preview_img, wh)
+        else:
+            # Gradual transition
+            w, h = wh
+            img_arr: NDArray[np.uint8] = pg.surfarray.pixels3d(small_preview_img)
+            img_arr = resize_arr(img_arr, (h, w), interpolation=INTER_AREA).astype(np.uint8)
+            img = pg.surfarray.make_surface(img_arr)
+
+        rect: pg.Rect = pg.Rect(0, 0, *wh)
+        setattr(rect, self._preview_init_pos.coord_type, xy)
+
+        self.blit_sequence[1] = (img, rect, UI_LAYER)
 
     def _refresh_preview(self) -> None:
         """Refreshes the preview."""

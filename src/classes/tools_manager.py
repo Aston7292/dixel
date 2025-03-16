@@ -25,7 +25,8 @@ from src.classes.ui import CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
 
-from src.utils import RectPos, ObjInfo, Mouse, Keyboard, get_img
+from src.utils import RectPos, ObjInfo, Mouse, Keyboard
+from src.file_utils import try_get_img
 from src.type_utils import CheckboxInfo, ToolInfo, LayeredBlitInfo
 from src.consts import SPECIAL_LAYER
 
@@ -33,34 +34,34 @@ ToolsInfo: TypeAlias = dict[str, dict[str, Any]]
 ToolExtraInfo: TypeAlias = list[dict[str, Any]]
 ToolsExtraInfo: TypeAlias = list[tuple[dict[str, Any], ...]]
 
-PENCIL_IMG: Final[Surface] = get_img("sprites", "pencil_tool.png")
+PENCIL_IMG: Final[Surface] = try_get_img("sprites", "pencil_tool.png")
 BUCKET_IMG: Final[Surface] = PENCIL_IMG.copy()
 CHECKBOX_IMGS: list[Surface] = [CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON]
 
 TOOLS_INFO: Final[ToolsInfo] = {
     "brush": {
-        "base_info": (PENCIL_IMG, "edit pixels"),
+        "base_info": (PENCIL_IMG, "Edit Pixels"),
         "extra_info": (
             {
                 "type": Checkbox,
-                "init_args": [CHECKBOX_IMGS, "x mirror", None],
+                "init_args": [CHECKBOX_IMGS, "X Mirror", "Mirror\nhorizontally"],
                 "upt_args": ["mouse"],
                 "out_format": {"mirror_x": "is_checked"}
             },
             {
                 "type": Checkbox,
-                "init_args": [CHECKBOX_IMGS, "y mirror", None],
+                "init_args": [CHECKBOX_IMGS, "Y Mirror", "Mirror\nvertically"],
                 "upt_args": ["mouse"],
                 "out_format": {"mirror_y": "is_checked"}
             }
         )
     },
     "fill": {
-        "base_info": (BUCKET_IMG, "fill"),
+        "base_info": (BUCKET_IMG, "Fill Section"),
         "extra_info": (
             {
                 "type": Checkbox,
-                "init_args": [CHECKBOX_IMGS, "fill all pixels\nthat have the\nsame color", None],
+                "init_args": [CHECKBOX_IMGS, "Color Fill", "Fill the pixels with\nthe same color"],
                 "upt_args": ["mouse"],
                 "out_format": {"same_color": "is_checked"}
             },
@@ -92,7 +93,7 @@ class ToolsManager:
 
         tools_grid_info: list[CheckboxInfo] = [info["base_info"] for info in TOOLS_INFO.values()]
         self.tools_grid: CheckboxGrid = CheckboxGrid(pos, tools_grid_info, 5, False, True)
-        self._tool_name: str = tuple(TOOLS_INFO.keys())[self.tools_grid.clicked_i]
+        self._tool_name: str = tuple(TOOLS_INFO.keys())[0]
 
         tools_raw_extra_info: ToolsExtraInfo = [info["extra_info"] for info in TOOLS_INFO.values()]
         # Added keys: obj | removed keys: type, init_args
@@ -102,8 +103,8 @@ class ToolsManager:
 
         self.blit_sequence: list[LayeredBlitInfo] = []
         self.objs_info: list[ObjInfo] = [ObjInfo(self.tools_grid)]
-        objs_info: list[ObjInfo] = self.objs_info
 
+        objs_info: list[ObjInfo] = self.objs_info
         self._tools_objs_info_ranges: list[tuple[int, int]] = []
         for tool_extra_info in self._tools_extra_info:
             range_start: int = len(objs_info)
@@ -135,7 +136,7 @@ class ToolsManager:
 
         extra_info: ToolExtraInfo = []
 
-        obj_x, obj_y = self.tools_grid.rect.x + 20, self.tools_grid.rect.y - 20
+        obj_x, obj_y = self.tools_grid.rect.x + 10, self.tools_grid.rect.y - 20
         for raw_sub_tool_extra_info in raw_extra_info:
             obj_class: Any = raw_sub_tool_extra_info["type"]
             pos: RectPos = RectPos(obj_x, obj_y, "bottomleft")

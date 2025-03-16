@@ -9,9 +9,10 @@ from collections.abc import Callable
 from typing import Final, Any
 
 import pygame as pg
-from numpy import dstack, uint8
+from numpy import dstack as dstack_arr, tile as tile_arr, uint8
 from numpy.typing import NDArray
 from src.type_utils import XY, WH
+from src.consts import BLACK, EMPTY_TILE_ARR, NUM_TILE_COLS, NUM_TILE_ROWS
 
 
 FUNCS_NAMES: Final[list[str]] = []
@@ -116,7 +117,7 @@ class ObjInfo:
         method_name: str = "enter" if should_activate else "leave"
 
         objs_info: list[ObjInfo] = [self]
-        while objs_info:
+        while objs_info != []:
             info: ObjInfo = objs_info.pop()
             info.is_active = should_activate
 
@@ -170,9 +171,9 @@ def get_img(*path_sections: str) -> pg.Surface:
         image
     """
 
-    img_file_obj: Path = Path(*path_sections)
+    file_obj: Path = Path(*path_sections)
 
-    return pg.image.load(img_file_obj).convert_alpha()
+    return pg.image.load(file_obj).convert_alpha()
 
 
 def get_pixels(img: pg.Surface) -> NDArray[uint8]:
@@ -185,7 +186,7 @@ def get_pixels(img: pg.Surface) -> NDArray[uint8]:
         pixels
     """
 
-    return dstack(
+    return dstack_arr(
         (pg.surfarray.pixels3d(img), pg.surfarray.pixels_alpha(img))
     )
 
@@ -205,6 +206,26 @@ def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
     pg.draw.rect(new_img, border_color, new_img.get_rect(), width)
 
     return new_img
+
+
+def get_brush_dim_img(dim: int) -> pg.Surface:
+    """
+    Gets an image to represent a brush dimension.
+
+    Args:
+        dimension
+    Returns:
+        image
+    """
+
+    img_arr: NDArray[uint8] = tile_arr(EMPTY_TILE_ARR, (8, 8, 1))
+    rect: pg.Rect = pg.Rect(0, 0, dim * NUM_TILE_COLS, dim * NUM_TILE_ROWS)
+    rect.center = (round(img_arr.shape[0] / 2), round(img_arr.shape[1] / 2))
+
+    img: pg.Surface = pg.surfarray.make_surface(img_arr)
+    pg.draw.rect(img, BLACK, rect)
+
+    return pg.transform.scale_by(img, 4)
 
 
 def resize_obj(
@@ -243,7 +264,7 @@ def rec_resize(main_objs: list[Any], win_w_ratio: float, win_h_ratio: float) -> 
         objects, window width ratio, window height ratio
     """
 
-    while main_objs:
+    while main_objs != []:
         obj: Any = main_objs.pop()
         if hasattr(obj, "resize"):
             obj.resize(win_w_ratio, win_h_ratio)
@@ -268,7 +289,7 @@ def rec_move_rect(
     objs_hierarchy: list[Any] = [main_obj]
 
     is_sub_obj: bool = False
-    while objs_hierarchy:
+    while objs_hierarchy != []:
         obj: Any = objs_hierarchy.pop()
         if hasattr(obj, "move_rect"):
             if is_sub_obj:

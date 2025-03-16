@@ -14,8 +14,9 @@ from src.classes.checkbox_grid import LockedCheckbox, CheckboxGrid
 from src.classes.clickable import Button, SpammableButton
 
 from src.utils import (
-    RectPos, ObjInfo, Mouse, Keyboard, get_img, add_border, resize_obj, rec_move_rect
+    RectPos, ObjInfo, Mouse, Keyboard, add_border, resize_obj, rec_move_rect
 )
+from src.file_utils import try_get_img
 from src.type_utils import XY, WH, RGBColor, HexColor, CheckboxInfo, LayeredBlitInfo
 from src.consts import (
     MOUSE_LEFT, MOUSE_RIGHT, WHITE, DARKER_GRAY, HEX_BLACK, NUM_VISIBLE_CHECKBOX_GRID_ROWS,
@@ -25,9 +26,14 @@ from src.consts import (
 
 BUTTON_S_OFF_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF_IMG, (64, 32))
 BUTTON_S_ON_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_ON_IMG, (64, 32))
+
 # Have larger hitboxes
-ARROW_UP_IMG_OFF: Final[pg.Surface] = get_img("sprites", "arrow_up_button_off.png")
-ARROW_UP_IMG_ON: Final[pg.Surface] = get_img("sprites", "arrow_up_button_on.png")
+ARROW_UP_IMG_OFF: Final[pg.Surface] = try_get_img(
+    "sprites", "arrow_up_button_off.png", missing_img_wh=(35, 18)
+)
+ARROW_UP_IMG_ON: Final[pg.Surface] = try_get_img(
+    "sprites", "arrow_up_button_on.png", missing_img_wh=(35, 18)
+)
 ARROW_DOWN_IMG_OFF: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_IMG_OFF, 180)
 ARROW_DOWN_IMG_ON: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_IMG_ON, 180)
 
@@ -95,16 +101,13 @@ class VerScrollbar:
         self.layer: int = base_layer + ELEMENT_LAYER
         self.cursor_type: int = pg.SYSTEM_CURSOR_HAND
 
-        arrow_up_imgs: list[pg.Surface] = [ARROW_UP_IMG_OFF, ARROW_UP_IMG_ON]
-        arrow_down_imgs: list[pg.Surface] = [ARROW_DOWN_IMG_OFF, ARROW_DOWN_IMG_ON]
-
         self._arrow_up: SpammableButton = SpammableButton(
             RectPos(self._bar_rect.centerx, self._bar_rect.y - 5, "midbottom"),
-            arrow_up_imgs
+            [ARROW_UP_IMG_OFF, ARROW_UP_IMG_ON], "Up"
         )
         self._arrow_down: SpammableButton = SpammableButton(
             RectPos(self._bar_rect.centerx, self._bar_rect.bottom + 5, "midtop"),
-            arrow_down_imgs
+            [ARROW_DOWN_IMG_OFF, ARROW_DOWN_IMG_ON], "Down"
         )
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self._arrow_up), ObjInfo(self._arrow_down)]
@@ -140,10 +143,6 @@ class VerScrollbar:
         """Initializes all the relevant data when the object state is entered."""
 
         self._prev_mouse_y = pg.mouse.get_pos()[1]
-
-    def leave(self) -> None:
-        """Clears all the relevant data when the object state is leaved."""
-
         self._traveled_y = 0
         self._is_scrolling = False
 
@@ -358,6 +357,8 @@ class PaletteManager:
             position
         """
 
+        self._dropdown_offset_x: int
+        self._dropdown_offset_y: int
         self._win_w_ratio: float
         self._win_h_ratio: float
         obj_info: ObjInfo
@@ -365,7 +366,7 @@ class PaletteManager:
         self.colors: list[HexColor] = [HEX_BLACK]
         self._color_img: pg.Surface = pg.Surface((32, 32))
 
-        colors_grid_info: list[CheckboxInfo] = [self._get_color_info(self.colors[0])]
+        colors_grid_info: list[CheckboxInfo] = [self._get_color_info(HEX_BLACK)]
         self.colors_grid: CheckboxGrid = CheckboxGrid(pos, colors_grid_info, 5, True, True)
 
         options_texts: tuple[tuple[str, str], ...] = (
@@ -379,15 +380,14 @@ class PaletteManager:
             for text, hovering_text in options_texts
         ]
         self.dropdown_i: int = 0
-        self._dropdown_offset_x: int
-        self._dropdown_offset_y: int
+        self._dropdown_offset_x = self._dropdown_offset_y = 0
         self.is_dropdown_on: bool = False
 
-        self._edit_i: int
+        self._edit_i: int = 0
         self.is_editing_color: bool = False
 
         self.blit_sequence: list[LayeredBlitInfo] = []
-        self._win_w_ratio, self._win_h_ratio = 1, 1
+        self._win_w_ratio = self._win_h_ratio = 1
         self.objs_info: list[ObjInfo] = [ObjInfo(self.colors_grid)]
 
         self._dropdown_info_start_i: int = len(self.objs_info)
@@ -540,7 +540,7 @@ class PaletteManager:
         else:
             self.dropdown_i = checkbox_i
             self._dropdown_offset_x = mouse.x - checkbox.rect.x
-            self._dropdown_offset_y = mouse.y - checkbox.rect.y
+            self._dropdown_offset_y = mouse.y - checkbox.rect.y + 1
             self._handle_dropdown_movement()
 
     def _check_dropdown_toggle(self, mouse: Mouse) -> None:
@@ -585,7 +585,7 @@ class PaletteManager:
         if is_remove_clicked:
             self.colors.pop(self.dropdown_i)
             self.colors = self.colors or [HEX_BLACK]
-            fallback_info: CheckboxInfo = self._get_color_info(self.colors[0])
+            fallback_info: CheckboxInfo = self._get_color_info(HEX_BLACK)
             self.colors_grid.remove(self.dropdown_i, *fallback_info)
             self.dropdown_i = min(self.dropdown_i, len(self.colors_grid.checkboxes) - 1)
 
@@ -605,7 +605,7 @@ class PaletteManager:
         if pg.K_DELETE in timed_keys:
             self.colors.pop(self.colors_grid.clicked_i)
             self.colors = self.colors or [HEX_BLACK]
-            fallback_info: CheckboxInfo = self._get_color_info(self.colors[0])
+            fallback_info: CheckboxInfo = self._get_color_info(HEX_BLACK)
             self.colors_grid.remove(self.colors_grid.clicked_i, *fallback_info)
             if self.dropdown_i > self.colors_grid.clicked_i:
                 self.dropdown_i -= 1

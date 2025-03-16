@@ -13,11 +13,14 @@ or,
 
 ### Requirements
 
-pygame-ce, numpy, open-cv and portalocker (multi-platform way to handle file locking).
+pygame-ce, numpy, opencv-python and portalocker (multi-platform way to handle file locking).
 They can be installed in the terminal with
 ```pip install <package>```
 If that doesn't work, returning a 'externally-managed-environment' error,
 ```pip install <package> --break-system-packages```
+
+### Linux users
+For linux users the requirements are the same, but python3-tk might be required to run the application
 
 ## Features
 

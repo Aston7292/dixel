@@ -12,15 +12,15 @@ Mouse info:
 
 Keyboard input:
     Every key that's currently pressed is in a list, accidental spamming is prevented
-    by having another list that's empty and it gets filled with the pressed keys for
-    one frame every 150ms, the normal key list is used to check shortcuts instantly,
-    the Keyboard dataclass contains these lists and the flags for control, shift, alt and numpad.
+    by having another empty list and filling it with the pressed keys for one frame every 150ms,
+    the normal key list is used to check shortcuts instantly.
+    The Keyboard dataclass contains these lists and the flags for control, shift, alt and numpad.
 
 Objects info:
     Objects may have a objs_info attribute, a list of sub objects, stored in the dataclass ObjInfo,
     Objects can also be inactive, the active flag can be changed through ObjInfo.set_active.
     Every object is in the states_objs attribute of the Dixel class,
-    the attributes/methods below are automatically used.
+    the attributes/methods below are automatically called.
 
 Blitting:
     The blit_sequence attribute is a list with tuples of image, rect and layer,
@@ -55,17 +55,17 @@ Entering a state:
     it initializes all the relevant data.
 
 Leaving a state:
-    The leave method gets called when leaving the object's state, file explorer is opened or
-    the object goes inactive, it clears all the relevant data, like the selected tiles of the grid
-    or the hovering flag of clickables, used for showing hovering text.
+    The leave method gets called when leaving the object's state or the object goes inactive,
+    it clears all the relevant data, like the selected tiles of the grid
+    or the hovering flag of clickables that shows hovering text.
 
 Window resizing:
     The resize method scales positions and images manually because
     blitting everything on an image, scaling it to match the window size and blitting it
-    removes text anti aliasing , causes 1 pixel offsets on some elements at specific sizes, is slow
+    removes text anti-aliasing, causes 1 pixel offsets on some elements at specific sizes, is slow
     and doesn't allow for custom behavior on some objects
-    pygame.SCALED doesn't scale position and images.
-    Only the objects of the main ans current state are resized,
+    pygame.SCALED doesn't scale position and images well.
+    Only the objects of the main and current state are resized,
     when changing state the state's objects are immediately resized.
 
 Interacting with elements:
@@ -115,13 +115,17 @@ Interacting with elements:
 
 optimizations:
     - profile
+    - GRID_MANAGER.grid.upt_section for large selected_tiles
     - better memory use in PaletteManager
 """
 
 from tkinter import filedialog
+from threading import Thread
+from queue import Queue, Empty as QueueEmpty
 from pathlib import Path
 from json import load as json_load, dumps as json_dumps, JSONDecodeError
 from sys import argv
+from contextlib import suppress
 from typing import TypeAlias, Final, Optional, Any
 
 import pygame as pg
@@ -138,13 +142,13 @@ from src.utils import (
     RectPos, Size, ObjInfo, Mouse, Keyboard, get_pixels, get_brush_dim_img, print_funcs_profiles
 )
 from src.file_utils import (
-    ensure_valid_img_format, try_lock_file, try_get_img, get_img_state, try_create_file_argv,
-    try_create_dir_argv, handle_cmd_args
+    ensure_valid_img_format, try_lock_file, try_get_img, try_create_file_argv, try_create_dir_argv,
+    handle_cmd_args
 )
 from src.type_utils import XY, RGBColor, HexColor, CheckboxInfo, ToolInfo, LayeredBlitInfo
 from src.consts import (
-    CHR_LIMIT, BLACK, HEX_BLACK, BG_LAYER, STATE_I_MAIN, STATE_I_COLOR, STATE_I_GRID,
-    IMG_STATE_OK, IMG_STATE_MISSING, IMG_STATE_DENIED, IMG_STATE_LOCKED, IMG_STATE_CORRUPTED
+    CHR_LIMIT, BLACK, HEX_BLACK, NUM_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY, BG_LAYER,
+    STATE_I_MAIN, STATE_I_COLOR, STATE_I_GRID
 )
 
 pg.init()
@@ -171,11 +175,17 @@ NumPadMap: TypeAlias = dict[int, tuple[int, int]]
 StatesObjInfo: TypeAlias = tuple[list[ObjInfo], ...]
 
 NUMPAD_MAP: Final[NumPadMap] = {
-    pg.K_KP_0: (pg.K_INSERT, pg.K_0), pg.K_KP_1: (pg.K_END, pg.K_1),
-    pg.K_KP_2: (pg.K_DOWN, pg.K_2), pg.K_KP_3: (pg.K_PAGEDOWN, pg.K_3),
-    pg.K_KP_4: (pg.K_LEFT, pg.K_4), pg.K_KP_5: (0, pg.K_5), pg.K_KP_6: (pg.K_RIGHT, pg.K_6),
-    pg.K_KP_7: (pg.K_HOME, pg.K_7), pg.K_KP_8: (pg.K_UP, pg.K_8),
-    pg.K_KP_9: (pg.K_PAGEUP, pg.K_9), pg.K_KP_PERIOD: (pg.K_DELETE, pg.K_PERIOD)
+    pg.K_KP_0: (pg.K_INSERT, pg.K_0),
+    pg.K_KP_1: (pg.K_END, pg.K_1),
+    pg.K_KP_2: (pg.K_DOWN, pg.K_2),
+    pg.K_KP_3: (pg.K_PAGEDOWN, pg.K_3),
+    pg.K_KP_4: (pg.K_LEFT, pg.K_4),
+    pg.K_KP_5: (0, pg.K_5),
+    pg.K_KP_6: (pg.K_RIGHT, pg.K_6),
+    pg.K_KP_7: (pg.K_HOME, pg.K_7),
+    pg.K_KP_8: (pg.K_UP, pg.K_8),
+    pg.K_KP_9: (pg.K_PAGEUP, pg.K_9),
+    pg.K_KP_PERIOD: (pg.K_DELETE, pg.K_PERIOD)
 }
 
 ADD_COLOR: Final[Button] = Button(
@@ -209,7 +219,6 @@ GRID_MANAGER: Final[GridManager] = GridManager(
     RectPos(WIN_INIT_W - 10, 10, "topright")
 )
 
-# TODO: Update screenshots
 brush_dims_info: list[CheckboxInfo] = [
     (get_brush_dim_img(i), f"{i}px\n(CTRL+{i})") for i in range(1, 6)
 ]
@@ -245,7 +254,8 @@ MAIN_STATES_OBJS_INFO: Final[StatesObjInfo] = (
         ObjInfo(BRUSH_DIMS), ObjInfo(PALETTE_MANAGER), ObjInfo(TOOLS_MANAGER),
         ObjInfo(FPS_TEXT_LABEL)
     ],
-    [ObjInfo(COLOR_PICKER)], [ObjInfo(GRID_UI)]
+    [ObjInfo(COLOR_PICKER)],
+    [ObjInfo(GRID_UI)]
 )
 
 CLOCK: Final[pg.Clock] = pg.Clock()
@@ -253,31 +263,34 @@ CLOCK: Final[pg.Clock] = pg.Clock()
 FPSUPDATE: Final[int] = pg.USEREVENT + 1
 pg.time.set_timer(FPSUPDATE, 1_000)
 
-SUPPORTED_IMG_TYPES: Final[tuple[str, ...]] = (".png", ".bmp")
+FILE_DIALOG_SAVE_AS: Final[int] = 0
+FILE_DIALOG_OPEN: Final[int] = 1
 
 
-def _try_create_argv(file_str: str, flag: str) -> bool:
+def _try_create_argv(file_path: Path, flag: str) -> Optional[pg.Surface]:
     """
     Creates a file if the flag is --mk-file and a directory if the flag is --mk-dir.
 
     Args:
-        file string, flag
+        file path, flag
     Returns:
-        failed flag
+        grid image (can be None)
     """
 
     has_failed: bool
+    grid_img: Optional[pg.Surface]
 
-    file_obj: Path = Path(file_str)
-    if file_obj.parent.is_dir():
-        has_failed = try_create_file_argv(file_obj, flag)
+    if file_path.parent.is_dir():
+        has_failed = try_create_file_argv(file_path, flag)
     else:
-        has_failed = try_create_dir_argv(file_obj, flag)
+        has_failed = try_create_dir_argv(file_path, flag)
 
-    if not has_failed:
-        GRID_MANAGER.grid.try_save_to_file(file_str)
+    if has_failed:
+        grid_img = None
+    else:
+        grid_img = GRID_MANAGER.grid.try_save_to_file(str(file_path))
 
-    return has_failed
+    return grid_img
 
 
 class Dixel:
@@ -287,7 +300,7 @@ class Dixel:
         "_is_fullscreen", "_cursor_arrow", "_mouse", "_cursor_type", "_keyboard",
         "_timed_keys_interval", "_prev_timed_keys_update", "_alt_k", "_state_i",
         "_states_objs_info", "_state_active_objs", "_data_file_str", "_file_str", "_new_file_str",
-        "_new_file_img"
+        "_new_file_img", "_asked_files_queue", "_is_asking_file_save_as", "_is_asking_file_open"
     )
 
     def __init__(self) -> None:
@@ -295,7 +308,7 @@ class Dixel:
 
         self._is_fullscreen: bool = False
 
-        self._cursor_arrow = pg.SYSTEM_CURSOR_ARROW
+        self._cursor_arrow: int = pg.SYSTEM_CURSOR_ARROW
         self._mouse: Mouse = Mouse(-1, -1, [False] * 5, [False] * 5, 0, None)
         self._cursor_type: int = self._cursor_arrow
         self._keyboard: Keyboard = Keyboard([], [], False, False, False, False)
@@ -313,14 +326,16 @@ class Dixel:
         self._new_file_str: str = ""
         self._new_file_img: Optional[pg.Surface] = None
 
-        self._load_data_from_file()
-        if len(argv) > 1:
-            self._handle_path_from_argv()
+        self._asked_files_queue: Queue[tuple[str, int]] = Queue()
+        self._is_asking_file_save_as: bool = False
+        self._is_asking_file_open: bool = False
 
-        grid_img: Optional[pg.Surface]
-        if self._file_str == "":
-            grid_img = None
-        else:
+        self._load_data_from_file()
+
+        grid_img: Optional[pg.Surface] = None
+        if len(argv) > 1:
+            grid_img = self._handle_path_from_argv()
+        elif self._file_str != "":
             grid_img = try_get_img(self._file_str, is_grid_img=True)
 
         if grid_img is None:
@@ -328,7 +343,7 @@ class Dixel:
             GRID_MANAGER.grid.refresh_full()
         else:
             GRID_MANAGER.grid.set_tiles(grid_img)
-        # Calls grid.refresh_grid_img so it must be called after grid.set_tiles
+        # Calls GRID_MANAGER.grid.refresh_grid_img so it must be called after grid.set_tiles
         GRID_MANAGER.grid.set_selected_tile_dim(BRUSH_DIMS.clicked_i + 1)
 
         self._refresh_objs()
@@ -341,10 +356,11 @@ class Dixel:
             data
         """
 
+        num_failed_open_attempts: int
+
         data: Optional[dict[str, Any]] = None
         data_file: Path = Path(self._data_file_str)
-        failed_open_attempts: int = 0
-        while True:
+        for num_failed_open_attempts in range(1, NUM_FILE_ATTEMPTS + 1):
             try:
                 with data_file.open(encoding="utf-8", errors="replace") as f:
                     try_lock_file(f, LOCK_SH)
@@ -362,12 +378,11 @@ class Dixel:
                 print("Failed to load data. File is locked.")
                 break
             except OSError as e:
-                failed_open_attempts += 1
-                if failed_open_attempts == 5:
+                if num_failed_open_attempts == NUM_FILE_ATTEMPTS:
                     print(f"Failed to load data. {e}.")
                     break
 
-                pg.time.wait(50 * failed_open_attempts)
+                pg.time.wait(FILE_ATTEMPT_DELAY * num_failed_open_attempts)
 
         return data
 
@@ -389,7 +404,7 @@ class Dixel:
         TOOLS_MANAGER.tools_grid.check(data["tool_i"])
         TOOLS_MANAGER.refresh_tools(0)
 
-        # Grid.set_tiles is called later
+        # GRID_MANAGER.grid.set_tiles is called later
         GRID_MANAGER.grid.set_info(
             Size(data["grid_cols"], data["grid_rows"]),
             data["grid_vis_cols"], data["grid_vis_rows"],
@@ -401,38 +416,54 @@ class Dixel:
             GRID_UI.checkbox.is_checked = True
             GRID_UI.w_ratio, GRID_UI.h_ratio = data["grid_ratio"]
 
-    def _handle_path_from_argv(self) -> None:
+    def _handle_path_from_argv(self) -> pg.Surface:
         """
         Handles file opening with cmd args.
 
+        Returns:
+            grid image
         Raises:
             SystemExit
         """
 
-        file_str: str
         flag: str
         are_argv_invalid: bool
+        num_failed_open_attempts: int
 
-        file_str, flag, are_argv_invalid = handle_cmd_args(argv)
+        self._file_str, flag, are_argv_invalid = handle_cmd_args(argv)
         if are_argv_invalid:
             raise SystemExit
 
-        img_state: int = get_img_state(file_str, False)
-        if img_state != IMG_STATE_OK:
-            has_failed: bool = True
-            if img_state == IMG_STATE_MISSING:
-                has_failed = _try_create_argv(file_str, flag)
-            elif img_state == IMG_STATE_DENIED:
-                print("Permission denied.")
-            elif img_state == IMG_STATE_LOCKED:
-                print("File locked.")
-            elif img_state == IMG_STATE_CORRUPTED:
-                print("Failed to load file. Might be corrupted.")
+        grid_img: Optional[pg.Surface] = None
+        file_path: Path = Path(self._file_str)
+        for num_failed_open_attempts in range(1, NUM_FILE_ATTEMPTS + 1):
+            try:
+                with file_path.open("rb") as f:
+                    try_lock_file(f, LOCK_SH)
+                    grid_img = pg.image.load(f, file_path.name).convert_alpha()
+                break
+            except FileNotFoundError:
+                grid_img = _try_create_argv(file_path, flag)
+                break
+            except PermissionError:
+                print(f'Failed to load image "{file_path.name}". Permission denied.')
+                break
+            except LockException:
+                print(f'Failed to load image "{file_path.name}". File is locked.')
+                break
+            except pg.error as e:
+                print(f'Failed to load image "{file_path.name}". {e}.')
+                break
+            except OSError as e:
+                if num_failed_open_attempts == NUM_FILE_ATTEMPTS:
+                    print(f'Failed to load image "{file_path.name}". {e}.')
+                    break
 
-            if has_failed:
-                raise SystemExit
+                pg.time.wait(FILE_ATTEMPT_DELAY * num_failed_open_attempts)
 
-        self._file_str = file_str
+        if grid_img is None:
+            raise SystemExit
+        return grid_img
 
     def _draw(self) -> None:
         """Gets every blit_sequence attribute and draws it to the screen."""
@@ -492,9 +523,10 @@ class Dixel:
         obj: Any
 
         max_layer: int = BG_LAYER
-        xy: XY = (self._mouse.x, self._mouse.y)
+        mouse_xy: XY = (self._mouse.x, self._mouse.y)
         for obj in self._state_active_objs:
-            if hasattr(obj, "get_hovering") and obj.get_hovering(xy) and obj.layer >= max_layer:
+            can_get_hovering: bool = hasattr(obj, "get_hovering")
+            if can_get_hovering and obj.get_hovering(mouse_xy) and obj.layer >= max_layer:
                 self._mouse.hovered_obj = obj
                 max_layer = obj.layer
 
@@ -519,6 +551,7 @@ class Dixel:
 
         state_objs_info: list[ObjInfo] = self._states_objs_info[self._state_i]
         self._state_active_objs = [info.obj for info in state_objs_info if info.is_active]
+
         for obj in self._state_active_objs:
             if hasattr(obj, "enter"):
                 obj.enter()
@@ -531,8 +564,6 @@ class Dixel:
 
         win_w: int
         win_h: int
-        win_w_ratio: float
-        win_h_ratio: float
         obj: Any
 
         resizable_objs: list[Any] = [info.obj for info in self._states_objs_info[self._state_i]]
@@ -540,7 +571,8 @@ class Dixel:
             resizable_objs.extend([info.obj for info in self._states_objs_info[STATE_I_MAIN]])
 
         win_w, win_h = WIN_SURF.get_size()
-        win_w_ratio, win_h_ratio = win_w / WIN_INIT_W, win_h / WIN_INIT_H
+        win_w_ratio: float = win_w / WIN_INIT_W
+        win_h_ratio: float = win_h / WIN_INIT_H
         for obj in resizable_objs:
             if hasattr(obj, "resize"):
                 obj.resize(win_w_ratio, win_h_ratio)
@@ -648,6 +680,88 @@ class Dixel:
             elif event.type == FPSUPDATE:
                 FPS_TEXT_LABEL.set_text(f"FPS: {CLOCK.get_fps():.2f}")
 
+    def _ask_save_to_file(self) -> None:
+        """Asks a file to save with tkinter."""
+
+        file_str: Any = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("Png Files", "*.png"), ("Bitmap Files", "*.bmp")],
+            title="Save As"
+        )
+        # On some explorers closing won't return an empty string
+        file_str = file_str if isinstance(file_str, str) else ""
+
+        self._asked_files_queue.put((file_str, FILE_DIALOG_SAVE_AS))
+
+    def _ask_open_file(self) -> None:
+        """Asks a file to open with tkinter."""
+
+        file_str: Any = filedialog.askopenfilename(
+            defaultextension=".png",
+            filetypes=[("Png Files", "*.png"), ("Bitmap Files", "*.bmp")],
+            title="Open"
+        )
+        # On some explorers closing won't return an empty string
+        file_str = file_str if isinstance(file_str, str) else ""
+
+        self._asked_files_queue.put((file_str, FILE_DIALOG_OPEN))
+
+    def _finish_ask_save_to_file(self, file_str: str) -> None:
+        """
+        Saves the file after the user chooses it with tkinter.
+
+        Args:
+            file string
+        """
+
+        if file_str == "":
+            return
+
+        file_str = ensure_valid_img_format(file_str)
+        grid_img: Optional[pg.Surface] = GRID_MANAGER.grid.try_save_to_file(file_str)
+        if grid_img is not None:
+            self._file_str = file_str
+
+    def _finish_ask_open_file(self, file_str: str) -> None:
+        """
+        Opens a file and loads it into the grid UI after the user chooses it with tkinter.
+
+        Args:
+            file string
+        """
+
+        if file_str == "":
+            return
+
+        file_str = ensure_valid_img_format(file_str)
+        self._new_file_img = try_get_img(file_str, is_grid_img=True)
+        if self._new_file_img is not None:
+            if self._state_i == STATE_I_GRID:
+                self._change_state()  # Refreshes
+
+            self._new_file_str = file_str
+            self._state_i = STATE_I_GRID
+            img_pixels: NDArray[uint8] = get_pixels(self._new_file_img)
+            GRID_UI.set_info(GRID_MANAGER.grid.area, img_pixels)
+
+    def _handle_asked_files_queue(self) -> None:
+        """Processes every item in the asked files queue."""
+
+        file_str: str
+        dialog_type: int
+
+        with suppress(QueueEmpty):
+            while True:
+                # QueueEmpty is suppressed
+                file_str, dialog_type = self._asked_files_queue.get_nowait()
+
+                if dialog_type == FILE_DIALOG_SAVE_AS:
+                    self._finish_ask_save_to_file(file_str)
+                    self._is_asking_file_save_as = False
+                elif dialog_type == FILE_DIALOG_OPEN:
+                    self._finish_ask_open_file(file_str)
+                    self._is_asking_file_open = False
+
     def _refresh_timed_keys(self) -> None:
         """Refreshes the timed keys once every 150ms and adds the alt key if present."""
 
@@ -689,6 +803,7 @@ class Dixel:
 
         grid_ratio: Optional[tuple[float, float]]
         palette_dropdown_i: Optional[int]
+        num_failed_open_attempts: int
 
         grid_ratio = (GRID_UI.w_ratio, GRID_UI.h_ratio) if GRID_UI.checkbox.is_checked else None
         palette_dropdown_i = PALETTE_MANAGER.dropdown_i if PALETTE_MANAGER.is_dropdown_on else None
@@ -712,8 +827,7 @@ class Dixel:
 
         json_data: str = json_dumps(data, ensure_ascii=False, indent=4)
         json_bytes: bytes = json_data.encode("utf-8")
-        failed_open_attempts: int = 0
-        while True:
+        for num_failed_open_attempts in range(1, NUM_FILE_ATTEMPTS + 1):
             try:
                 # If you open in write mode it will empty the file even if it's locked
                 with Path(self._data_file_str).open("ab") as f:
@@ -728,12 +842,11 @@ class Dixel:
                 print("Failed to save data. File is locked.")
                 break
             except OSError as e:
-                failed_open_attempts += 1
-                if failed_open_attempts == 5:
+                if num_failed_open_attempts == NUM_FILE_ATTEMPTS:
                     print(f"Failed to save data. {e}.")
                     break
 
-                pg.time.wait(50 * failed_open_attempts)
+                pg.time.wait(FILE_ATTEMPT_DELAY * num_failed_open_attempts)
 
         GRID_MANAGER.grid.try_save_to_file(self._file_str)
 
@@ -768,50 +881,18 @@ class Dixel:
             self._save_to_file()
 
         is_save_as_clicked: bool = SAVE_AS.upt(self._mouse)
-        if is_save_as_clicked or is_ctrl_shift_s_pressed:
-            self._change_state()
-            self._draw()  # Renders changes since tkinter stops the execution
-
-            file_str: Any = filedialog.asksaveasfilename(
-                defaultextension=".png",
-                filetypes=[("Png Files", "*.png"), ("Bitmap Files", "*.bmp")],
-                title="Save As"
-            )
-            # On some explorers closing won't return an empty string
-            file_str = file_str if isinstance(file_str, str) else ""
-
-            if file_str != "":
-                file_str = ensure_valid_img_format(file_str)
-                has_succeeded: bool = GRID_MANAGER.grid.try_save_to_file(file_str)
-                if has_succeeded:
-                    self._file_str = file_str
+        if (is_save_as_clicked or is_ctrl_shift_s_pressed) and not self._is_asking_file_save_as:
+            self._is_asking_file_save_as = True
+            Thread(target=self._ask_save_to_file, daemon=True).start()
 
     def _upt_file_opening(self) -> None:
         """Updates the open file button."""
 
         is_open_clicked: bool = OPEN.upt(self._mouse)
         is_ctrl_o_pressed: bool = self._keyboard.is_ctrl_on and pg.K_o in self._keyboard.pressed
-        if is_open_clicked or is_ctrl_o_pressed:
-            self._change_state()
-            self._draw()  # Renders changes since tkinter stops the execution
-
-            file_str: str = filedialog.askopenfilename(
-                defaultextension=".png",
-                filetypes=[("Png Files", "*.png"), ("Bitmap Files", "*.bmp")],
-                title="Open"
-            )
-            # On some explorers closing won't return an empty string
-            file_str = file_str if isinstance(file_str, str) else ""
-
-            if file_str != "":
-                file_str = ensure_valid_img_format(file_str)
-                self._new_file_img = try_get_img(file_str, is_grid_img=True)
-
-                if self._new_file_img is not None:
-                    self._new_file_str = file_str
-                    self._state_i = STATE_I_GRID
-                    img_pixels: NDArray[uint8] = get_pixels(self._new_file_img)
-                    GRID_UI.set_info(GRID_MANAGER.grid.area, img_pixels)
+        if (is_open_clicked or is_ctrl_o_pressed) and not self._is_asking_file_open:
+            self._is_asking_file_open = True
+            Thread(target=self._ask_open_file, daemon=True).start()
 
     def _upt_file_closing(self) -> None:
         """Updates the close file button."""
@@ -826,9 +907,9 @@ class Dixel:
     def _main_interface(self) -> None:
         """Handles the main interface."""
 
-        i: int
+        key: int
         hex_color: HexColor
-        should_refresh_colors_objs: bool
+        did_colors_change: bool
         hex_color_to_edit: Optional[HexColor]
 
         mouse: Mouse = self._mouse
@@ -836,9 +917,9 @@ class Dixel:
 
         if keyboard.is_ctrl_on:  # Independent shortcuts
             max_brush_dim_ctrl_shortcut: int = min(len(BRUSH_DIMS.checkboxes), 9)
-            for i in range(pg.K_1, pg.K_1 + max_brush_dim_ctrl_shortcut):
-                if i in keyboard.pressed:
-                    BRUSH_DIMS.check(i - pg.K_1)
+            for key in range(pg.K_1, pg.K_1 + max_brush_dim_ctrl_shortcut):
+                if key in keyboard.pressed:
+                    BRUSH_DIMS.check(key - pg.K_1)
                     GRID_MANAGER.grid.set_selected_tile_dim(BRUSH_DIMS.clicked_i + 1)
 
         prev_brush_i: int = BRUSH_DIMS.clicked_i
@@ -846,10 +927,7 @@ class Dixel:
         if brush_i != prev_brush_i:
             GRID_MANAGER.grid.set_selected_tile_dim(brush_i + 1)
 
-        hex_color, should_refresh_colors_objs, hex_color_to_edit = PALETTE_MANAGER.upt(
-            mouse, keyboard
-        )
-
+        hex_color, did_colors_change, hex_color_to_edit = PALETTE_MANAGER.upt(mouse, keyboard)
         tool_info: ToolInfo = TOOLS_MANAGER.upt(mouse, keyboard)
         GRID_MANAGER.upt(mouse, keyboard, hex_color, tool_info)
 
@@ -862,7 +940,7 @@ class Dixel:
             self._state_i = STATE_I_COLOR
             COLOR_PICKER.set_color(hex_color_to_edit, True)
 
-        if should_refresh_colors_objs:  # Changes the hovered checkbox image immediately
+        if did_colors_change:  # Changes the hovered checkbox image immediately
             mouse.hovered_obj = None
             self._refresh_objs()
             self._refresh_hovered_obj()
@@ -939,11 +1017,11 @@ class Dixel:
 
         if self._file_str == "":
             duplicate_name_counter: int = 0
-            file_obj: Path = Path("new_file.png")
-            while file_obj.exists():
+            file_path: Path = Path("new_file.png")
+            while file_path.exists():
                 duplicate_name_counter += 1
-                file_obj = Path(f"new_file_{duplicate_name_counter}.png")
-            self._file_str = str(file_obj)
+                file_path = Path(f"new_file_{duplicate_name_counter}.png")
+            self._file_str = str(file_path)
 
         self._save_to_file()
 
@@ -956,6 +1034,7 @@ class Dixel:
                 CLOCK.tick(60)
 
                 self._handle_events()
+                self._handle_asked_files_queue()
                 state_objs_info: list[ObjInfo] = self._states_objs_info[self._state_i]
                 self._state_active_objs = [info.obj for info in state_objs_info if info.is_active]
 

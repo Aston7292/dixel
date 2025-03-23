@@ -28,5 +28,4 @@ def cmp_imgs(img: Surface, expected_img: Surface, should_cmp_alpha: bool = True)
 
     if pixels.shape != expected_pixels.shape:
         print(f"Size differs: {pixels.shape} {expected_pixels.shape}", end="")
-
     return array_equal(pixels, expected_pixels)

@@ -1,6 +1,5 @@
 """Functions and dataclasses shared between files."""
 
-from pathlib import Path
 from time import time as get_time
 from dataclasses import dataclass, field
 from functools import wraps
@@ -34,7 +33,7 @@ def profile(func: Callable[..., Any]) -> Callable[..., Any]:
 
         start: float = get_time()
         res: Any = func(*args, **kwargs)
-        FUNCS_TOT_TIMES[func_i] += (get_time() - start) * 10e3
+        FUNCS_TOT_TIMES[func_i] += (get_time() - start) * 1_000
         FUNCS_NUM_CALLS[func_i] += 1
 
         return res
@@ -104,7 +103,12 @@ class ObjInfo:
     """
 
     obj: Any
-    is_active: bool = field(default=True, init=False)
+    is_active: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Initializes is_active."""
+
+        self.is_active = True  # field(default=True) only works on python 3.10.16 or higher
 
     def set_active(self, should_activate: bool) -> None:
         """
@@ -161,21 +165,6 @@ class Keyboard:
     is_numpad_on: bool
 
 
-def get_img(*path_sections: str) -> pg.Surface:
-    """
-    Loads an image with transparency.
-
-    Args:
-        path sections (args)
-    Returns:
-        image
-    """
-
-    file_obj: Path = Path(*path_sections)
-
-    return pg.image.load(file_obj).convert_alpha()
-
-
 def get_pixels(img: pg.Surface) -> NDArray[uint8]:
     """
     Gets the rgba values of the pixels in an image.
@@ -186,10 +175,10 @@ def get_pixels(img: pg.Surface) -> NDArray[uint8]:
         pixels
     """
 
-    return dstack_arr(
-        (pg.surfarray.pixels3d(img), pg.surfarray.pixels_alpha(img))
-    )
+    pixels_rgb: NDArray[uint8] = pg.surfarray.pixels3d(img)
+    alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(img)
 
+    return dstack_arr(pixels_rgb, alpha_values)
 
 def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
     """

@@ -12,8 +12,7 @@ from src.utils import Point, RectPos, ObjInfo, Mouse, Keyboard, resize_obj
 from src.type_utils import XY, WH, RGBColor, HexColor, LayeredBlitInfo
 from src.consts import MOUSE_LEFT, BLACK, ELEMENT_LAYER, UI_LAYER
 
-SelectionType: TypeAlias = "ColorScrollbar | NumInputBox"
-RGBChannels: TypeAlias = tuple["ColorScrollbar", "ColorScrollbar", "ColorScrollbar"]
+Selection: TypeAlias = "ColorScrollbar | NumInputBox"
 
 MIN_RGB: Final[int] = 0
 MAX_RGB: Final[int] = 256
@@ -162,7 +161,7 @@ class ColorScrollbar:
             color, external change flag
         """
 
-        i: int
+        value: int
 
         if is_external_change:
             self.value = color[self._channel_i]
@@ -171,9 +170,9 @@ class ColorScrollbar:
 
         small_bar_img: pg.Surface = pg.Surface((MAX_RGB, 1))  # More accurate
         px_color: pg.Color = pg.Color(color)
-        for i in range(MAX_RGB):
-            px_color[self._channel_i] = i
-            small_bar_img.set_at((i, 0), px_color)
+        for value in range(MAX_RGB):
+            px_color[self._channel_i] = value
+            small_bar_img.set_at((value, 0), px_color)
         self._bar_img = pg.transform.scale(small_bar_img, self.bar_rect.size)
 
         unit_w: float = self.bar_rect.w / MAX_RGB
@@ -217,7 +216,7 @@ class ColorScrollbar:
         if self.value != prev_value:
             self.input_box.text_label.text = str(self.value)
 
-    def upt(self, mouse: Mouse, keyboard: Keyboard, selected_obj: SelectionType) -> Optional[int]:
+    def upt(self, mouse: Mouse, keyboard: Keyboard, selected_obj: Selection) -> Optional[int]:
         """
         Allows to pick a value for a channel in a color either with a scrollbar or an input box.
 
@@ -402,7 +401,7 @@ class ColorPicker(UI):
         i: int
         channel: ColorScrollbar
 
-        selected_obj: SelectionType = self._objs[self._selection_i.y][self._selection_i.x]
+        selected_obj: Selection = self._objs[self._selection_i.y][self._selection_i.x]
         for i, channel in enumerate((self._r_bar, self._g_bar, self._b_bar)):
             channel_selection_i: Optional[int] = channel.upt(mouse, keyboard, selected_obj)
             if channel_selection_i is not None:
@@ -425,9 +424,9 @@ class ColorPicker(UI):
         if keyboard.timed != []:
             self._move_with_keys(keyboard)
 
-        prev_rgb_color: RGBColor = [self._r_bar.value, self._g_bar.value, self._b_bar.value]
+        prev_rgb_color: RGBColor = (self._r_bar.value, self._g_bar.value, self._b_bar.value)
         self._upt_scrollbars(mouse, keyboard)
-        rgb_color: RGBColor = [self._r_bar.value, self._g_bar.value, self._b_bar.value]
+        rgb_color: RGBColor = (self._r_bar.value, self._g_bar.value, self._b_bar.value)
         if rgb_color != prev_rgb_color:
             hex_color: HexColor = "{:02x}{:02x}{:02x}".format(*rgb_color)
             self.set_color(hex_color, False)

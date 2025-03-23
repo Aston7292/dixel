@@ -55,7 +55,7 @@ class CheckboxGrid:
         self._hovered_checkbox: Optional[LockedCheckbox] = None
         self.clicked_i: int = 0
         self.offset_y: int = 0
-        self.rect: pg.Rect = pg.Rect()
+        self.rect: pg.Rect = pg.Rect(0, 0, 0, 0)
 
         self.blit_sequence: list[LayeredBlitInfo] = []
         self._win_w_ratio = self._win_h_ratio = 1

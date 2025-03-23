@@ -16,20 +16,17 @@ from src.consts import DARKER_GRAY, UI_LAYER
 INTERFACE_IMG: Final[pg.Surface] = pg.Surface((500, 700))
 INTERFACE_IMG.fill(DARKER_GRAY)
 
-CLOSE_IMG_DIM: Final[int] = 32
-
-CLOSE_IMG_OFF: Final[pg.Surface] = pg.Surface((CLOSE_IMG_DIM, CLOSE_IMG_DIM), pg.SRCALPHA)
-CLOSE_IMG_ON: Final[pg.Surface] = pg.Surface((CLOSE_IMG_DIM, CLOSE_IMG_DIM), pg.SRCALPHA)
-pg.draw.line(CLOSE_IMG_OFF, (255, 0, 0), (0, 0), (CLOSE_IMG_DIM, CLOSE_IMG_DIM), 3)
-pg.draw.line(CLOSE_IMG_OFF, (255, 0, 0), (CLOSE_IMG_DIM, 0), (0, CLOSE_IMG_DIM), 3)
-pg.draw.line(CLOSE_IMG_ON, (150, 0, 0), (0, 0), (CLOSE_IMG_DIM, CLOSE_IMG_DIM), 3)
-pg.draw.line(CLOSE_IMG_ON, (150, 0, 0), (CLOSE_IMG_DIM, 0), (0, CLOSE_IMG_DIM), 3)
-
 BUTTON_M_OFF_IMG: Final[pg.Surface] = try_get_img(
     "sprites", "button_m_off.png", missing_img_wh=(128, 64)
 )
 BUTTON_M_ON_IMG: Final[pg.Surface] = try_get_img(
     "sprites", "button_m_on.png", missing_img_wh=(128, 64)
+)
+CLOSE_BUTTON_OFF_IMG: Final[pg.Surface] = try_get_img(
+    "sprites", "close_button_off.png", missing_img_wh=(48, 48)
+)
+CLOSE_BUTTON_ON_IMG: Final[pg.Surface] = try_get_img(
+    "sprites", "close_button_on.png", missing_img_wh=(48, 48)
 )
 CHECKBOX_IMG_OFF: Final[pg.Surface] = try_get_img(
     "sprites", "checkbox_off.png", missing_img_wh=(48, 48)
@@ -76,7 +73,7 @@ class UI(ABC):
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10, self._rect.y + 10, "topright"),
-            [CLOSE_IMG_OFF, CLOSE_IMG_ON], None, "(Escape)", UI_LAYER
+            [CLOSE_BUTTON_OFF_IMG, CLOSE_BUTTON_ON_IMG], None, "(Escape)", UI_LAYER
         )
         self._confirm: Button = Button(
             RectPos(self._exit.rect.right, self._rect.bottom - 10, "bottomright"),

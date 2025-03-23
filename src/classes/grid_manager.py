@@ -18,7 +18,7 @@ from src.file_utils import try_lock_file
 from src.type_utils import XY, WH, RGBAColor, HexColor, ToolInfo, LayeredBlitInfo
 from src.consts import (
     MOUSE_LEFT, MOUSE_WHEEL, MOUSE_RIGHT, EMPTY_TILE_ARR, NUM_TILE_ROWS, NUM_TILE_COLS,
-    GRID_TRANSITION_START, GRID_TRANSITION_END, BG_LAYER
+    GRID_TRANSITION_START, GRID_TRANSITION_END, NUM_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY, BG_LAYER
 )
 
 
@@ -552,7 +552,7 @@ class Grid:
             amount, reach minimum limit flag, reach maximum limit flag
         """
 
-        # Amount: wheel down (-), wheel up (+)
+        # amount: wheel down (-), wheel up (+)
 
         if should_reach_min_limit:
             self.visible_area.w = self.visible_area.h = 1
@@ -605,53 +605,53 @@ class Grid:
             uncapped_offset_y: int = self.offset.y + prev_mouse_row - mouse_row
             self.offset.y = max(min(uncapped_offset_y, self.area.h - self.visible_area.h), 0)
 
-    def try_save_to_file(self, file_str: str) -> bool:
+    def try_save_to_file(self, file_str: str) -> Optional[pg.Surface]:
         """
         Saves the tiles to a file.
 
         Args:
             file string
         Returns:
-            succeeded flag
+            image (can be None)
         """
 
+        failed_open_attempts: int
+
         if file_str == "":
-            return True
+            return None
 
         img: pg.Surface = pg.Surface((self.area.w, self.area.h), pg.SRCALPHA)
         pg.surfarray.blit_array(img, self.tiles[..., :3])
         pg.surfarray.pixels_alpha(img)[...] = self.tiles[..., 3]
 
-        file_obj: Path = Path(file_str)
-        failed_open_attempts: int = 0
+        file_path: Path = Path(file_str)
         has_succeeded: bool = False
-        while True:
+        for failed_open_attempts in range(1, NUM_FILE_ATTEMPTS + 1):
             try:
                 # If you open in write mode it will empty the file even if it's locked
-                with file_obj.open("ab") as f:
+                with file_path.open("ab") as f:
                     try_lock_file(f, LOCK_EX)
                     f.truncate(0)
-                    pg.image.save(img, f, file_obj.name)
+                    pg.image.save(img, f, file_path.name)
                 has_succeeded = True
                 break
             except PermissionError:
-                print(f'Failed to save image "{file_obj.name}". Permission denied.')
+                print(f'Failed to save image "{file_path.name}". Permission denied.')
                 break
             except LockException:
-                print(f'Failed to save image "{file_obj.name}". File is locked.')
+                print(f'Failed to save image "{file_path.name}". File is locked.')
                 break
             except pg.error as e:
-                print(f'Failed to save image "{file_obj.name}". {e}.')
+                print(f'Failed to save image "{file_path.name}". {e}.')
                 break
             except OSError as e:
-                failed_open_attempts += 1
-                if failed_open_attempts == 5:
-                    print(f'Failed to save image "{file_obj.name}". {e}.')
+                if failed_open_attempts == NUM_FILE_ATTEMPTS:
+                    print(f'Failed to save image "{file_path.name}". {e}.')
                     break
 
-                pg.time.wait(50 * failed_open_attempts)
+                pg.time.wait(FILE_ATTEMPT_DELAY * failed_open_attempts)
 
-        return has_succeeded
+        return img if has_succeeded else None
 
 
 class GridManager:

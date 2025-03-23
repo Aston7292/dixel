@@ -1,1 +1,1 @@
-"""Marks the tests directory as package."""
+"""Marks the tests directory as a package."""

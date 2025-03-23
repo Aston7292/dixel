@@ -1,1 +1,1 @@
-"""Marks the src directory as package."""
+"""Marks the src directory as a package."""

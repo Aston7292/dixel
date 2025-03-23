@@ -19,7 +19,7 @@ from src.consts import (
     GRID_TRANSITION_START, GRID_TRANSITION_END, UI_LAYER
 )
 
-SelectionType: TypeAlias = NumInputBox
+Selection: TypeAlias = NumInputBox
 
 MOVEMENT_THRESHOLD: Final[int] = 20
 
@@ -103,7 +103,7 @@ class NumSlider:
             self._speeds = []
             self._traveled_x -= int(units_traveled) * MOVEMENT_THRESHOLD
 
-    def upt(self, mouse: Mouse, keyboard: Keyboard, selected_obj: SelectionType) -> bool:
+    def upt(self, mouse: Mouse, keyboard: Keyboard, selected_obj: Selection) -> bool:
         """
         Allows to select a color either by sliding or typing.
 
@@ -340,7 +340,7 @@ class GridUI(UI):
             mouse, keyboard
         """
 
-        selected_obj: SelectionType = (self._w_slider, self._h_slider)[self._selection_i].input_box
+        selected_obj: Selection = (self._w_slider, self._h_slider)[self._selection_i].input_box
 
         is_w_slider_clicked: bool = self._w_slider.upt(mouse, keyboard, selected_obj)
         if is_w_slider_clicked:

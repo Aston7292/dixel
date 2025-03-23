@@ -22,16 +22,16 @@ class TestFileUtils(TestCase):
     def test_try_create_file_argv(self, mock_print: Mock, mock_path_touch: Mock) -> None:
         """Tests the try_create_file_argv function, mocks print and the Path.touch."""
 
-        file_obj: Path = Path("a.png")
+        file_path: Path = Path("a.png")
 
-        self.assertTrue(try_create_file_argv(file_obj, ""))
+        self.assertTrue(try_create_file_argv(file_path, ""))
         mock_print.assert_called_once()
 
-        self.assertFalse(try_create_file_argv(file_obj, "--mk-file"))
-        mock_path_touch.assert_called_once_with(file_obj)
+        self.assertFalse(try_create_file_argv(file_path, "--mk-file"))
+        mock_path_touch.assert_called_once_with(file_path)
 
         mock_path_touch.side_effect = PermissionError
-        self.assertTrue(try_create_file_argv(file_obj, "--mk-file"))
+        self.assertTrue(try_create_file_argv(file_path, "--mk-file"))
         self.assertEqual(mock_print.call_count, 2)
 
     @patch.object(Path, "mkdir", autospec=True)
@@ -39,16 +39,16 @@ class TestFileUtils(TestCase):
     def test_try_create_dir_argv(self, mock_print: Mock, mock_path_mkdir: Mock) -> None:
         """Tests the try_create_dir_argv function, mocks print and the Path.mkdir."""
 
-        file_obj: Path = Path("a", "a.png")
+        file_path: Path = Path("a", "a.png")
 
-        self.assertTrue(try_create_dir_argv(file_obj, ""))
+        self.assertTrue(try_create_dir_argv(file_path, ""))
         mock_print.assert_called_once()
 
-        self.assertFalse(try_create_dir_argv(file_obj, "--mk-dir"))
-        mock_path_mkdir.assert_called_once_with(file_obj.parent, parents=True)
+        self.assertFalse(try_create_dir_argv(file_path, "--mk-dir"))
+        mock_path_mkdir.assert_called_once_with(file_path.parent, parents=True)
 
         mock_path_mkdir.side_effect = PermissionError
-        self.assertTrue(try_create_dir_argv(file_obj, "--mk-dir"))
+        self.assertTrue(try_create_dir_argv(file_path, "--mk-dir"))
         self.assertEqual(mock_print.call_count, 2)
 
     @patch.object(path, "isreserved", autospec=True, return_value=False)

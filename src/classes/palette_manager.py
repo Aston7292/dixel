@@ -650,8 +650,7 @@ class PaletteManager:
         Args:
             mouse, keyboard
         Returns:
-            hexadecimal selected color, refresh objects flag,
-            hexadecimal color to edit (can be None)
+            hexadecimal selected color, changed flag, hexadecimal color to edit (can be None)
         """
 
         if mouse.released[MOUSE_RIGHT]:
@@ -682,9 +681,9 @@ class PaletteManager:
         if self.is_dropdown_on and (has_offset_y_changed or has_dropdown_i_changed):
             self._handle_dropdown_movement()
 
-        should_refresh_objs: bool = has_offset_y_changed or len(self.colors) != prev_num_colors
+        did_change: bool = has_offset_y_changed or len(self.colors) != prev_num_colors
         color_to_edit: Optional[HexColor] = (
             self.colors[self._edit_i] if self.is_editing_color else None
         )
 
-        return self.colors[self.colors_grid.clicked_i], should_refresh_objs, color_to_edit
+        return self.colors[self.colors_grid.clicked_i], did_change, color_to_edit

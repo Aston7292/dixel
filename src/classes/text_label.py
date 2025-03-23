@@ -45,7 +45,7 @@ class TextLabel:
         self._imgs: list[pg.Surface] = [
             self._renderer.render(line, True, WHITE, self._bg_color) for line in lines
         ]
-        self.rect: pg.Rect = pg.Rect()
+        self.rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self._rects: list[pg.Rect] = []
 
         self.layer: int = base_layer + TEXT_LAYER

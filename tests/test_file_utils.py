@@ -1,13 +1,13 @@
 """Tests for the file_utils file."""
 
-from unittest import TestCase
-from unittest.mock import patch, Mock
+from unittest import TestCase, mock
+from unittest.mock import Mock
 from tkinter import filedialog
 from os import path
 from pathlib import Path
 
-from src.file_utils import (
-    try_create_file_argv, try_create_dir_argv, handle_cmd_args, ask_save_to_file, ask_open_file
+from src.lock_utils import (
+    try_create_file_argv, try_create_dir, handle_cmd_args, ask_save_to_file, ask_open_file
 )
 from src.consts import IMG_STATE_OK, IMG_STATE_MISSING
 
@@ -17,8 +17,8 @@ class TestFileUtils(TestCase):
 
     # How to test get_img_state (problems with mocking portalocker)
 
-    @patch.object(Path, "touch", autospec=True)
-    @patch("builtins.print", autospec=True)
+    @mock.patch.object(Path, "touch", autospec=True)
+    @mock.patch("builtins.print", autospec=True)
     def test_try_create_file_argv(self, mock_print: Mock, mock_path_touch: Mock) -> None:
         """Tests the try_create_file_argv function, mocks print and the Path.touch."""
 
@@ -34,25 +34,25 @@ class TestFileUtils(TestCase):
         self.assertTrue(try_create_file_argv(file_path, "--mk-file"))
         self.assertEqual(mock_print.call_count, 2)
 
-    @patch.object(Path, "mkdir", autospec=True)
-    @patch("builtins.print", autospec=True)
+    @mock.patch.object(Path, "mkdir", autospec=True)
+    @mock.patch("builtins.print", autospec=True)
     def test_try_create_dir_argv(self, mock_print: Mock, mock_path_mkdir: Mock) -> None:
         """Tests the try_create_dir_argv function, mocks print and the Path.mkdir."""
 
         file_path: Path = Path("a", "a.png")
 
-        self.assertTrue(try_create_dir_argv(file_path, ""))
+        self.assertTrue(try_create_dir(file_path, ""))
         mock_print.assert_called_once()
 
-        self.assertFalse(try_create_dir_argv(file_path, "--mk-dir"))
+        self.assertFalse(try_create_dir(file_path, "--mk-dir"))
         mock_path_mkdir.assert_called_once_with(file_path.parent, parents=True)
 
         mock_path_mkdir.side_effect = PermissionError
-        self.assertTrue(try_create_dir_argv(file_path, "--mk-dir"))
+        self.assertTrue(try_create_dir(file_path, "--mk-dir"))
         self.assertEqual(mock_print.call_count, 2)
 
-    @patch.object(path, "isreserved", autospec=True, return_value=False)
-    @patch("builtins.print", autospec=True)
+    @mock.patch.object(path, "isreserved", autospec=True, return_value=False)
+    @mock.patch("builtins.print", autospec=True)
     def test_handle_argv(self, mock_print: Mock, mock_isreserved: Mock) -> None:
         """Tests the handle_cmd_args function, mocks print and os.path.isreserved."""
 
@@ -76,8 +76,8 @@ class TestFileUtils(TestCase):
             handle_cmd_args(["", "a"])
         mock_print.assert_called_with("Invalid path.")
 
-    @patch("src.file_utils.get_img_state", autospec=True)
-    @patch.object(filedialog, "asksaveasfilename", autospec=True)
+    @mock.patch("src.file_utils.get_img_state", autospec=True)
+    @mock.patch.object(filedialog, "asksaveasfilename", autospec=True)
     def test_ask_save_to_file(
             self, mock_ask_save_as_file_name: Mock, mock_get_img_state: Mock
     ) -> None:
@@ -99,8 +99,8 @@ class TestFileUtils(TestCase):
         mock_ask_save_as_file_name.side_effect = ("a.txt", "")
         self.assertEqual(ask_save_to_file(), "")
 
-    @patch("src.file_utils.get_img_state", autospec=True)
-    @patch.object(filedialog, "askopenfilename", autospec=True)
+    @mock.patch("src.file_utils.get_img_state", autospec=True)
+    @mock.patch.object(filedialog, "askopenfilename", autospec=True)
     def test_ask_open_file(
             self, mock_ask_open_file_name: Mock, mock_get_img_state: Mock
     ) -> None:

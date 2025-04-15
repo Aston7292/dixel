@@ -19,25 +19,21 @@ Extra UI elements need:
 
 from typing import TypeAlias, Final, Any
 
-from pygame import Surface
+import pygame as pg
 
-from src.classes.ui import CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
 
 from src.utils import RectPos, ObjInfo, Mouse, Keyboard
-from src.file_utils import try_get_img
 from src.type_utils import CheckboxInfo, ToolInfo, LayeredBlitInfo
 from src.consts import SPECIAL_LAYER
+from src.imgs import CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON, PENCIL_IMG, BUCKET_IMG
 
 ToolsInfo: TypeAlias = dict[str, dict[str, Any]]
 ToolExtraInfo: TypeAlias = list[dict[str, Any]]
 ToolsExtraInfo: TypeAlias = list[tuple[dict[str, Any], ...]]
 
-PENCIL_IMG: Final[Surface] = try_get_img("sprites", "pencil_tool.png")
-BUCKET_IMG: Final[Surface] = PENCIL_IMG.copy()
-CHECKBOX_IMGS: list[Surface] = [CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON]
-
+CHECKBOX_IMGS: Final[list[pg.Surface]] = [CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON]
 TOOLS_INFO: Final[ToolsInfo] = {
     "brush": {
         "base_info": (PENCIL_IMG, "Edit Pixels"),
@@ -56,7 +52,7 @@ TOOLS_INFO: Final[ToolsInfo] = {
             }
         )
     },
-    "fill": {
+    "bucket": {
         "base_info": (BUCKET_IMG, "Fill Section"),
         "extra_info": (
             {
@@ -206,7 +202,7 @@ class ToolsManager:
         Args:
             mouse, keyboard
         Returns:
-            tool name, sub options state
+            tool name, sub objects states
         """
 
         prev_tool_i: int = self.tools_grid.clicked_i

@@ -1,17 +1,23 @@
 """Functions and dataclasses shared between files."""
 
-from time import time as get_time
-from dataclasses import dataclass, field
-from functools import wraps
+from tkinter import messagebox
+from pathlib import Path
+import time
+import dataclasses
+
+from dataclasses import dataclass
 from math import ceil
 from collections.abc import Callable
 from typing import Final, Any
 
 import pygame as pg
-from numpy import dstack as dstack_arr, tile as tile_arr, uint8
+import numpy as np
 from numpy.typing import NDArray
+
 from src.type_utils import XY, WH
-from src.consts import BLACK, EMPTY_TILE_ARR, NUM_TILE_COLS, NUM_TILE_ROWS
+from src.consts import (
+    BLACK, EMPTY_TILE_ARR, NUM_TILE_COLS, NUM_TILE_ROWS, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY
+)
 
 
 FUNCS_NAMES: Final[list[str]] = []
@@ -27,13 +33,12 @@ def profile(func: Callable[..., Any]) -> Callable[..., Any]:
     FUNCS_TOT_TIMES.append(0)
     FUNCS_NUM_CALLS.append(0)
 
-    @wraps(func)
-    def upt_info(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Any:
+    def upt_info(*args: Any, **kwargs: dict[str, Any]) -> Any:
         """Runs a function and updates its total run time and number of calls."""
 
-        start: float = get_time()
+        start: float = time.time()
         res: Any = func(*args, **kwargs)
-        FUNCS_TOT_TIMES[func_i] += (get_time() - start) * 1_000
+        FUNCS_TOT_TIMES[func_i] += (time.time() - start) * 1_000
         FUNCS_NUM_CALLS[func_i] += 1
 
         return res
@@ -85,7 +90,7 @@ class RectPos:
     Dataclass for representing a rect position.
 
     Args:
-        x coordinate, y coordinate, coordinate type (e.g. topleft)
+        x coordinate, y coordinate, coordinate type (topleft, midtop, etc.)
     """
 
     x: int
@@ -103,7 +108,7 @@ class ObjInfo:
     """
 
     obj: Any
-    is_active: bool = field(init=False)
+    is_active: bool = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         """Initializes is_active."""
@@ -142,8 +147,8 @@ class Mouse:
 
     x: int
     y: int
-    pressed: list[bool]
-    released: list[bool]
+    pressed: tuple[bool, bool, bool]
+    released: tuple[bool, bool, bool, bool, bool]
     scroll_amount: int
     hovered_obj: Any
 
@@ -165,7 +170,7 @@ class Keyboard:
     is_numpad_on: bool
 
 
-def get_pixels(img: pg.Surface) -> NDArray[uint8]:
+def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
     """
     Gets the rgba values of the pixels in an image.
 
@@ -175,10 +180,11 @@ def get_pixels(img: pg.Surface) -> NDArray[uint8]:
         pixels
     """
 
-    pixels_rgb: NDArray[uint8] = pg.surfarray.pixels3d(img)
-    alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(img)
+    pixels_rgb: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
+    alpha_values: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
 
-    return dstack_arr(pixels_rgb, alpha_values)
+    return np.dstack((pixels_rgb, alpha_values))
+
 
 def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
     """
@@ -191,8 +197,8 @@ def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
     """
 
     new_img: pg.Surface = img.copy()
-    width: int = round(min(new_img.get_size()) / 10)
-    pg.draw.rect(new_img, border_color, new_img.get_rect(), width)
+    side_w: int = round(min(new_img.get_size()) / 10)
+    pg.draw.rect(new_img, border_color, new_img.get_rect(), side_w)
 
     return new_img
 
@@ -207,14 +213,65 @@ def get_brush_dim_img(dim: int) -> pg.Surface:
         image
     """
 
-    img_arr: NDArray[uint8] = tile_arr(EMPTY_TILE_ARR, (8, 8, 1))
+    img_arr: NDArray[np.uint8] = np.tile(EMPTY_TILE_ARR, (8, 8, 1))
     rect: pg.Rect = pg.Rect(0, 0, dim * NUM_TILE_COLS, dim * NUM_TILE_ROWS)
     rect.center = (round(img_arr.shape[0] / 2), round(img_arr.shape[1] / 2))
 
     img: pg.Surface = pg.surfarray.make_surface(img_arr)
     pg.draw.rect(img, BLACK, rect)
 
-    return pg.transform.scale_by(img, 4)
+    return pg.transform.scale_by(img, 4).convert()
+
+
+def try_create_dir(dir_path: Path, should_ask_create: bool, num_creation_attempts: int) -> bool:
+    """
+    Creates a directory.
+
+    Args:
+        directory path, ask creation flag, attempts
+    Returns:
+        failed flag
+    """
+
+    num_system_attempts: int
+
+    if num_creation_attempts == 1 and should_ask_create:
+        should_create: bool = messagebox.askyesno(
+            "Image Save Failed",
+            f"Directory missing: {dir_path.name}\nDo you wanna create it?",
+            icon="warning"
+        )
+
+        if not should_create:
+            return True
+    elif num_creation_attempts == NUM_MAX_FILE_ATTEMPTS:
+        messagebox.showerror("Directory Creation Failed", "Repeated failure in creation.")
+        return True
+
+    did_fail: bool = True
+    for num_system_attempts in range(1, NUM_MAX_FILE_ATTEMPTS + 1):
+        try:
+            dir_path.mkdir(parents=True, exist_ok=True)
+            did_fail = False
+            break
+        except PermissionError:
+            messagebox.showerror(
+                "Directory Creation Failed", f"{dir_path.name}: permission denied."
+            )
+            break
+        except FileExistsError:
+            messagebox.showerror(
+                "Directory Creation Failed", f"{dir_path.name}: file with the same name exists."
+            )
+            break
+        except OSError as e:
+            if num_system_attempts == NUM_MAX_FILE_ATTEMPTS:
+                messagebox.showerror("Directory Creation Failed", f"{dir_path.name}: {e}")
+                break
+
+            pg.time.wait(FILE_ATTEMPT_DELAY * num_system_attempts)
+
+    return did_fail
 
 
 def resize_obj(
@@ -276,7 +333,6 @@ def rec_move_rect(
 
     change_x = change_y = 0
     objs_hierarchy: list[Any] = [main_obj]
-
     is_sub_obj: bool = False
     while objs_hierarchy != []:
         obj: Any = objs_hierarchy.pop()

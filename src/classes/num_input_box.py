@@ -7,6 +7,7 @@ Text and cursor position are refreshed automatically.
 from typing import Final, Optional, Any
 
 import pygame as pg
+from pygame.locals import *
 
 from src.classes.text_label import TextLabel
 
@@ -14,7 +15,7 @@ from src.utils import RectPos, ObjInfo, Mouse, Keyboard, resize_obj
 from src.type_utils import XY, WH, LayeredBlitInfo
 from src.consts import MOUSE_LEFT, CHR_LIMIT, WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
-INPUT_BOX_IMG: Final[pg.Surface] = pg.Surface((60, 40))
+INPUT_BOX_IMG: Final[pg.Surface] = pg.Surface((64, 40)).convert()
 
 
 class NumInputBox:
@@ -57,14 +58,14 @@ class NumInputBox:
         self._cursor_i: int = 0
 
         self.layer, self._cursor_layer = base_layer + ELEMENT_LAYER, base_layer + TOP_LAYER
-        self.cursor_type: int = pg.SYSTEM_CURSOR_IBEAM
+        self.cursor_type: int = SYSTEM_CURSOR_IBEAM
 
         self.text_label = TextLabel(
             RectPos(self.rect.centerx, self.rect.centery, "center"),
             "", base_layer
         )
 
-        self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h))
+        self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h)).convert()
         self._cursor_img.fill(WHITE)
         self.cursor_rect: pg.Rect = pg.Rect(
             self.text_label.rect.topleft, self._cursor_img.get_size()
@@ -116,11 +117,11 @@ class NumInputBox:
         wh: WH
 
         xy, wh = resize_obj(self._init_pos, self._init_w, self._init_h, win_w_ratio, win_h_ratio)
-        self._img = pg.transform.scale(self._img, wh)
+        self._img = pg.transform.scale(self._img, wh).convert()
         self.rect.size = wh
         setattr(self.rect, self._init_pos.coord_type, xy)
 
-        self._cursor_img = pg.Surface((1, self.text_label.rect.h))
+        self._cursor_img = pg.Surface((1, self.text_label.rect.h)).convert()
         self._cursor_img.fill(WHITE)
         self.cursor_rect.topleft = (
             self.text_label.get_x_at(self._cursor_i), self.text_label.rect.y
@@ -147,14 +148,14 @@ class NumInputBox:
             keyboard
         """
 
-        if pg.K_LEFT in keyboard.timed:
+        if K_LEFT in keyboard.timed:
             self._cursor_i = 0 if keyboard.is_ctrl_on else max(self._cursor_i - 1, 0)
-        if pg.K_RIGHT in keyboard.timed:
+        if K_RIGHT in keyboard.timed:
             text_len: int = len(self.text_label.text)
             self._cursor_i = text_len if keyboard.is_ctrl_on else min(self._cursor_i + 1, text_len)
-        if pg.K_HOME in keyboard.timed:
+        if K_HOME in keyboard.timed:
             self._cursor_i = 0
-        if pg.K_END in keyboard.timed:
+        if K_END in keyboard.timed:
             self._cursor_i = len(self.text_label.text)
 
     def _handle_deletion(self, k: int) -> None:
@@ -168,15 +169,15 @@ class NumInputBox:
         first_part: str
         second_part: str
 
-        if k == pg.K_DELETE:
+        if k == K_DELETE:
             first_part = self.text_label.text[:self._cursor_i]
             second_part = self.text_label.text[self._cursor_i + 1:]
             self.text_label.text = first_part + second_part
-        elif k == pg.K_BACKSPACE and self._cursor_i != 0:
+        elif k == K_BACKSPACE:
             first_part = self.text_label.text[:self._cursor_i - 1]
             second_part = self.text_label.text[self._cursor_i:]
             self.text_label.text = first_part + second_part
-            self._cursor_i -= 1
+            self._cursor_i = max(self._cursor_i - 1, 0)
 
         if self.text_label.text.startswith("0"):  # If it's empty keep it empty
             self.text_label.text = self.text_label.text.lstrip("0") or str(self.min_limit)
@@ -199,14 +200,12 @@ class NumInputBox:
         max_len: int = len(str(self.max_limit))
         self.text_label.text = self.text_label.text[:max_len]
 
-        should_change_cursor_i: bool = True  # Better UX on edge cases
         if int(self.text_label.text) < self.min_limit:
             self.text_label.text = str(self.min_limit)
         elif int(self.text_label.text) > self.max_limit:
             self.text_label.text = str(self.max_limit)
-            should_change_cursor_i = prev_text != str(self.max_limit)
 
-        if should_change_cursor_i:
+        if self.text_label.text != prev_text:
             self._cursor_i = min(self._cursor_i + 1, len(self.text_label.text))
 
     def _handle_k(self, k: int) -> None:
@@ -217,14 +216,11 @@ class NumInputBox:
             key
         """
 
-        if k == pg.K_BACKSPACE or k == pg.K_DELETE:
+        if k == K_BACKSPACE or k == K_DELETE:
             self._handle_deletion(k)
         elif k <= CHR_LIMIT:
             char: str = chr(k)
-            is_trailing_zero: bool = (
-                self._cursor_i == 0 and char == "0" and self.text_label.text != ""
-            )
-            if char.isdigit() and not is_trailing_zero:
+            if char.isdigit():
                 self._insert_char(char)
 
     def upt(self, mouse: Mouse, keyboard: Keyboard, selected_obj: Any, prev_text: str) -> bool:
@@ -232,9 +228,9 @@ class NumInputBox:
         Allows typing numbers, moving the cursor and deleting a specific character.
 
         Args:
-            mouse, keyboard, minimum limit, maximum limit, selected obj, previous text
+            mouse, keyboard, selected obj, previous text
         Returns:
-            clicked flag, text
+            clicked flag
         """
 
         prev_cursor_i: int = self._cursor_i

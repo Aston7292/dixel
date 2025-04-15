@@ -1,14 +1,15 @@
 """Tests for the utils file."""
 
-from unittest import TestCase
-from unittest.mock import patch, create_autospec, Mock
+from unittest import TestCase, mock
+from unittest.mock import Mock
 from pathlib import Path
 from random import SystemRandom
 from math import ceil
 from typing import Final
 
-from pygame import Surface, SRCALPHA, image
-from numpy import uint8
+import pygame as pg
+from pygame import SRCALPHA
+import numpy as np
 from numpy.typing import NDArray
 
 from src.utils import (
@@ -117,11 +118,11 @@ class TestUtils(TestCase):
         self.assertFalse(keyboard.is_alt_on)
         self.assertTrue(keyboard.is_numpad_on)
 
-    @patch.object(image, "load", autospec=True)
+    @mock.patch.object(pg.image, "load", autospec=True)
     def test_load_img_from_path(self, mock_load: Mock) -> None:
         """Tests the load_img_from_path function, mocks pygame.image.load."""
 
-        mock_surface: Mock = create_autospec(Surface, spec_set=True)
+        mock_surface: Mock = mock.create_autospec(pg.Surface, spec_set=True)
         mock_load.return_value = mock_surface
         mock_convert_alpha: Mock = mock_surface.convert_alpha
 
@@ -135,11 +136,11 @@ class TestUtils(TestCase):
         x: int
         y: int
 
-        img: Surface = Surface((50, 51), SRCALPHA)
+        img: pg.Surface = pg.Surface((50, 51), SRCALPHA)
         img.fill((255, 0, 0))
         img.set_at((0, 1), (255, 0, 1))
 
-        pixels: NDArray[uint8] = get_pixels(img.copy())
+        pixels: NDArray[np.uint8] = get_pixels(img.copy())
         img_h: int = img.get_height()
         for x in range(img.get_width()):
             for y in range(img_h):
@@ -152,8 +153,8 @@ class TestUtils(TestCase):
 
         expected_rgba_color: RGBAColor = (0, 0, 1, 255)
 
-        img: Surface = Surface((10, 11))
-        img_with_border: Surface = add_border(img, expected_rgba_color)
+        img: pg.Surface = pg.Surface((10, 11))
+        img_with_border: pg.Surface = add_border(img, expected_rgba_color)
 
         rgba_color_topleft: RGBAColor = tuple(img_with_border.get_at((0, 0)))
         rgba_color_topright: RGBAColor = tuple(img_with_border.get_at((9, 0)))
@@ -202,8 +203,8 @@ class TestUtils(TestCase):
             self.assertGreaterEqual(resized_xy[0] + resized_wh[0], expected_sum_x)
             self.assertGreaterEqual(resized_xy[1] + resized_wh[1], expected_sum_y)
 
-    @patch.object(SubObj, "resize", autospec=True)
-    @patch.object(MainObj, "resize", autospec=True)
+    @mock.patch.object(SubObj, "resize", autospec=True)
+    @mock.patch.object(MainObj, "resize", autospec=True)
     def test_rec_resize(self, mock_main_obj_resize: Mock, mock_sub_obj_resize: Mock) -> None:
         """Tests the rec_resize function, mocks MainObj.resize and SubObj.resize."""
 
@@ -213,8 +214,8 @@ class TestUtils(TestCase):
         mock_main_obj_resize.assert_called_once_with(obj, 0, 1)
         mock_sub_obj_resize.assert_called_once_with(obj.objs_info[0].obj, 0, 1)
 
-    @patch.object(SubObj, "move_rect", autospec=True)
-    @patch.object(MainObj, "move_rect", autospec=True, wraps=MainObj.move_rect)
+    @mock.patch.object(SubObj, "move_rect", autospec=True)
+    @mock.patch.object(MainObj, "move_rect", autospec=True, wraps=MainObj.move_rect)
     def test_rec_move_rect(
             self, mock_main_obj_move_rect: Mock, mock_sub_obj_move_rect: Mock
     ) -> None:

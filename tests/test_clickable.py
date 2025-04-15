@@ -1,10 +1,11 @@
 """Tests for the clickable file."""
 
-from unittest import TestCase
-from unittest.mock import patch, Mock, _Call as mock_Call
+from unittest import TestCase, mock
+from unittest.mock import Mock
 from typing import Final, Optional, Any
 
 import pygame as pg
+from pygame import SRCALPHA
 
 from src.classes.clickable import Clickable, Checkbox, Button
 from src.classes.text_label import TextLabel
@@ -15,7 +16,7 @@ from src.consts import BLACK, ELEMENT_LAYER
 
 from tests.utils import cmp_imgs
 
-IMG_OFF: Final[pg.Surface] = pg.Surface((10, 11), pg.SRCALPHA)
+IMG_OFF: Final[pg.Surface] = pg.Surface((10, 11), SRCALPHA)
 IMG_ON: Final[pg.Surface] = IMG_OFF.copy()
 IMG_ON.fill((0, 0, 1, 0))
 
@@ -38,7 +39,7 @@ class TestCheckbox(TestCase):
 
         return checkbox
 
-    @patch.object(TextLabel, "__init__", autospec=True, return_value=None)
+    @mock.patch.object(TextLabel, "__init__", autospec=True, return_value=None)
     def test_init(self, mock_text_label_init: Mock) -> None:
         """Tests the init method, mocks TextLabel.__init__."""
 
@@ -60,7 +61,7 @@ class TestCheckbox(TestCase):
 
         self.assertEqual(checkbox.layer, 1 + ELEMENT_LAYER)
 
-        hovering_text_label_init_call: mock_Call = mock_text_label_init.call_args_list[0]
+        hovering_text_label_init_call: mock._Call = mock_text_label_init.call_args_list[0]
         expected_hovering_text_label_init_args: tuple[Any, ...] = (
             checkbox.hovering_text_label, RectPos(0, 0, "topleft"), "world\n!", 2, 12, BLACK
         )
@@ -72,7 +73,7 @@ class TestCheckbox(TestCase):
 
         self.assertFalse(checkbox.is_checked)
 
-        text_label_init_args: mock_Call = mock_text_label_init.call_args_list[1]
+        text_label_init_args: mock._Call = mock_text_label_init.call_args_list[1]
         text_label: TextLabel = text_label_init_args[0]
         expected_text_label_init_args: tuple[Any, ...] = (
             text_label, RectPos(checkbox.rect.centerx, checkbox.rect.y - 5, "midbottom"),
@@ -105,7 +106,7 @@ class TestCheckbox(TestCase):
         ]
         if checkbox.hovering_text_label is not None:
             mouse_x, mouse_y = pg.mouse.get_pos()
-            checkbox.hovering_text_label.move_rect(mouse_x + 15, mouse_y, 1, 1)
+            checkbox.hovering_text_label.move_rect(mouse_x + 10, mouse_y, 1, 1)
             expected_sequence_1.extend(checkbox.hovering_text_label.get_blit_sequence())
 
         checkbox.img_i = 1
@@ -144,7 +145,7 @@ class TestCheckbox(TestCase):
 
         self.assertFalse(checkbox._is_hovering)
 
-    @patch.object(TextLabel, "resize", autospec=True, wraps=TextLabel.resize)
+    @mock.patch.object(TextLabel, "resize", autospec=True, wraps=TextLabel.resize)
     def test_resize(self, mock_text_label_resize: Mock) -> None:
         """Tests the resize method, mocks TextLabel.resize."""
 
@@ -240,8 +241,8 @@ class TestButton(TestCase):
 
         return button
 
-    @patch.object(TextLabel, "__init__", autospec=True, return_value=None)
-    @patch.object(Clickable, "__init__", autospec=True, wraps=Clickable.__init__)
+    @mock.patch.object(TextLabel, "__init__", autospec=True, return_value=None)
+    @mock.patch.object(Clickable, "__init__", autospec=True, wraps=Clickable.__init__)
     def test_init(self, mock_clickable_init: Mock, mock_text_label_init: Mock) -> None:
         """Tests the init method, mocks Clickable.__init__ and TextLabel.__init__."""
 

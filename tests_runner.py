@@ -1,11 +1,12 @@
 """Runs every test in the tests directory (a test file must start with test)."""
 
 from unittest import TestLoader, TestSuite, TextTestRunner
+from typing import Final
 
-from pygame import init as pg_init, Window
+import pygame as pg
 
-pg_init()
-Window(hidden=True).get_surface()
+pg.init()
+pg.Window(hidden=True).get_surface()
 
-test_suite: TestSuite = TestLoader().discover("tests")
-TextTestRunner().run(test_suite)
+TEST_SUITE: Final[TestSuite] = TestLoader().discover("tests")
+TextTestRunner().run(TEST_SUITE)

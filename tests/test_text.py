@@ -1,7 +1,7 @@
 """Tests for the text_label file."""
 
-from unittest import TestCase
-from unittest.mock import patch, Mock
+from unittest import TestCase, mock
+from unittest.mock import Mock
 
 import pygame as pg
 
@@ -30,7 +30,7 @@ class TestTextLabel(TestCase):
 
         return text_label
 
-    @patch.object(TextLabel, "_refresh_rects", autospec=True)
+    @mock.patch.object(TextLabel, "_refresh_rects", autospec=True)
     def test_init(self, mock_refresh_rects: Mock) -> None:
         """Tests the init method, mocks TextLabel.refresh_rects."""
 
@@ -74,7 +74,7 @@ class TestTextLabel(TestCase):
 
         self.assertListEqual(text_label.blit_sequence, expected_sequence)
 
-    @patch.object(TextLabel, "_refresh_rects", autospec=True, wraps=TextLabel._refresh_rects)
+    @mock.patch.object(TextLabel, "_refresh_rects", autospec=True, wraps=TextLabel._refresh_rects)
     def test_resize(self, mock_refresh_rects: Mock) -> None:
         """Tests the resize method, mocks TextLabel.refresh_rects."""
 
@@ -158,7 +158,7 @@ class TestTextLabel(TestCase):
             self.assertTupleEqual(rect.center, expected_xy)
             expected_line_init_pos.y += rect.h
 
-    @patch.object(TextLabel, "_refresh_rects", autospec=True, wraps=TextLabel._refresh_rects)
+    @mock.patch.object(TextLabel, "_refresh_rects", autospec=True, wraps=TextLabel._refresh_rects)
     def test_set_text(self, mock_refresh_rects: Mock) -> None:
         """Tests the set_text method, mocks TextLabel.refresh_rects."""
 

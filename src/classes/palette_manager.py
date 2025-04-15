@@ -8,45 +8,60 @@ from math import ceil
 from typing import Final, Optional
 
 import pygame as pg
+from pygame.locals import *
 
-from src.classes.ui import BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 from src.classes.checkbox_grid import LockedCheckbox, CheckboxGrid
 from src.classes.clickable import Button, SpammableButton
 
 from src.utils import (
     RectPos, ObjInfo, Mouse, Keyboard, add_border, resize_obj, rec_move_rect
 )
-from src.file_utils import try_get_img
 from src.type_utils import XY, WH, RGBColor, HexColor, CheckboxInfo, LayeredBlitInfo
 from src.consts import (
     MOUSE_LEFT, MOUSE_RIGHT, WHITE, DARKER_GRAY, HEX_BLACK, NUM_VISIBLE_CHECKBOX_GRID_ROWS,
     BG_LAYER, ELEMENT_LAYER, SPECIAL_LAYER
 )
-
-
-BUTTON_S_OFF_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF_IMG, (64, 32))
-BUTTON_S_ON_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_ON_IMG, (64, 32))
-
-# Have larger hitboxes
-ARROW_UP_IMG_OFF: Final[pg.Surface] = try_get_img(
-    "sprites", "arrow_up_button_off.png", missing_img_wh=(35, 18)
+from src.imgs import (
+    BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG,
+    ARROW_UP_IMG_OFF, ARROW_UP_IMG_ON, ARROW_DOWN_IMG_OFF, ARROW_DOWN_IMG_ON
 )
-ARROW_UP_IMG_ON: Final[pg.Surface] = try_get_img(
-    "sprites", "arrow_up_button_on.png", missing_img_wh=(35, 18)
-)
-ARROW_DOWN_IMG_OFF: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_IMG_OFF, 180)
-ARROW_DOWN_IMG_ON: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_IMG_ON, 180)
+
+
+SCROLLBAR_BORDER_DIM: Final[int] = 2
+COLOR_IMG: Final[pg.Surface] = pg.Surface((32, 32)).convert()
+
+
+def _get_color_info(hex_color: HexColor) -> tuple[pg.Surface, str]:
+    """
+    Creates the checkbox info for a color.
+
+    Args:
+        hexadecimal color
+    Returns:
+        image, text
+    """
+
+    color: pg.Color = pg.Color("#" + hex_color)
+    COLOR_IMG.fill(color)
+    img: pg.Surface = add_border(COLOR_IMG, DARKER_GRAY)
+
+    rgb_text: str = str(color[:3])
+    hex_text: str = "#" + hex_color
+
+    return img, rgb_text + "\n" + hex_text
 
 
 class VerScrollbar:
     """Class to create a vertical scrollbar."""
 
     __slots__ = (
-        "_bar_init_pos", "_border_dim", "_bar_img", "_bar_rect", "_bar_init_w", "_bar_init_h",
-        "value", "_clicked_value", "num_values", "_unit_h", "_slider_img", "_slider_rect",
+        "_bar_init_pos", "_bar_img", "_bar_rect", "_bar_init_w", "_bar_init_h", "value",
+        "_clicked_value", "num_values", "_unit_h", "_slider_img", "_slider_rect",
         "_clicked_value_img", "_clicked_value_rect", "_prev_mouse_y", "_traveled_y",
-        "_is_scrolling", "layer", "cursor_type", "_arrow_up", "_arrow_down", "objs_info"
+        "_is_scrolling", "layer", "_arrow_up", "_arrow_down", "objs_info"
     )
+
+    cursor_type: int = SYSTEM_CURSOR_HAND
 
     def __init__(self, pos: RectPos, base_layer: int = BG_LAYER) -> None:
         """
@@ -63,35 +78,34 @@ class VerScrollbar:
         self._bar_init_h: int
 
         self._bar_init_pos: RectPos = pos
-        self._border_dim: int = 2
 
-        self._bar_img: pg.Surface = pg.Surface((15, 100))
-        pg.draw.rect(self._bar_img, WHITE, self._bar_img.get_rect(), self._border_dim)
+        self._bar_img: pg.Surface = pg.Surface((16, 128)).convert()
+        pg.draw.rect(self._bar_img, WHITE, self._bar_img.get_rect(), SCROLLBAR_BORDER_DIM)
         self._bar_rect: pg.Rect = pg.Rect(0, 0, *self._bar_img.get_size())
         bar_init_xy: XY = (self._bar_init_pos.x, self._bar_init_pos.y)
         setattr(self._bar_rect, self._bar_init_pos.coord_type, bar_init_xy)
 
         self._bar_init_w, self._bar_init_h = self._bar_rect.size
 
-        usable_bar_w: int = self._bar_rect.w - self._border_dim * 2
-        usable_bar_h: int = self._bar_rect.h - self._border_dim * 2
+        usable_bar_w: int = self._bar_rect.w - SCROLLBAR_BORDER_DIM * 2
+        usable_bar_h: int = self._bar_rect.h - SCROLLBAR_BORDER_DIM * 2
 
         self.value = self._clicked_value = 0
         self.num_values: int = NUM_VISIBLE_CHECKBOX_GRID_ROWS
         self._unit_h: float = usable_bar_h / self.num_values
 
-        self._slider_img: pg.Surface = pg.Surface((usable_bar_w, usable_bar_h))
+        self._slider_img: pg.Surface = pg.Surface((usable_bar_w, usable_bar_h)).convert()
         self._slider_img.fill((100, 100, 100))
         self._slider_rect: pg.Rect = pg.Rect(0, 0, *self._slider_img.get_size())
         self._slider_rect.bottomleft = (
-            self._bar_rect.x + self._border_dim, self._bar_rect.bottom - self._border_dim
+            self._bar_rect.x + SCROLLBAR_BORDER_DIM, self._bar_rect.bottom - SCROLLBAR_BORDER_DIM
         )
 
-        self._clicked_value_img: pg.Surface = pg.Surface((usable_bar_w, self._unit_h))
+        self._clicked_value_img: pg.Surface = pg.Surface((usable_bar_w, self._unit_h)).convert()
         self._clicked_value_img.fill(DARKER_GRAY)
         self._clicked_value_rect: pg.Rect = pg.Rect(0, 0, *self._clicked_value_img.get_size())
         self._clicked_value_rect.bottomleft = (
-            self._bar_rect.x + self._border_dim, self._bar_rect.bottom - self._border_dim
+            self._bar_rect.x + SCROLLBAR_BORDER_DIM, self._bar_rect.bottom - SCROLLBAR_BORDER_DIM
         )
 
         self._prev_mouse_y: int = pg.mouse.get_pos()[1]
@@ -99,7 +113,6 @@ class VerScrollbar:
         self._is_scrolling: bool = False
 
         self.layer: int = base_layer + ELEMENT_LAYER
-        self.cursor_type: int = pg.SYSTEM_CURSOR_HAND
 
         self._arrow_up: SpammableButton = SpammableButton(
             RectPos(self._bar_rect.centerx, self._bar_rect.y - 5, "midbottom"),
@@ -160,31 +173,35 @@ class VerScrollbar:
         bar_xy, bar_wh = resize_obj(
             self._bar_init_pos, self._bar_init_w, self._bar_init_h, win_w_ratio, win_h_ratio
         )
-        self._bar_img = pg.Surface(bar_wh)
-        pg.draw.rect(self._bar_img, WHITE, self._bar_img.get_rect(), self._border_dim)
+        self._bar_img = pg.Surface(bar_wh).convert()
+        pg.draw.rect(self._bar_img, WHITE, self._bar_img.get_rect(), SCROLLBAR_BORDER_DIM)
         self._bar_rect.size = bar_wh
         setattr(self._bar_rect, self._bar_init_pos.coord_type, bar_xy)
 
         # More accurate
-        self._unit_h = (self._bar_rect.h - self._border_dim * 2) / self.num_values
-        usable_bar_w: int = self._bar_rect.w - self._border_dim * 2
+        self._unit_h = (self._bar_rect.h - SCROLLBAR_BORDER_DIM * 2) / self.num_values
+        self._unit_h = max(self._unit_h, 1e-4)
+        usable_bar_w: int = self._bar_rect.w - SCROLLBAR_BORDER_DIM * 2
+        usable_bar_bottom: int = self._bar_rect.bottom - SCROLLBAR_BORDER_DIM
 
         slider_h: int = max(round(self._unit_h * NUM_VISIBLE_CHECKBOX_GRID_ROWS), 1)
 
-        self._slider_img = pg.transform.scale(self._slider_img, (usable_bar_w, slider_h))
+        self._slider_img = pg.transform.scale(self._slider_img, (usable_bar_w, slider_h)).convert()
         self._slider_rect.size = (usable_bar_w, slider_h)
         self._slider_rect.bottomleft = (
-            self._bar_rect.x + self._border_dim,
-            self._bar_rect.bottom - round(self.value * self._unit_h) - self._border_dim
+            self._bar_rect.x + SCROLLBAR_BORDER_DIM,
+            usable_bar_bottom - round(self.value * self._unit_h)
         )
 
         clicked_value_wh: WH = (usable_bar_w, max(round(self._unit_h), 1))
 
-        self._clicked_value_img = pg.transform.scale(self._clicked_value_img, clicked_value_wh)
+        self._clicked_value_img = pg.transform.scale(
+            self._clicked_value_img, clicked_value_wh
+        ).convert()
         self._clicked_value_rect.size = clicked_value_wh
         self._clicked_value_rect.bottomleft = (
-            self._bar_rect.x + self._border_dim,
-            self._bar_rect.bottom - round(self._clicked_value * self._unit_h) - self._border_dim
+            self._bar_rect.x + SCROLLBAR_BORDER_DIM,
+            usable_bar_bottom - round(self._clicked_value * self._unit_h)
         )
 
     def set_value(self, value: int) -> None:
@@ -196,7 +213,7 @@ class VerScrollbar:
         """
 
         self.value = value
-        usable_bar_bottom: int = self._bar_rect.bottom - self._border_dim
+        usable_bar_bottom: int = self._bar_rect.bottom - SCROLLBAR_BORDER_DIM
         self._slider_rect.bottom = usable_bar_bottom - round(self.value * self._unit_h)
 
     def set_clicked_value(self, clicked_row: int) -> None:
@@ -208,7 +225,7 @@ class VerScrollbar:
         """
 
         self._clicked_value = clicked_row
-        usable_bar_bottom: int = self._bar_rect.bottom - self._border_dim
+        usable_bar_bottom: int = self._bar_rect.bottom - SCROLLBAR_BORDER_DIM
         clicked_value_offset_y: int = round(self._clicked_value * self._unit_h)
         self._clicked_value_rect.bottom = usable_bar_bottom - clicked_value_offset_y
 
@@ -222,16 +239,17 @@ class VerScrollbar:
 
         self.num_values = max(num_values, NUM_VISIBLE_CHECKBOX_GRID_ROWS)
         self.value = min(self.value, self.num_values - NUM_VISIBLE_CHECKBOX_GRID_ROWS)
-        self._unit_h = (self._bar_rect.h - self._border_dim * 2) / self.num_values
+        self._unit_h = (self._bar_rect.h - SCROLLBAR_BORDER_DIM * 2) / self.num_values
+        self._unit_h = max(self._unit_h, 1e-4)
 
-        usable_bar_bottom: int = self._bar_rect.bottom - self._border_dim
+        usable_bar_bottom: int = self._bar_rect.bottom - SCROLLBAR_BORDER_DIM
 
         self._slider_rect.h = max(round(self._unit_h * NUM_VISIBLE_CHECKBOX_GRID_ROWS), 1)
         self._slider_rect.bottom = usable_bar_bottom - round(self.value * self._unit_h)
 
         self._slider_img = pg.transform.scale(
             self._slider_img, (self._slider_img.get_width(), self._slider_rect.h)
-        )
+        ).convert()
 
         self._clicked_value_rect.h = max(round(self._unit_h), 1)
         clicked_value_offset_y: int = round(self._clicked_value * self._unit_h)
@@ -240,7 +258,7 @@ class VerScrollbar:
         clicked_value_w: int = self._clicked_value_img.get_width()
         self._clicked_value_img = pg.transform.scale(
             self._clicked_value_img, (clicked_value_w, self._clicked_value_rect.h)
-        )
+        ).convert()
 
     def _start_scrolling(self, mouse_y: int) -> None:
         """
@@ -254,7 +272,7 @@ class VerScrollbar:
             value: int = int((self._bar_rect.bottom - mouse_y) / self._unit_h)
             if mouse_y < self._slider_rect.top:
                 value -= NUM_VISIBLE_CHECKBOX_GRID_ROWS
-            self.value = max(min(value, self.num_values - NUM_VISIBLE_CHECKBOX_GRID_ROWS), 0)
+            self.value = min(max(value, 0), self.num_values - NUM_VISIBLE_CHECKBOX_GRID_ROWS)
 
         self._traveled_y = 0
         self._is_scrolling = True
@@ -271,7 +289,7 @@ class VerScrollbar:
         if abs(self._traveled_y) >= self._unit_h:
             units_traveled: int = int(self._traveled_y / self._unit_h)
             max_value: int = self.num_values - NUM_VISIBLE_CHECKBOX_GRID_ROWS
-            self.value = max(min(self.value + units_traveled, max_value), 0)
+            self.value = min(max(self.value + units_traveled, 0), max_value)
             self._traveled_y -= units_traveled * self._unit_h
 
     def _scroll_with_keys(self, timed_keys: list[int]) -> None:
@@ -283,17 +301,17 @@ class VerScrollbar:
         """
 
         max_value: int = self.num_values - NUM_VISIBLE_CHECKBOX_GRID_ROWS
-        if pg.K_DOWN in timed_keys:
+        if K_DOWN in timed_keys:
             self.value = max(self.value - 1, 0)
-        if pg.K_UP in timed_keys:
+        if K_UP in timed_keys:
             self.value = min(self.value + 1, max_value)
-        if pg.K_PAGEDOWN in timed_keys:
+        if K_PAGEDOWN in timed_keys:
             self.value = max(self.value - NUM_VISIBLE_CHECKBOX_GRID_ROWS, 0)
-        if pg.K_PAGEUP in timed_keys:
+        if K_PAGEUP in timed_keys:
             self.value = min(self.value + NUM_VISIBLE_CHECKBOX_GRID_ROWS, max_value)
-        if pg.K_HOME in timed_keys:
+        if K_HOME in timed_keys:
             self.value = 0
-        if pg.K_END in timed_keys:
+        if K_END in timed_keys:
             self.value = max_value
 
     def _scroll_with_buttons(self, mouse: Mouse) -> None:
@@ -343,10 +361,10 @@ class PaletteManager:
     """Class to manage color palettes, includes a drop-down menu."""
 
     __slots__ = (
-        "colors", "_color_img", "colors_grid", "_dropdown_options", "dropdown_i",
-        "_dropdown_offset_x", "_dropdown_offset_y", "is_dropdown_on", "_edit_i",
-        "is_editing_color", "blit_sequence", "_win_w_ratio", "_win_h_ratio", "objs_info",
-        "_dropdown_info_start_i", "_dropdown_info_end_i", "_scrollbar"
+        "colors", "colors_grid", "_dropdown_options", "dropdown_i", "_dropdown_offset_x",
+        "_dropdown_offset_y", "is_dropdown_on", "_edit_i", "is_editing_color", "blit_sequence",
+        "_win_w_ratio", "_win_h_ratio", "objs_info", "_dropdown_info_start_i",
+        "_dropdown_info_end_i", "_scrollbar"
     )
 
     def __init__(self, pos: RectPos) -> None:
@@ -364,14 +382,13 @@ class PaletteManager:
         obj_info: ObjInfo
 
         self.colors: list[HexColor] = [HEX_BLACK]
-        self._color_img: pg.Surface = pg.Surface((32, 32))
 
-        colors_grid_info: list[CheckboxInfo] = [self._get_color_info(HEX_BLACK)]
+        colors_grid_info: list[CheckboxInfo] = [_get_color_info(HEX_BLACK)]
         self.colors_grid: CheckboxGrid = CheckboxGrid(pos, colors_grid_info, 5, True, True)
 
         options_texts: tuple[tuple[str, str], ...] = (
-            ("edit", "(CTRL+E)"),
-            ("delete", "(CTRL+DEL)")
+            ("edit", "CTRL+E"),
+            ("delete", "CTRL+DEL")
         )
 
         button_imgs: list[pg.Surface] = [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG]
@@ -411,25 +428,6 @@ class PaletteManager:
         """
 
         self._win_w_ratio, self._win_h_ratio = win_w_ratio, win_h_ratio
-
-    def _get_color_info(self, hex_color: HexColor) -> tuple[pg.Surface, str]:
-        """
-        Creates the checkbox info for a color.
-
-        Args:
-            hexadecimal color
-        Returns:
-            image, text
-        """
-
-        color: pg.Color = pg.Color("#" + hex_color)
-        self._color_img.fill(color)
-        img: pg.Surface = add_border(self._color_img, DARKER_GRAY)
-
-        rgb_text: str = str(color[:3])
-        hex_text: str = f"(#{hex_color})"
-
-        return img, f"{rgb_text}\n{hex_text}"
 
     def _handle_dropdown_movement(self) -> None:
         """Sets the dropdown visibility and if it's visible moves it to the correct position."""
@@ -471,9 +469,7 @@ class PaletteManager:
 
         self.colors = hex_colors
 
-        colors_grid_info: list[CheckboxInfo] = [
-            self._get_color_info(color) for color in self.colors
-        ]
+        colors_grid_info: list[CheckboxInfo] = [_get_color_info(color) for color in self.colors]
         self.colors_grid.set_grid(colors_grid_info, color_i, offset_y)
 
         if dropdown_i is not None:
@@ -506,10 +502,10 @@ class PaletteManager:
         if hex_color not in self.colors:
             if self.is_editing_color:
                 self.colors[self._edit_i] = hex_color
-                self.colors_grid.edit(self._edit_i, *self._get_color_info(hex_color))
+                self.colors_grid.edit(self._edit_i, *_get_color_info(hex_color))
             else:
                 self.colors.append(hex_color)
-                self.colors_grid.append(*self._get_color_info(hex_color))
+                self.colors_grid.append(*_get_color_info(hex_color))
                 self._scrollbar.set_num_values(ceil(len(self.colors) / self.colors_grid.num_cols))
                 should_refresh_objs = True
         self.colors_grid.check(self.colors.index(hex_color))
@@ -585,27 +581,28 @@ class PaletteManager:
         if is_remove_clicked:
             self.colors.pop(self.dropdown_i)
             self.colors = self.colors or [HEX_BLACK]
-            fallback_info: CheckboxInfo = self._get_color_info(HEX_BLACK)
+            fallback_info: CheckboxInfo = _get_color_info(HEX_BLACK)
             self.colors_grid.remove(self.dropdown_i, *fallback_info)
             self.dropdown_i = min(self.dropdown_i, len(self.colors_grid.checkboxes) - 1)
 
-    def _handle_dropdown_shortcuts(self, timed_keys: list[int]) -> None:
-        """Handles the drop-down menu shortcuts.
+    def _handle_dropdown_shortcuts(self, keyboard: Keyboard) -> None:
+        """
+        Handles the drop-down menu shortcuts.
 
         Args:
-            timed keys
+            keyboard
         """
 
         # The remove method uses the window size ratio to adjust the initial position
 
-        if pg.K_e in timed_keys:
+        if K_e in keyboard.pressed:
             self._edit_i = self.colors_grid.clicked_i
             self.is_editing_color = True
 
-        if pg.K_DELETE in timed_keys:
+        if K_DELETE in keyboard.timed:
             self.colors.pop(self.colors_grid.clicked_i)
             self.colors = self.colors or [HEX_BLACK]
-            fallback_info: CheckboxInfo = self._get_color_info(HEX_BLACK)
+            fallback_info: CheckboxInfo = _get_color_info(HEX_BLACK)
             self.colors_grid.remove(self.colors_grid.clicked_i, *fallback_info)
             if self.dropdown_i > self.colors_grid.clicked_i:
                 self.dropdown_i -= 1
@@ -623,7 +620,7 @@ class PaletteManager:
         if mouse.scroll_amount != 0 and (is_hovering_colors_grid or is_hovering_scrollbar):
             scrollbar_value: int = self._scrollbar.value + mouse.scroll_amount
             scrollbar_max_limit: int = self._scrollbar.num_values - NUM_VISIBLE_CHECKBOX_GRID_ROWS
-            self._scrollbar.set_value(max(min(scrollbar_value, scrollbar_max_limit), 0))
+            self._scrollbar.set_value(min(max(scrollbar_value, 0), scrollbar_max_limit))
 
     def _adjust_scrollbar(self, prev_num_colors: int, prev_clicked_i: int) -> None:
         """
@@ -664,7 +661,7 @@ class PaletteManager:
         if self.objs_info[self._dropdown_info_start_i].is_active:
             self._upt_dropdown_menu(mouse)
         if keyboard.is_ctrl_on:
-            self._handle_dropdown_shortcuts(keyboard.timed)
+            self._handle_dropdown_shortcuts(keyboard)
 
         prev_scrollbar_value: int = self._scrollbar.value
         self._scrollbar.upt(mouse, keyboard.timed)
@@ -676,14 +673,14 @@ class PaletteManager:
         self.colors_grid.upt(mouse, keyboard)
         self._adjust_scrollbar(prev_num_colors, prev_clicked_i)
 
-        has_offset_y_changed: bool = self.colors_grid.offset_y != prev_offset_y
-        has_dropdown_i_changed: bool = self.dropdown_i != prev_dropdown_i
-        if self.is_dropdown_on and (has_offset_y_changed or has_dropdown_i_changed):
+        did_offset_y_change: bool = self.colors_grid.offset_y != prev_offset_y
+        did_dropdown_i_change: bool = self.dropdown_i != prev_dropdown_i
+        if self.is_dropdown_on and (did_offset_y_change or did_dropdown_i_change):
             self._handle_dropdown_movement()
 
-        did_change: bool = has_offset_y_changed or len(self.colors) != prev_num_colors
-        color_to_edit: Optional[HexColor] = (
-            self.colors[self._edit_i] if self.is_editing_color else None
-        )
+        did_change: bool = did_offset_y_change or len(self.colors) != prev_num_colors
+        color_to_edit: Optional[HexColor] = None
+        if self.is_editing_color:
+            color_to_edit = self.colors[self._edit_i]
 
         return self.colors[self.colors_grid.clicked_i], did_change, color_to_edit

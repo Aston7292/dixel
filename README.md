@@ -23,7 +23,7 @@ Check with ```python3 --version```.
 
 * If importing tk fails\
 ```sudo apt update``` then ```sudo apt install python3-tk```.
-* If you're not in a virtual environment and pip returns an 'externally-managed-environment' error\
+* If you're not in a virtual environment and pip returns an "externally-managed-environment" error\
 ```python3 -m pip install -r requirements.txt --break-system-packages```.
 
 ## Features
@@ -57,7 +57,8 @@ if the program crashes the image will always be saved.
 **ESC**: Close window\
 **CTRL A**: Go to add color UI\
 **CTRL G**: Go to edit grid UI\
-**CTRL S**: Save file with name\
+**CTRL S**: Save file\
+**CTRL SHIFT S**: Save file with name\
 **CTRL O**: Open file\
 **CTRL Q**: Close file\
 **arrows/page down/page up/home/end**: move in scrollbars
@@ -78,14 +79,18 @@ if the program crashes the image will always be saved.
 **ALT arrows**: Move selected pixel by brush size\
 **SHIFT arrows**: Move selected pixel by visible area\
 **CTRL arrows**: Move selected pixel to the limit of the grid\
-**CTRL -/+**: Zoom in/out\
-**CTRL SHIFT -/+**: Zoom in/out until limit\
+**CTRL +/-**: Zoom in/out\
+**CTRL SHIFT +/-**: Zoom in/out until limit\
 **CTRL R**: Reset offset and visible area
 
 ### UIs
 
-**arrows/tab**: Move selection\
+**arrows/tab/SHIFT tab**: Move selection\
 **CTRL left/right**: Go to end of text in input box\
+**+/-**: Increment/decrement numerical slider by 1\
+**SHIFT +/-**: Increment/decrement numerical slider by 10\
+**CTRL +/-**: Increment/decrement numerical slider by 50\
+**home/end**: Go to minimum/maximum numerical slider\
 **CTRL K**: Toggle keep ratio in grid UI\
 **Escape**: Close\
 **Enter**: Confirm

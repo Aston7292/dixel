@@ -1,14 +1,71 @@
 """Class to simplify text rendering, renderers are cached."""
 
+from tkinter import messagebox
+from pathlib import Path
+from io import BytesIO
 from typing import Final, Optional
 
 import pygame as pg
 
 from src.utils import RectPos, resize_obj
+from src.lock_utils import LockException, FileException, try_lock_file
 from src.type_utils import XY, WH, LayeredBlitInfo
-from src.consts import WHITE, BG_LAYER, TEXT_LAYER
+from src.consts import WHITE, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY, BG_LAYER, TEXT_LAYER
 
+FONT_PATH: Final[Path] = Path("assets", "fonts", "fredoka.ttf")
 RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
+is_first_font_load_error: bool = True
+
+
+def try_add_renderer(h: int) -> None:
+    """
+    Adds a render to the cache.
+
+    Args:
+        height
+    """
+
+    num_attempts: int
+
+    renderer: Optional[pg.Font] = None
+    error_str: str = ""
+    for num_attempts in range(1, NUM_MAX_FILE_ATTEMPTS + 1):
+        try:
+            with FONT_PATH.open("rb") as f:
+                try_lock_file(f, True)
+                font_bytes: BytesIO = BytesIO(f.read())
+                renderer = pg.font.Font(font_bytes, h)
+            break
+        except FileNotFoundError:
+            error_str = "File missing."
+            break
+        except PermissionError:
+            error_str = "Permission denied."
+            break
+        except LockException:
+            error_str = "File locked."
+            break
+        except FileException as e:
+            error_str = e.error_str
+            break
+        except pg.error as e:
+            error_str = str(e)
+            break
+        except OSError as e:
+            if num_attempts == NUM_MAX_FILE_ATTEMPTS:
+                error_str = str(e)
+                break
+
+            pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
+
+    if renderer is None:
+        global is_first_font_load_error
+
+        if is_first_font_load_error:
+            messagebox.showerror("Font Load Failed", f"{FONT_PATH.name}: {error_str}")
+            is_first_font_load_error = False
+        renderer = pg.font.Font(size=round(h * 1.3))
+    RENDERERS_CACHE[h] = renderer
 
 
 class TextLabel:
@@ -17,6 +74,8 @@ class TextLabel:
     __slots__ = (
         "init_pos", "_init_h", "_renderer", "text", "_bg_color", "_imgs", "rect", "_rects", "layer"
     )
+
+    did_loading_failed: bool = False
 
     def __init__(
             self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 25,
@@ -27,14 +86,14 @@ class TextLabel:
 
         Args:
             position, text, base_layer (default = BG_LAYER), height (default = 25),
-            background color (default = None)
+            background color (default = transparent)
         """
 
         self.init_pos: RectPos = pos
         self._init_h: int = h
 
         if self._init_h not in RENDERERS_CACHE:
-            RENDERERS_CACHE[self._init_h] = pg.font.SysFont("helvetica", self._init_h)
+            try_add_renderer(self._init_h)
         self._renderer: pg.Font = RENDERERS_CACHE[self._init_h]
 
         self.text: str = text
@@ -43,8 +102,10 @@ class TextLabel:
         lines: list[str] = self.text.split("\n")
 
         self._imgs: list[pg.Surface] = [
-            self._renderer.render(line, True, WHITE, self._bg_color) for line in lines
+            self._renderer.render(line, True, WHITE, self._bg_color).convert_alpha()
+            for line in lines
         ]
+
         self.rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self._rects: list[pg.Rect] = []
 
@@ -77,11 +138,15 @@ class TextLabel:
 
         xy, (_w, h) = resize_obj(self.init_pos, 0, self._init_h, win_w_ratio, win_h_ratio, True)
         if h not in RENDERERS_CACHE:
-            RENDERERS_CACHE[h] = pg.font.SysFont("helvetica", h)
+            try_add_renderer(h)
         self._renderer = RENDERERS_CACHE[h]
 
         lines: list[str] = self.text.split("\n")
-        self._imgs = [self._renderer.render(line, True, WHITE, self._bg_color) for line in lines]
+        self._imgs = [
+            self._renderer.render(line, True, WHITE, self._bg_color).convert_alpha()
+            for line in lines
+        ]
+
         self._refresh_rects(xy)
 
     def _refresh_rects(self, xy: XY) -> None:
@@ -95,7 +160,7 @@ class TextLabel:
         img_width: int
         img_height: int
 
-        img_sizes: list[XY] = [img.get_size() for img in self._imgs]
+        img_sizes: list[WH] = [img.get_size() for img in self._imgs]
         imgs_widths: list[int] = [img_width for img_width, _img_height in img_sizes]
         imgs_heights: list[int] = [img_height for _img_width, img_height in img_sizes]
 
@@ -151,7 +216,11 @@ class TextLabel:
         self.text = text
 
         lines: list[str] = self.text.split("\n")
-        self._imgs = [self._renderer.render(line, True, WHITE, self._bg_color) for line in lines]
+        self._imgs = [
+            self._renderer.render(line, True, WHITE, self._bg_color).convert_alpha()
+            for line in lines
+        ]
+
         xy: XY = getattr(self.rect, self.init_pos.coord_type)
         self._refresh_rects(xy)
 
@@ -162,10 +231,10 @@ class TextLabel:
         Args:
             index
         Returns:
-            character x
+            character x coordinate
         """
 
-        return self.rect.x + self._renderer.render(self.text[:i], False, WHITE, WHITE).get_width()
+        return self.rect.x + self._renderer.size(self.text[:i])[0]
 
     def get_closest_to(self, x: int) -> int:
         """
@@ -182,7 +251,7 @@ class TextLabel:
 
         prev_x: int = self.rect.x
         for i, char in enumerate(self.text):
-            current_x: int = prev_x + self._renderer.render(char, False, WHITE, WHITE).get_width()
+            current_x: int = prev_x + self._renderer.size(char)[0]
             if x < current_x:
                 return i if abs(x - prev_x) < abs(x - current_x) else i + 1
 

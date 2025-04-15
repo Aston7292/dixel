@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Final, Optional
 
 import pygame as pg
+from pygame import SYSTEM_CURSOR_HAND
 
 from src.classes.text_label import TextLabel
 
@@ -16,7 +17,7 @@ INIT_CLICK_INTERVAL: Final[int] = 100
 
 class Clickable(ABC):
     """
-    Abstract class to create a clickable object with two images (with same size) and hovering text.
+    Abstract class to create a clickable object with various images and hovering text.
 
     Includes:
         blit_sequence() -> layered blit sequence
@@ -30,9 +31,11 @@ class Clickable(ABC):
     """
 
     __slots__ = (
-        "init_pos", "init_imgs", "imgs", "rect", "img_i", "_is_hovering", "layer", "cursor_type",
+        "init_pos", "init_imgs", "imgs", "rect", "img_i", "_is_hovering", "layer",
         "hovering_text_label"
     )
+
+    cursor_type: int = SYSTEM_CURSOR_HAND
 
     def __init__(
             self, pos: RectPos, imgs: list[pg.Surface], hovering_text: str, base_layer: int
@@ -41,7 +44,7 @@ class Clickable(ABC):
         Creates the object.
 
         Args:
-            position, two images, hovering text, base layer
+            position, images, hovering text, base layer
         """
 
         self.init_imgs: list[pg.Surface]  # Better for scaling
@@ -57,7 +60,6 @@ class Clickable(ABC):
         self._is_hovering: bool = False
 
         self.layer: int = base_layer + ELEMENT_LAYER
-        self.cursor_type: int = pg.SYSTEM_CURSOR_HAND
 
         # Better if it's not in objs_info, activating a dropdown-menu will activate it too
         hovering_text_base_layer: int = base_layer + TOP_LAYER - TEXT_LAYER
@@ -81,7 +83,7 @@ class Clickable(ABC):
         sequence: list[LayeredBlitInfo] = [(self.imgs[self.img_i], self.rect, self.layer)]
         if self._is_hovering:
             mouse_x, mouse_y = pg.mouse.get_pos()
-            self.hovering_text_label.move_rect(mouse_x + 15, mouse_y, 1, 1)
+            self.hovering_text_label.move_rect(mouse_x + 10, mouse_y, 1, 1)
             sequence.extend(self.hovering_text_label.blit_sequence)
 
         return sequence
@@ -115,7 +117,7 @@ class Clickable(ABC):
         wh: WH
 
         xy, wh = resize_obj(self.init_pos, *self.init_imgs[0].get_size(), win_w_ratio, win_h_ratio)
-        self.imgs = [pg.transform.scale(img, wh) for img in self.init_imgs]
+        self.imgs = [pg.transform.scale(img, wh).convert() for img in self.init_imgs]
         self.rect.size = wh
         setattr(self.rect, self.init_pos.coord_type, xy)
 
@@ -144,7 +146,7 @@ class Clickable(ABC):
         Args:
             mouse
         Returns:
-            boolean related to clicking
+            flag related to clicking
         """
 
 
@@ -184,17 +186,17 @@ class Checkbox(Clickable):
         Args:
             mouse, shortcutting flag (default = False)
         Returns:
-            has been checked flag
+            toggled flag
         """
 
         self._is_hovering = mouse.hovered_obj == self
 
-        has_toggled: bool = (mouse.released[MOUSE_LEFT] and self._is_hovering) or is_shortcutting
-        if has_toggled:
+        did_toggle: bool = (mouse.released[MOUSE_LEFT] and self._is_hovering) or is_shortcutting
+        if did_toggle:
             self.is_checked = not self.is_checked
             self.img_i = int(self.is_checked)
 
-        return has_toggled and self.is_checked
+        return did_toggle and self.is_checked
 
 
 class LockedCheckbox(Clickable):
@@ -349,15 +351,14 @@ class SpammableButton(Clickable):
         if not mouse.pressed[MOUSE_LEFT]:
             self._is_first_click = True
         elif self._is_hovering:
-            time: int = pg.time.get_ticks()
             if self._is_first_click:
                 self._click_interval = INIT_CLICK_INTERVAL
-                self._last_click_time = time + 200  # Takes longer for second click
+                self._last_click_time = pg.time.get_ticks() + 150  # Takes longer for second click
                 self._is_first_click = False
                 is_clicked = True
-            elif time - self._last_click_time >= self._click_interval:
+            elif pg.time.get_ticks() - self._last_click_time >= self._click_interval:
                 self._click_interval = max(self._click_interval - 10, 10)
-                self._last_click_time = time
+                self._last_click_time = pg.time.get_ticks()
                 is_clicked = True
 
         return is_clicked

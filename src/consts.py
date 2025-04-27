@@ -29,8 +29,8 @@ EMPTY_TILE_ARR: Final[NDArray[np.uint8]] = np.array(
     ),
     np.uint8
 ).transpose((1, 0, 2))
-NUM_TILE_COLS: Final[int] = EMPTY_TILE_ARR.shape[0]
-NUM_TILE_ROWS: Final[int] = EMPTY_TILE_ARR.shape[1]
+TILE_W: Final[int] = EMPTY_TILE_ARR.shape[0]
+TILE_H: Final[int] = EMPTY_TILE_ARR.shape[1]
 
 NUM_VISIBLE_CHECKBOX_GRID_ROWS: Final[int] = 10
 GRID_TRANSITION_START: Final[int] = 32
@@ -45,3 +45,7 @@ TEXT_LAYER: Final[int] = 2
 TOP_LAYER: Final[int] = 3
 SPECIAL_LAYER: Final[int] = 4  # Base for the special layers
 UI_LAYER: Final[int] = SPECIAL_LAYER * 2  # Base for the UI layers
+
+ANIMATION_I_GROW: Final[int] = 0
+ANIMATION_I_SHRINK_TO_MIN: Final[int] = 1
+ANIMATION_I_SHRINK_TO_0: Final[int] = 2

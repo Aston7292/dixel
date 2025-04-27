@@ -1,8 +1,4 @@
-"""
-Class to choose a number in range with an input box.
-
-Text and cursor position are refreshed automatically.
-"""
+"""Class to choose a number in range with an input box."""
 
 from typing import Final, Optional, Any
 
@@ -23,8 +19,8 @@ class NumInputBox:
 
     __slots__ = (
         "_init_pos", "_img", "rect", "_init_w", "_init_h", "min_limit", "max_limit",
-        "_is_selected", "_cursor_i", "layer", "_cursor_layer", "cursor_type", "text_label",
-        "_cursor_img", "cursor_rect", "objs_info"
+        "_is_selected", "cursor_i", "layer", "_cursor_layer", "cursor_type", "text_label",
+        "_prev_text", "_prev_cursor_i", "_cursor_img", "cursor_rect", "objs_info"
     )
 
     def __init__(
@@ -37,33 +33,32 @@ class NumInputBox:
             position, minimum limit, maximum limit, base layer (default = BG_LAYER)
         """
 
-        self.layer: int
-        self._cursor_layer: int
-
-        self._init_w: int
-        self._init_h: int
-
         self._init_pos: RectPos = pos
 
         self._img: pg.Surface = INPUT_BOX_IMG
         self.rect: pg.Rect = pg.Rect(0, 0, *self._img.get_size())
         setattr(self.rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
-        self._init_w, self._init_h = self.rect.size
+        self._init_w: int = self.rect.w
+        self._init_h: int = self.rect.h
 
         self.min_limit: int = min_limit
         self.max_limit: int = max_limit
 
         self._is_selected: bool = False
-        self._cursor_i: int = 0
+        self.cursor_i: int = 0
 
-        self.layer, self._cursor_layer = base_layer + ELEMENT_LAYER, base_layer + TOP_LAYER
+        self.layer: int = base_layer + ELEMENT_LAYER
+        self._cursor_layer: int = base_layer + TOP_LAYER
         self.cursor_type: int = SYSTEM_CURSOR_IBEAM
 
         self.text_label = TextLabel(
             RectPos(self.rect.centerx, self.rect.centery, "center"),
             "", base_layer
         )
+
+        self._prev_text: str = self.text_label.text
+        self._prev_cursor_i: int = self.cursor_i
 
         self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h)).convert()
         self._cursor_img.fill(WHITE)
@@ -124,21 +119,8 @@ class NumInputBox:
         self._cursor_img = pg.Surface((1, self.text_label.rect.h)).convert()
         self._cursor_img.fill(WHITE)
         self.cursor_rect.topleft = (
-            self.text_label.get_x_at(self._cursor_i), self.text_label.rect.y
+            self.text_label.get_x_at(self.cursor_i), self.text_label.rect.y
         )
-
-    def bounded_set_cursor_i(self, i: Optional[int]) -> None:
-        """
-        Sets the cursor index making sure it doesn't exceed the text length.
-
-        Args:
-            index (normal index if None)
-        """
-
-        if i is not None:
-            self._cursor_i = i
-        self._cursor_i = min(self._cursor_i, len(self.text_label.text))
-        self.cursor_rect.x = self.text_label.get_x_at(self._cursor_i)
 
     def _move_with_keys(self, keyboard: Keyboard) -> None:
         """
@@ -149,14 +131,14 @@ class NumInputBox:
         """
 
         if K_LEFT in keyboard.timed:
-            self._cursor_i = 0 if keyboard.is_ctrl_on else max(self._cursor_i - 1, 0)
+            self.cursor_i = 0 if keyboard.is_ctrl_on else max(self.cursor_i - 1, 0)
         if K_RIGHT in keyboard.timed:
             text_len: int = len(self.text_label.text)
-            self._cursor_i = text_len if keyboard.is_ctrl_on else min(self._cursor_i + 1, text_len)
+            self.cursor_i = text_len if keyboard.is_ctrl_on else min(self.cursor_i + 1, text_len)
         if K_HOME in keyboard.timed:
-            self._cursor_i = 0
+            self.cursor_i = 0
         if K_END in keyboard.timed:
-            self._cursor_i = len(self.text_label.text)
+            self.cursor_i = len(self.text_label.text)
 
     def _handle_deletion(self, k: int) -> None:
         """
@@ -170,14 +152,14 @@ class NumInputBox:
         second_part: str
 
         if k == K_DELETE:
-            first_part = self.text_label.text[:self._cursor_i]
-            second_part = self.text_label.text[self._cursor_i + 1:]
+            first_part = self.text_label.text[:self.cursor_i]
+            second_part = self.text_label.text[self.cursor_i + 1:]
             self.text_label.text = first_part + second_part
         elif k == K_BACKSPACE:
-            first_part = self.text_label.text[:self._cursor_i - 1]
-            second_part = self.text_label.text[self._cursor_i:]
+            first_part = self.text_label.text[:self.cursor_i - 1]
+            second_part = self.text_label.text[self.cursor_i:]
             self.text_label.text = first_part + second_part
-            self._cursor_i = max(self._cursor_i - 1, 0)
+            self.cursor_i = max(self.cursor_i - 1, 0)
 
         if self.text_label.text.startswith("0"):  # If it's empty keep it empty
             self.text_label.text = self.text_label.text.lstrip("0") or str(self.min_limit)
@@ -192,8 +174,8 @@ class NumInputBox:
 
         prev_text: str = self.text_label.text
 
-        first_half: str = self.text_label.text[:self._cursor_i]
-        second_half: str = self.text_label.text[self._cursor_i:]
+        first_half: str = self.text_label.text[:self.cursor_i]
+        second_half: str = self.text_label.text[self.cursor_i:]
         self.text_label.text = first_half + char + second_half
         self.text_label.text = self.text_label.text.lstrip("0") or str(self.min_limit)
 
@@ -206,7 +188,7 @@ class NumInputBox:
             self.text_label.text = str(self.max_limit)
 
         if self.text_label.text != prev_text:
-            self._cursor_i = min(self._cursor_i + 1, len(self.text_label.text))
+            self.cursor_i = min(self.cursor_i + 1, len(self.text_label.text))
 
     def _handle_k(self, k: int) -> None:
         """
@@ -223,33 +205,38 @@ class NumInputBox:
             if char.isdigit():
                 self._insert_char(char)
 
-    def upt(self, mouse: Mouse, keyboard: Keyboard, selected_obj: Any, prev_text: str) -> bool:
+    def refresh(self) -> None:
+        """Refreshes text label and mouse position."""
+
+        if self.text_label.text != self._prev_text:
+            self.text_label.set_text(self.text_label.text)
+            self.cursor_rect.x = self.text_label.get_x_at(self.cursor_i)
+        elif self.cursor_i != self._prev_cursor_i:
+            self.cursor_rect.x = self.text_label.get_x_at(self.cursor_i)
+
+        self._prev_text = self.text_label.text
+        self._prev_cursor_i = self.cursor_i
+
+    def upt(self, mouse: Mouse, keyboard: Keyboard, selected_obj: Any) -> bool:
         """
         Allows typing numbers, moving the cursor and deleting a specific character.
 
+        Refresh should be called when everything is updated.
+
         Args:
-            mouse, keyboard, selected obj, previous text
+            mouse, keyboard, selected obj
         Returns:
             clicked flag
         """
 
-        prev_cursor_i: int = self._cursor_i
-
         is_clicked: bool = mouse.hovered_obj == self and mouse.released[MOUSE_LEFT]
         if is_clicked:
-            self._cursor_i = self.text_label.get_closest_to(mouse.x)
+            self.cursor_i = self.text_label.get_closest_to(mouse.x)
             selected_obj = self
 
         self._is_selected = selected_obj == self
         if self._is_selected and keyboard.timed != []:
             self._move_with_keys(keyboard)
             self._handle_k(keyboard.timed[-1])
-
-        if self.text_label.text != prev_text:
-            self.text_label.set_text(self.text_label.text)
-            self.cursor_rect.x = self.text_label.get_x_at(self._cursor_i)
-
-        if self._cursor_i != prev_cursor_i:
-            self.cursor_rect.x = self.text_label.get_x_at(self._cursor_i)
 
         return is_clicked

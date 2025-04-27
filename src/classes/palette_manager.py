@@ -109,7 +109,7 @@ class VerScrollbar:
         )
 
         self._prev_mouse_y: int = pg.mouse.get_pos()[1]
-        self._traveled_y: float = 0
+        self._traveled_y: int = 0
         self._is_scrolling: bool = False
 
         self.layer: int = base_layer + ELEMENT_LAYER
@@ -650,6 +650,7 @@ class PaletteManager:
             hexadecimal selected color, changed flag, hexadecimal color to edit (can be None)
         """
 
+        # TODO: refactor this
         if mouse.released[MOUSE_RIGHT]:
             self._check_dropdown_toggle(mouse)
 

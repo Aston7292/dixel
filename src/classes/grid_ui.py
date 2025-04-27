@@ -16,7 +16,7 @@ from src.classes.text_label import TextLabel
 from src.utils import RectPos, Size, ObjInfo, Mouse, Keyboard, resize_obj
 from src.type_utils import XY, LayeredBlitInfo
 from src.consts import (
-    MOUSE_LEFT, EMPTY_TILE_ARR, NUM_TILE_ROWS, NUM_TILE_COLS,
+    MOUSE_LEFT, EMPTY_TILE_ARR, TILE_H, TILE_W,
     GRID_TRANSITION_START, GRID_TRANSITION_END, UI_LAYER
 )
 from src.imgs import CHECKBOX_IMG_OFF, CHECKBOX_IMG_ON
@@ -46,7 +46,7 @@ class NumSlider:
         self.input_box: NumInputBox = NumInputBox(pos, 1, 999, base_layer)
 
         self._prev_mouse_x: int = pg.mouse.get_pos()[0]
-        self._traveled_x: int = 0
+        self._traveled_x: float = 0
         self._is_sliding: bool = False
 
         extra_text_label: TextLabel = TextLabel(
@@ -75,7 +75,8 @@ class NumSlider:
 
         self.value = value
         self.input_box.text_label.set_text(str(self.value))
-        self.input_box.bounded_set_cursor_i(0)
+        self.input_box.cursor_i = 0
+        self.input_box.cursor_rect.x = self.input_box.text_label.rect.x
 
     def _slide(self, mouse_x: int) -> None:
         """
@@ -85,7 +86,7 @@ class NumSlider:
             mouse x
         """
 
-        speed: int = int(abs(mouse_x - self._prev_mouse_x) ** 1.5)
+        speed: float = abs(mouse_x - self._prev_mouse_x) ** 1.5
         if self._prev_mouse_x > mouse_x:
             speed = -speed
         self._traveled_x += speed
@@ -144,15 +145,11 @@ class NumSlider:
             self.input_box.cursor_type = SYSTEM_CURSOR_SIZEWE
             self._is_sliding = True
 
-        prev_input_box_text: str = self.input_box.text_label.text
-
         if self._is_sliding:
             self._slide(mouse.x)
         if selected_obj == self.input_box and keyboard.timed != []:
             self._slide_with_keys(keyboard)
-        is_input_box_clicked: bool = self.input_box.upt(
-            mouse, keyboard, selected_obj, prev_input_box_text
-        )
+        is_input_box_clicked: bool = self.input_box.upt(mouse, keyboard, selected_obj)
 
         self.value = int(self.input_box.text_label.text or self.input_box.min_limit)
         self._prev_mouse_x = mouse.x
@@ -260,17 +257,17 @@ class GridUI(UI):
 
         tiles: NDArray[np.uint8] = self._preview_tiles  # Copying isn't necessary
 
-        num_extra_cols: int = self._w_slider.value - tiles.shape[0]
-        if num_extra_cols < 0:
+        extra_w: int = self._w_slider.value - tiles.shape[0]
+        if extra_w < 0:
             tiles = tiles[:self._w_slider.value, ...]
-        elif num_extra_cols > 0:
-            tiles = np.pad(tiles, ((0, num_extra_cols), (0, 0), (0, 0)), constant_values=0)
+        elif extra_w > 0:
+            tiles = np.pad(tiles, ((0, extra_w), (0, 0), (0, 0)), constant_values=0)
 
-        num_extra_rows: int = self._h_slider.value - tiles.shape[1]
-        if num_extra_rows < 0:
+        extra_h: int = self._h_slider.value - tiles.shape[1]
+        if extra_h < 0:
             tiles = tiles[:, :self._h_slider.value, ...]
-        elif num_extra_rows > 0:
-            tiles = np.pad(tiles, ((0, 0), (0, num_extra_rows), (0, 0)), constant_values=0)
+        elif extra_h > 0:
+            tiles = np.pad(tiles, ((0, 0), (0, extra_h), (0, 0)), constant_values=0)
 
         return tiles
 
@@ -318,15 +315,13 @@ class GridUI(UI):
         tiles: NDArray[np.uint8] = self._fit_tiles()
 
         # Repeat tiles so an empty tile image takes 1 normal-sized tile
-        tiles = tiles.repeat(NUM_TILE_COLS, 0).repeat(NUM_TILE_ROWS, 1)
-        empty_tiles_mask: NDArray[np.bool_] = tiles[..., 3:4] == 0
-        tiles = tiles[..., :3]
-
+        tiles = tiles.repeat(TILE_W, 0).repeat(TILE_H, 1)
         empty_tiles: NDArray[np.uint8] = np.tile(
             EMPTY_TILE_ARR, (self._w_slider.value, self._h_slider.value, 1)
         )
-        tiles = np.where(empty_tiles_mask, empty_tiles, tiles)
+        empty_tiles_mask: NDArray[np.bool_] = (tiles[..., 3] == 0)[..., np.newaxis]
 
+        tiles = np.where(empty_tiles_mask, empty_tiles, tiles[..., :3])
         # Having a version where 1 tile = 1 pixel is better for scaling
         small_preview_img: pg.Surface = pg.surfarray.make_surface(tiles)
         self._resize_preview(small_preview_img)
@@ -339,20 +334,16 @@ class GridUI(UI):
             timed keys
         """
 
-        closest_char_i: int
-
         if K_UP in timed_keys:
             self._selection_i = 0
-            closest_char_i = self._w_slider.input_box.text_label.get_closest_to(
+            self._w_slider.input_box.cursor_i = self._w_slider.input_box.text_label.get_closest_to(
                 self._h_slider.input_box.cursor_rect.x
             )
-            self._w_slider.input_box.bounded_set_cursor_i(closest_char_i)
         if K_DOWN in timed_keys:
             self._selection_i = 1
-            closest_char_i = self._h_slider.input_box.text_label.get_closest_to(
+            self._h_slider.input_box.cursor_i = self._h_slider.input_box.text_label.get_closest_to(
                 self._w_slider.input_box.cursor_rect.x
             )
-            self._h_slider.input_box.bounded_set_cursor_i(closest_char_i)
 
     def _upt_sliders(self, mouse: Mouse, keyboard: Keyboard) -> None:
         """
@@ -385,8 +376,6 @@ class GridUI(UI):
         opp_slider: NumSlider
         uncapped_value: int
         slider_text: str
-        min_limit: int
-        max_limit: int
 
         if did_grid_w_change:
             opp_slider = self._h_slider
@@ -396,15 +385,13 @@ class GridUI(UI):
             opp_slider = self._w_slider
             uncapped_value = round(self._h_slider.value * self.h_ratio)
             slider_text = self._h_slider.input_box.text_label.text
-        min_limit, max_limit = opp_slider.input_box.min_limit, opp_slider.input_box.max_limit
+        min_limit: int = opp_slider.input_box.min_limit
+        max_limit: int = opp_slider.input_box.max_limit
         opp_slider.value = min(max(uncapped_value, min_limit), max_limit)
 
-        opp_slider_text: str = str(opp_slider.value)
+        opp_slider.input_box.text_label.text = str(opp_slider.value)
         if slider_text == "" and opp_slider.value == 1:
-            opp_slider_text = ""
-
-        opp_slider.input_box.text_label.set_text(opp_slider_text)
-        opp_slider.input_box.bounded_set_cursor_i(None)
+            opp_slider.input_box.text_label.text = ""
 
     def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[bool, bool, int, int]:
         """
@@ -413,7 +400,7 @@ class GridUI(UI):
         Args:
             mouse, keyboard
         Returns:
-            exiting flag, confirming flag, columns, rows
+            exiting flag, confirming flag, width, height
         """
 
         is_exiting: bool
@@ -440,6 +427,8 @@ class GridUI(UI):
                 self._adjust_opp_slider(did_grid_w_change)
             self._refresh_preview()
 
+        self._w_slider.input_box.refresh()
+        self._h_slider.input_box.refresh()
         is_exiting, is_confirming = self._base_upt(mouse, keyboard.pressed)
 
         return is_exiting, is_confirming, self._w_slider.value, self._h_slider.value

@@ -73,7 +73,6 @@ Interacting with elements:
     it contains a high level implementation of it's behavior.
 
 ----------TODO----------
-- mouse.set_pos on wayland
 - better grid transition?
 - split Dixel
 - support more file types
@@ -139,6 +138,7 @@ from src.classes.grid_manager import GridManager
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
+from src.classes.unsaved_icon import UnsavedIcon
 
 from src.utils import (
     RectPos, Size, ObjInfo, Mouse, Keyboard, get_pixels, get_brush_dim_img, try_create_dir,
@@ -147,9 +147,11 @@ from src.utils import (
 from src.lock_utils import LockException, FileException, try_lock_file
 from src.type_utils import XY, WH, RGBColor, HexColor, CheckboxInfo, ToolInfo, LayeredBlitInfo
 from src.consts import (
-    CHR_LIMIT, BLACK, WHITE, HEX_BLACK, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY, BG_LAYER
+    CHR_LIMIT, BLACK, WHITE, HEX_BLACK, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY, BG_LAYER,
+    ANIMATION_I_GROW, ANIMATION_I_SHRINK_TO_MIN, ANIMATION_I_SHRINK_TO_0
 )
 
+# TODO: update screenshots
 for _i in range(5):
     pg.init()
 pg.key.stop_text_input()
@@ -248,6 +250,9 @@ FILE_TEXT_LABEL: Final[TextLabel] = TextLabel(
     ""
 )
 
+UNSAVED_ICON: Final[UnsavedIcon] = UnsavedIcon()
+UNSAVED_ICON_OBJ_INFO: Final[ObjInfo] = ObjInfo(UNSAVED_ICON)
+
 COLOR_PICKER: Final[ColorPicker] = ColorPicker(
     RectPos(round(WIN_INIT_W / 2), round(WIN_INIT_H / 2), "center")
 )
@@ -264,7 +269,8 @@ MAIN_STATES_OBJS_INFO: Final[StatesObjInfo] = (
         ObjInfo(SAVE), ObjInfo(SAVE_AS), ObjInfo(OPEN), ObjInfo(CLOSE),
         ObjInfo(GRID_MANAGER),
         ObjInfo(BRUSH_DIMS), ObjInfo(PALETTE_MANAGER), ObjInfo(TOOLS_MANAGER),
-        ObjInfo(FPS_TEXT_LABEL), ObjInfo(FILE_TEXT_LABEL)
+        ObjInfo(FPS_TEXT_LABEL), ObjInfo(FILE_TEXT_LABEL),
+        UNSAVED_ICON_OBJ_INFO
     ],
     [ObjInfo(COLOR_PICKER)],
     [ObjInfo(GRID_UI)]
@@ -359,7 +365,7 @@ def _try_get_grid_img(
 
             pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
 
-    if img is None and exception not in ignored_exceptions and ignored_exceptions is not None:
+    if img is None and exception not in ignored_exceptions and ignored_exceptions != [None]:
         messagebox.showerror("Image Load Failed", f"{file_path.name}: {error_str}")
     return img
 
@@ -411,14 +417,12 @@ class Dixel:
     __slots__ = (
         "_is_fullscreen", "_cursor_type", "_timed_keys_interval", "_prev_timed_keys_update",
         "_alt_k", "_state_i", "_states_objs_info", "_state_active_objs", "_file_str",
-        "_is_unsaved", "_is_asking_file_save_as", "_is_asking_file_open", "_new_file_str",
-        "_new_file_img", "_unsaved_icon_img", "_unsaved_icon_rect", "_unsaved_icon_blit_info"
+        "_is_asking_file_save_as", "_is_asking_file_open", "_new_file_str",
+        "_new_file_img", "_is_saved"
     )
 
     def __init__(self) -> None:
         """Initializes the window."""
-
-        self._unsaved_icon_blit_info: LayeredBlitInfo
 
         self._is_fullscreen: bool = False
 
@@ -432,20 +436,11 @@ class Dixel:
         self._state_active_objs: list[Any] = []
 
         self._file_str: str = ""
-        self._is_unsaved: bool = True
         self._is_asking_file_save_as: bool = False
         self._is_asking_file_open: bool = False
         self._new_file_str: str = ""
         self._new_file_img: Optional[pg.Surface] = None
-
-        self._unsaved_icon_img: pg.Surface = pg.Surface((16, 16)).convert()
-        self._unsaved_icon_rect: pg.Rect = pg.Rect(0, 0, *self._unsaved_icon_img.get_size())
-        # Decrease radius to make sure it's not cut off
-        unsaved_icon_radius: float = min(self._unsaved_icon_rect.size) // 2 - 1
-        pg.draw.aacircle(
-            self._unsaved_icon_img, WHITE, self._unsaved_icon_rect.center, unsaved_icon_radius
-        )
-        self._unsaved_icon_blit_info = (self._unsaved_icon_img, self._unsaved_icon_rect, BG_LAYER)
+        self._is_saved: bool = False
 
         self._load_data_from_file()
 
@@ -459,13 +454,16 @@ class Dixel:
             self._file_str = ""
             GRID_MANAGER.grid.refresh_full()
         else:
-            self._is_unsaved = False
             GRID_MANAGER.grid.set_tiles(grid_img)
-        # Calls GRID_MANAGER.grid.refresh_grid_img so it must be called after grid.set_tiles
-        GRID_MANAGER.grid.set_selected_tile_dim(BRUSH_DIMS.clicked_i + 1)
-
+            UNSAVED_ICON.set_radius(0)
+            self._is_saved = True
         self._set_file_text_label()
+
         self._refresh_objs()
+        WIN.show()
+        for obj in self._state_active_objs:
+            if hasattr(obj, "enter"):
+                obj.enter()
 
     def _try_get_data(self) -> Optional[dict[str, Any]]:
         """
@@ -530,6 +528,7 @@ class Dixel:
                 data["grid_vis_cols"], data["grid_vis_rows"],
                 data["grid_offset_x"], data["grid_offset_y"]
             )
+            GRID_MANAGER.grid.brush_dim = BRUSH_DIMS.clicked_i + 1
 
             if data["grid_w_ratio"] is not None and data["grid_h_ratio"] is not None:
                 GRID_UI.checkbox.img_i = 1
@@ -661,11 +660,11 @@ class Dixel:
         elif len(self._file_str) <= 25:
             FILE_TEXT_LABEL.set_text(self._file_str)
         else:
-            file_text = "..." + self._file_str[-25:]
+            file_text: str = "..." + self._file_str[-25:]
             FILE_TEXT_LABEL.set_text(file_text)
 
-        self._unsaved_icon_rect.midleft = (
-            FILE_TEXT_LABEL.rect.right + 5, FILE_TEXT_LABEL.rect.centery
+        UNSAVED_ICON.rect.midleft = (
+            FILE_TEXT_LABEL.rect.right + 15, FILE_TEXT_LABEL.rect.centery
         )
 
     def _draw(self) -> None:
@@ -679,9 +678,6 @@ class Dixel:
             blittable_objs.extend([info.obj for info in home_objs_info if info.is_active])
 
         main_sequence: list[LayeredBlitInfo] = []
-        if self._is_unsaved:
-            main_sequence.append(self._unsaved_icon_blit_info)
-
         for obj in blittable_objs:
             main_sequence.extend(obj.blit_sequence)
         main_sequence.sort(key=_get_blit_info_layer)
@@ -752,7 +748,6 @@ class Dixel:
                 obj.enter()
 
         self._resize_objs()
-        pg.mouse.set_cursor(SYSTEM_CURSOR_ARROW)
 
     def _resize_objs(self) -> None:
         """Resizes every object of the main and current state with a resize method."""
@@ -760,8 +755,6 @@ class Dixel:
         win_w: int
         win_h: int
         obj: Any
-        _xy: XY
-        wh: WH
 
         resizable_objs: list[Any] = [info.obj for info in self._states_objs_info[self._state_i]]
         if self._state_i != STATE_I_MAIN:
@@ -774,18 +767,10 @@ class Dixel:
             if hasattr(obj, "resize"):
                 obj.resize(win_w_ratio, win_h_ratio)
 
-        _xy, wh = resize_obj(RectPos(0, 0, ""), 16, 16, win_w_ratio, win_h_ratio)
-        self._unsaved_icon_img = pg.Surface(wh).convert()
-        self._unsaved_icon_rect.size = wh
-        self._unsaved_icon_rect.midleft = (
-            FILE_TEXT_LABEL.rect.right + 5, FILE_TEXT_LABEL.rect.centery
+        # TODO: bad
+        UNSAVED_ICON.rect.midleft = (
+            FILE_TEXT_LABEL.rect.right + 15, FILE_TEXT_LABEL.rect.centery
         )
-
-        unsaved_icon_center: XY = (self._unsaved_icon_rect.w // 2, self._unsaved_icon_rect.h // 2)
-        # Decrease radius to make sure it's not cut off
-        unsaved_icon_radius: int = min(self._unsaved_icon_rect.size) // 2 - 1
-        pg.draw.aacircle(self._unsaved_icon_img, WHITE, unsaved_icon_center, unsaved_icon_radius)
-        self._unsaved_icon_blit_info = (self._unsaved_icon_img, self._unsaved_icon_rect, BG_LAYER)
 
     def _add_to_keys(self, k: int) -> None:
         """
@@ -857,15 +842,31 @@ class Dixel:
 
         self._timed_keys_interval = 150
 
-    def _refresh_is_unsaved(self) -> None:
-        """Checks if the image is unsaved."""
+    def _refresh_unsaved_icon(self, unsaved_color: pg.Color) -> None:
+        """
+        Checks if the image is unsaved and refreshes the unsaved icon.
+
+        Args:
+            unsaved color
+        """
 
         img: Optional[pg.Surface] = _try_get_grid_img(self._file_str, [None])
         if img is None:
-            self._is_unsaved = True
+            if self._is_saved:
+                UNSAVED_ICON.color = pg.Color(255, 255, 0)
+                UNSAVED_ICON.animation_i = ANIMATION_I_GROW
+                self._is_saved = False
         else:
             tiles: NDArray[np.uint8] = get_pixels(img)
-            self._is_unsaved = not np.array_equal(GRID_MANAGER.grid.tiles, tiles)
+            if np.array_equal(GRID_MANAGER.grid.tiles, tiles):
+                if not self._is_saved:
+                    UNSAVED_ICON.color = WHITE
+                    UNSAVED_ICON.animation_i = ANIMATION_I_SHRINK_TO_0
+                    self._is_saved = True
+            elif self._is_saved:
+                UNSAVED_ICON.color = unsaved_color
+                UNSAVED_ICON.animation_i = ANIMATION_I_GROW
+                self._is_saved = False
 
     def _handle_events(self) -> None:
         """Handles events."""
@@ -895,7 +896,7 @@ class Dixel:
             elif event.type == TIMEDUPDATE1000:
                 FPS_TEXT_LABEL.set_text(f"FPS: {CLOCK.get_fps():.2f}")
                 if self._file_str != "":
-                    self._refresh_is_unsaved()
+                    self._refresh_unsaved_icon(pg.Color(255, 255, 0))
 
     def _finish_ask_save_to_file(self, file_str: str) -> None:
         """
@@ -907,9 +908,16 @@ class Dixel:
 
         file_str = _ensure_valid_img_format(file_str)
         grid_img: Optional[pg.Surface] = GRID_MANAGER.grid.try_save_to_file(file_str, True)
-        if grid_img is not None:
+        if grid_img is None:
+            UNSAVED_ICON.color = pg.Color(255, 0, 0)
+            UNSAVED_ICON.animation_i = ANIMATION_I_GROW
+            self._is_saved = False
+        else:
             self._file_str = file_str
-            self._is_unsaved = False
+            if not self._is_saved:
+                UNSAVED_ICON.color = pg.Color(0, 255, 0)
+                UNSAVED_ICON.animation_i = ANIMATION_I_SHRINK_TO_0
+                self._is_saved = True
             self._set_file_text_label()
 
     def _finish_ask_open_file(self, file_str: str) -> None:
@@ -1060,8 +1068,14 @@ class Dixel:
                 pg.time.wait(FILE_ATTEMPT_DELAY * num_system_attempts)
 
         grid_img = GRID_MANAGER.grid.try_save_to_file(self._file_str, should_ask_create_img_dir)
-        if grid_img is not None:
-            self._is_unsaved = False
+        if grid_img is None:
+            UNSAVED_ICON.color = pg.Color(255, 0, 0)
+            UNSAVED_ICON.animation_i = ANIMATION_I_GROW
+            self._is_saved = False
+        elif not self._is_saved:
+            UNSAVED_ICON.color = pg.Color(0, 255, 0)
+            UNSAVED_ICON.animation_i = ANIMATION_I_SHRINK_TO_0
+            self._is_saved = True
 
     def _upt_ui_openers(self) -> None:
         """Updates the buttons that open UIs."""
@@ -1118,8 +1132,10 @@ class Dixel:
             GRID_MANAGER.grid.try_save_to_file(self._file_str, True)
 
             self._file_str = ""
-            self._is_unsaved = True
             GRID_MANAGER.grid.set_tiles(None)
+            UNSAVED_ICON.color = WHITE
+            UNSAVED_ICON.animation_i = ANIMATION_I_GROW
+            self._is_saved = False
             self._set_file_text_label()
 
     def _main_interface(self) -> None:
@@ -1135,18 +1151,18 @@ class Dixel:
             for k in range(K_1, K_1 + max_brush_dim_ctrl_shortcut):
                 if k in KEYBOARD.pressed:
                     BRUSH_DIMS.check(k - K_1)
-                    GRID_MANAGER.grid.set_selected_tile_dim(BRUSH_DIMS.clicked_i + 1)
+                    GRID_MANAGER.grid.brush_dim = BRUSH_DIMS.clicked_i + 1
 
         prev_brush_i: int = BRUSH_DIMS.clicked_i
         brush_i: int = BRUSH_DIMS.upt(MOUSE, KEYBOARD)
         if brush_i != prev_brush_i:
-            GRID_MANAGER.grid.set_selected_tile_dim(brush_i + 1)
+            GRID_MANAGER.grid.brush_dim = BRUSH_DIMS.clicked_i + 1
 
         hex_color, did_palette_change, hex_color_to_edit = PALETTE_MANAGER.upt(MOUSE, KEYBOARD)
         tool_info: ToolInfo = TOOLS_MANAGER.upt(MOUSE, KEYBOARD)
         did_grid_change: bool = GRID_MANAGER.upt(MOUSE, KEYBOARD, hex_color, tool_info)
         if did_grid_change and self._file_str != "":
-            self._refresh_is_unsaved()
+            self._refresh_unsaved_icon(WHITE)
 
         self._upt_file_saving()
         self._upt_file_opening()
@@ -1188,10 +1204,10 @@ class Dixel:
 
         did_exit: bool
         did_confirm: bool
-        cols: int
-        rows: int
+        grid_w: int
+        grid_h: int
 
-        did_exit, did_confirm, cols, rows = GRID_UI.upt(MOUSE, KEYBOARD)
+        did_exit, did_confirm, grid_w, grid_h = GRID_UI.upt(MOUSE, KEYBOARD)
         if did_exit:
             self._state_i = STATE_I_MAIN
             self._new_file_img = None
@@ -1201,7 +1217,7 @@ class Dixel:
                 GRID_MANAGER.grid.try_save_to_file(self._file_str, True)
 
             GRID_MANAGER.grid.set_info(
-                Size(cols, rows),
+                Size(grid_w, grid_h),
                 GRID_MANAGER.grid.visible_area.w, GRID_MANAGER.grid.visible_area.h,
                 GRID_MANAGER.grid.offset.x, GRID_MANAGER.grid.offset.y
             )
@@ -1214,12 +1230,17 @@ class Dixel:
                 self._new_file_img = None
                 self._set_file_text_label()
             if self._file_str != "":
-                self._refresh_is_unsaved()
+                self._refresh_unsaved_icon(WHITE)
 
             self._state_i = STATE_I_MAIN
 
-    def _handle_states(self) -> None:
-        """Handles updating and leaving states."""
+    def _handle_states(self, dt: float) -> None:
+        """
+        Handles updating and leaving states.
+
+        Args:
+            delta time
+        """
 
         prev_state_i: int = self._state_i
         if self._state_i == STATE_I_MAIN:
@@ -1228,6 +1249,8 @@ class Dixel:
             self._color_ui()
         elif self._state_i == STATE_I_GRID:
             self._grid_ui()
+
+        UNSAVED_ICON.animate(dt)
 
         if self._state_i != prev_state_i:
             self._change_state()
@@ -1248,13 +1271,17 @@ class Dixel:
     def run(self) -> None:
         """Game loop."""
 
-        WIN.show()
         WIN.focus()
         try:
             while True:
-                CLOCK.tick(0)
+                dt: float = CLOCK.tick(0) / 1_000 * 60
 
-                MOUSE.x, MOUSE.y = pg.mouse.get_pos() if pg.mouse.get_focused() else (-1, -1)
+                MOUSE.x, MOUSE.y = pg.mouse.get_pos()
+                if not pg.mouse.get_focused():
+                    if MOUSE.x == 0:
+                        MOUSE.x = -1
+                    if MOUSE.y == 0:
+                        MOUSE.y = -1
                 MOUSE.pressed = pg.mouse.get_pressed()
                 MOUSE.released = pg.mouse.get_just_released()
                 MOUSE.scroll_amount = 0
@@ -1270,7 +1297,7 @@ class Dixel:
 
                 if KEYBOARD.timed != [] and not self._is_fullscreen:
                     self._resize_with_keys()
-                self._handle_states()
+                self._handle_states(dt)
 
                 self._draw()
         except KeyboardInterrupt:

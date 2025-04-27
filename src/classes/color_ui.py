@@ -169,7 +169,8 @@ class ColorScrollbar:
         if is_external_change:
             self.value = color[self._channel_i]
             self.input_box.text_label.set_text(str(self.value))
-            self.input_box.bounded_set_cursor_i(0)
+            self.input_box.cursor_i = 0
+            self.input_box.cursor_rect.x = self.input_box.text_label.rect.x
 
         small_bar_img: pg.Surface = pg.Surface((MAX_RGB, 1))  # More accurate
         px_color: pg.Color = pg.Color(color)
@@ -242,15 +243,11 @@ class ColorScrollbar:
             selected_obj = self
         self._slider_img_i = int(selected_obj == self)
 
-        prev_input_box_text: str = self.input_box.text_label.text
-
         if self._is_scrolling:
             self._scroll(mouse.x)
         if selected_obj == self and keyboard.timed != []:
             self._scroll_with_keys(keyboard.timed)
-        is_input_box_clicked: bool = self.input_box.upt(
-            mouse, keyboard, selected_obj, prev_input_box_text
-        )
+        is_input_box_clicked: bool = self.input_box.upt(mouse, keyboard, selected_obj)
 
         self.value = int(self.input_box.text_label.text or MIN_RGB)
         if is_input_box_clicked:
@@ -380,8 +377,8 @@ class ColorPicker(UI):
             if keyboard.is_shift_on:
                 self._selection_i.x = max(self._selection_i.x - 1, 0)
             else:
-                last_column_i: int = len(self._objs[0]) - 1
-                self._selection_i.x = min(self._selection_i.x + 1, last_column_i)
+                last_col_i: int = len(self._objs[0]) - 1
+                self._selection_i.x = min(self._selection_i.x + 1, last_col_i)
 
         prev_selection_i_y: int = self._selection_i.y
         if K_UP in keyboard.timed:
@@ -392,8 +389,7 @@ class ColorPicker(UI):
         if self._selection_i.x == 1 and self._selection_i.y != prev_selection_i_y:
             prev_input_box: NumInputBox = self._objs[prev_selection_i_y][1]
             input_box: NumInputBox = self._objs[self._selection_i.y][1]
-            closest_char_i: int = input_box.text_label.get_closest_to(prev_input_box.cursor_rect.x)
-            input_box.bounded_set_cursor_i(closest_char_i)
+            input_box.cursor_i = input_box.text_label.get_closest_to(prev_input_box.cursor_rect.x)
 
     def _upt_scrollbars(self, mouse: Mouse, keyboard: Keyboard) -> None:
         """
@@ -436,6 +432,9 @@ class ColorPicker(UI):
             hex_color: HexColor = "{:02x}{:02x}{:02x}".format(*rgb_color)
             self.set_color(hex_color, False)
 
+        self._r_bar.input_box.refresh()
+        self._b_bar.input_box.refresh()
+        self._g_bar.input_box.refresh()
         is_exiting, is_confirming = self._base_upt(mouse, keyboard.pressed)
 
         return is_exiting, is_confirming, rgb_color

@@ -16,7 +16,7 @@ from numpy.typing import NDArray
 
 from src.type_utils import XY, WH
 from src.consts import (
-    BLACK, EMPTY_TILE_ARR, NUM_TILE_COLS, NUM_TILE_ROWS, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY
+    BLACK, EMPTY_TILE_ARR, TILE_W, TILE_H, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY
 )
 
 
@@ -214,7 +214,7 @@ def get_brush_dim_img(dim: int) -> pg.Surface:
     """
 
     img_arr: NDArray[np.uint8] = np.tile(EMPTY_TILE_ARR, (8, 8, 1))
-    rect: pg.Rect = pg.Rect(0, 0, dim * NUM_TILE_COLS, dim * NUM_TILE_ROWS)
+    rect: pg.Rect = pg.Rect(0, 0, dim * TILE_W, dim * TILE_H)
     rect.center = (round(img_arr.shape[0] / 2), round(img_arr.shape[1] / 2))
 
     img: pg.Surface = pg.surfarray.make_surface(img_arr)

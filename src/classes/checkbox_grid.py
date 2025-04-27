@@ -377,12 +377,12 @@ class CheckboxGrid:
         if k_add_cols in keyboard.timed:
             can_add_cols: bool = clicked_i + self.num_cols < len(self.checkboxes)
             if keyboard.is_ctrl_on:
-                column: int = clicked_i % self.num_cols
-                last_column: int = len(self.checkboxes) % self.num_cols
+                col: int = clicked_i % self.num_cols
+                last_col: int = len(self.checkboxes) % self.num_cols
                 num_rows: int = len(self.checkboxes) // self.num_cols
-                row_i: int = num_rows if column < last_column else num_rows - 1
+                row_i: int = num_rows if col < last_col else num_rows - 1
 
-                clicked_i = row_i * self.num_cols + column
+                clicked_i = row_i * self.num_cols + col
             elif can_add_cols:
                 clicked_i += self.num_cols
 

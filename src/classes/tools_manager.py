@@ -59,7 +59,7 @@ TOOLS_INFO: Final[ToolsInfo] = {
                 "type": Checkbox,
                 "init_args": [CHECKBOX_IMGS, "Color Fill", "Fill the pixels with\nthe same color"],
                 "upt_args": ["mouse"],
-                "out_format": {"same_color": "is_checked"}
+                "out_format": {"color_fill": "is_checked"}
             },
         )
     }

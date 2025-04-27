@@ -16,7 +16,7 @@ from src.consts import BLACK, ELEMENT_LAYER
 
 from tests.utils import cmp_imgs
 
-IMG_OFF: Final[pg.Surface] = pg.Surface((10, 11), SRCALPHA)
+IMG_OFF: Final[pg.Surface] = pg.Surface((10, 11), SRCALPHA).convert_alpha()
 IMG_ON: Final[pg.Surface] = IMG_OFF.copy()
 IMG_ON.fill((0, 0, 1, 0))
 
@@ -165,7 +165,7 @@ class TestCheckbox(TestCase):
 
         expected_xy, expected_wh = resize_obj(checkbox.init_pos, init_w, init_h, 2, 3)
         expected_imgs: list[pg.Surface] = [
-            pg.transform.scale(img, expected_wh) for img in checkbox.init_imgs
+            pg.transform.scale(img, expected_wh).convert() for img in checkbox.init_imgs
         ]
         expected_rect: pg.Rect = expected_imgs[0].get_rect(center=expected_xy)
 

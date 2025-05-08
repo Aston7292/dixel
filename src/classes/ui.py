@@ -8,14 +8,15 @@ from pygame.locals import *
 
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
+from src.classes.devices import Mouse, Keyboard
 
-from src.utils import RectPos, ObjInfo, Mouse, Keyboard, resize_obj
-from src.type_utils import XY, WH, LayeredBlitInfo
+from src.utils import RectPos, ObjInfo, resize_obj
+from src.type_utils import XY, BlitInfo
 from src.consts import DARKER_GRAY, UI_LAYER
 from src.imgs import CLOSE_BUTTON_OFF_IMG, CLOSE_BUTTON_ON_IMG, BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 
-INTERFACE_IMG: Final[pg.Surface] = pg.Surface((512, 700)).convert()
-INTERFACE_IMG.fill(DARKER_GRAY)
+_INTERFACE_IMG: Final[pg.Surface] = pg.Surface((512, 700)).convert()
+_INTERFACE_IMG.fill(DARKER_GRAY)
 
 
 class UI(ABC):
@@ -37,7 +38,7 @@ class UI(ABC):
 
     def __init__(self, pos: RectPos, title: str) -> None:
         """
-        Initializes the interface.
+        Creates the title, exit and confirm buttons.
 
         Args:
             position and title
@@ -45,7 +46,7 @@ class UI(ABC):
 
         self._init_pos: RectPos = pos
 
-        self._rect: pg.Rect = pg.Rect(0, 0, *INTERFACE_IMG.get_size())
+        self._rect: pg.Rect = pg.Rect(0, 0, *_INTERFACE_IMG.get_size())
         setattr(self._rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
         title_text_label: TextLabel = TextLabel(
@@ -62,7 +63,7 @@ class UI(ABC):
             [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Confirm", "Enter", UI_LAYER
         )
 
-        self.blit_sequence: list[LayeredBlitInfo] = [(INTERFACE_IMG, self._rect, UI_LAYER)]
+        self.blit_sequence: list[BlitInfo] = [(_INTERFACE_IMG, self._rect, UI_LAYER)]
         self.objs_info: list[ObjInfo] = [
             ObjInfo(title_text_label), ObjInfo(self._exit), ObjInfo(self._confirm)
         ]
@@ -76,18 +77,18 @@ class UI(ABC):
         """
 
         xy: XY
-        wh: WH
 
-        xy, wh = resize_obj(self._init_pos, *INTERFACE_IMG.get_size(), win_w_ratio, win_h_ratio)
-        img: pg.Surface = pg.transform.scale(INTERFACE_IMG, wh).convert()
-        self._rect.size = wh
+        xy, self._rect.size = resize_obj(
+            self._init_pos, *_INTERFACE_IMG.get_size(), win_w_ratio, win_h_ratio
+        )
+        img: pg.Surface = pg.transform.scale(_INTERFACE_IMG, self._rect.size).convert()
         setattr(self._rect, self._init_pos.coord_type, xy)
 
         self.blit_sequence[0] = (img, self._rect, UI_LAYER)
 
     def _base_upt(self, mouse: Mouse, keys: list[int]) -> tuple[bool, bool]:
         """
-        Checks if the exit or confirm button were pressed.
+        Checks if the exit or confirm button are pressed.
 
         Args:
             mouse, keys

@@ -12,4 +12,4 @@ HexColor: TypeAlias = str
 
 CheckboxInfo: TypeAlias = tuple[Surface, str]
 ToolInfo: TypeAlias = tuple[str, dict[str, Any]]
-LayeredBlitInfo: TypeAlias = tuple[Surface, Rect, int]
+BlitInfo: TypeAlias = tuple[Surface, Rect, int]

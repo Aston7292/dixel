@@ -7,12 +7,13 @@ import pygame as pg
 from pygame import SYSTEM_CURSOR_HAND
 
 from src.classes.text_label import TextLabel
+from src.classes.devices import Mouse
 
-from src.utils import RectPos, ObjInfo, Mouse, resize_obj
-from src.type_utils import XY, WH, LayeredBlitInfo
+from src.utils import RectPos, ObjInfo, resize_obj
+from src.type_utils import XY, WH, BlitInfo
 from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
-INIT_CLICK_INTERVAL: Final[int] = 100
+_INIT_CLICK_INTERVAL: Final[int] = 100
 
 
 class Clickable(ABC):
@@ -69,7 +70,7 @@ class Clickable(ABC):
         )
 
     @property
-    def blit_sequence(self) -> list[LayeredBlitInfo]:
+    def blit_sequence(self) -> list[BlitInfo]:
         """
         Gets the blit sequence.
 
@@ -80,7 +81,7 @@ class Clickable(ABC):
         mouse_x: int
         mouse_y: int
 
-        sequence: list[LayeredBlitInfo] = [(self.imgs[self.img_i], self.rect, self.layer)]
+        sequence: list[BlitInfo] = [(self.imgs[self.img_i], self.rect, self.layer)]
         if self._is_hovering:
             mouse_x, mouse_y = pg.mouse.get_pos()
             self.hovering_text_label.move_rect(mouse_x + 10, mouse_y, 1, 1)
@@ -114,11 +115,11 @@ class Clickable(ABC):
         """
 
         xy: XY
-        wh: WH
 
-        xy, wh = resize_obj(self.init_pos, *self.init_imgs[0].get_size(), win_w_ratio, win_h_ratio)
-        self.imgs = [pg.transform.scale(img, wh).convert() for img in self.init_imgs]
-        self.rect.size = wh
+        xy, self.rect.size = resize_obj(
+            self.init_pos, *self.init_imgs[0].get_size(), win_w_ratio, win_h_ratio
+        )
+        self.imgs = [pg.transform.scale(img, self.rect.size).convert() for img in self.init_imgs]
         setattr(self.rect, self.init_pos.coord_type, xy)
 
         self.hovering_text_label.resize(win_w_ratio, win_h_ratio)
@@ -238,14 +239,9 @@ class LockedCheckbox(Clickable):
         """
 
         self._is_hovering = mouse.hovered_obj == self
-
-        checked: bool = mouse.released[MOUSE_LEFT] and self._is_hovering
-        if checked:
-            self.is_checked = True
-
         self.img_i = int(self._is_hovering or self.is_checked)
 
-        return checked
+        return mouse.released[MOUSE_LEFT] and self._is_hovering
 
 
 class Button(Clickable):
@@ -320,8 +316,8 @@ class SpammableButton(Clickable):
 
         super().__init__(pos, imgs, hovering_text, base_layer)
 
-        self._click_interval: int = INIT_CLICK_INTERVAL
-        self._last_click_time: int = -INIT_CLICK_INTERVAL
+        self._click_interval: int = _INIT_CLICK_INTERVAL
+        self._last_click_time: int = -_INIT_CLICK_INTERVAL
         self._is_first_click: bool = True
 
     def leave(self) -> None:
@@ -330,8 +326,8 @@ class SpammableButton(Clickable):
         super().leave()
         self.img_i = 0
 
-        self._click_interval = INIT_CLICK_INTERVAL
-        self._last_click_time = -INIT_CLICK_INTERVAL
+        self._click_interval = _INIT_CLICK_INTERVAL
+        self._last_click_time = -_INIT_CLICK_INTERVAL
         self._is_first_click = True
 
     def upt(self, mouse: Mouse) -> bool:
@@ -352,7 +348,7 @@ class SpammableButton(Clickable):
             self._is_first_click = True
         elif self._is_hovering:
             if self._is_first_click:
-                self._click_interval = INIT_CLICK_INTERVAL
+                self._click_interval = _INIT_CLICK_INTERVAL
                 self._last_click_time = pg.time.get_ticks() + 150  # Takes longer for second click
                 self._is_first_click = False
                 is_clicked = True

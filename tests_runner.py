@@ -8,5 +8,5 @@ import pygame as pg
 pg.init()
 pg.Window(hidden=True).get_surface()
 
-TEST_SUITE: Final[TestSuite] = TestLoader().discover("tests")
-TextTestRunner().run(TEST_SUITE)
+_TEST_SUITE: Final[TestSuite] = TestLoader().discover("tests")
+TextTestRunner().run(_TEST_SUITE)

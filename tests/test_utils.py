@@ -12,13 +12,12 @@ from pygame import SRCALPHA
 import numpy as np
 from numpy.typing import NDArray
 
+from src.classes.devices import Mouse, Keyboard
+
 from src.utils import (
-    Point, RectPos, Size, ObjInfo, Mouse, Keyboard,
-    get_img, get_pixels, add_border, resize_obj, rec_resize, rec_move_rect
+    Point, RectPos, Size, ObjInfo, get_pixels, add_border, resize_obj, rec_resize, rec_move_rect
 )
 from src.type_utils import XY, WH, RGBAColor
-
-RNG: Final[SystemRandom] = SystemRandom()
 
 
 class SubObj:
@@ -118,18 +117,6 @@ class TestUtils(TestCase):
         self.assertFalse(keyboard.is_alt_on)
         self.assertTrue(keyboard.is_numpad_on)
 
-    @mock.patch.object(pg.image, "load", autospec=True)
-    def test_load_img_from_path(self, mock_load: Mock) -> None:
-        """Tests the load_img_from_path function, mocks pygame.image.load."""
-
-        mock_surface: Mock = mock.create_autospec(pg.Surface, spec_set=True)
-        mock_load.return_value = mock_surface
-        mock_convert_alpha: Mock = mock_surface.convert_alpha
-
-        get_img("test", "test.png")
-        mock_load.assert_called_once_with(Path("test", "test.png"))
-        mock_convert_alpha.assert_called_once_with()
-
     def test_get_pixels(self) -> None:
         """Tests the get_pixels function."""
 
@@ -188,12 +175,13 @@ class TestUtils(TestCase):
         self.assertTupleEqual(resized_xy, (round(1 * 2.6), round(2 * 3.4)))
         self.assertTupleEqual(resized_wh, (ceil(3 * 2.6), ceil(4 * 2.6)))
 
+        rng: SystemRandom = SystemRandom()
         for _i in range(1_000):
             # Check gaps
 
-            x, y = RNG.randint(0, 500), RNG.randint(0, 500)
-            w, h = RNG.uniform(0, 100), RNG.uniform(0, 100)
-            win_w_ratio, win_h_ratio = RNG.uniform(0, 5), RNG.uniform(0, 5)
+            x, y = rng.randint(0, 500), rng.randint(0, 500)
+            w, h = rng.uniform(0, 100), rng.uniform(0, 100)
+            win_w_ratio, win_h_ratio = rng.uniform(0, 5), rng.uniform(0, 5)
 
             init_pos.x, init_pos.y = x, y
             resized_xy, resized_wh = resize_obj(init_pos, w, h, win_w_ratio, win_h_ratio)

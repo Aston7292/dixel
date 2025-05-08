@@ -9,16 +9,17 @@ from pygame import SRCALPHA
 
 from src.classes.clickable import Clickable, Checkbox, Button
 from src.classes.text_label import TextLabel
+from src.classes.devices import Mouse
 
-from src.utils import RectPos, ObjInfo, Mouse, resize_obj
-from src.type_utils import XY, WH, LayeredBlitInfo
+from src.utils import RectPos, ObjInfo, resize_obj
+from src.type_utils import XY, WH, BlitInfo
 from src.consts import BLACK, ELEMENT_LAYER
 
 from tests.utils import cmp_imgs
 
-IMG_OFF: Final[pg.Surface] = pg.Surface((10, 11), SRCALPHA).convert_alpha()
-IMG_ON: Final[pg.Surface] = IMG_OFF.copy()
-IMG_ON.fill((0, 0, 1, 0))
+_IMG_OFF: Final[pg.Surface] = pg.Surface((10, 11), SRCALPHA).convert_alpha()
+_IMG_ON: Final[pg.Surface] = _IMG_OFF.copy()
+_IMG_ON.fill((0, 0, 1, 0))
 
 
 class TestCheckbox(TestCase):
@@ -34,7 +35,7 @@ class TestCheckbox(TestCase):
 
         checkbox: Checkbox
 
-        checkbox = Checkbox(RectPos(1, 2, "center"), [IMG_OFF, IMG_ON], "hello", "world\n!", 1)
+        checkbox = Checkbox(RectPos(1, 2, "center"), [_IMG_OFF, _IMG_ON], "hello", "world\n!", 1)
         checkbox.resize(2, 3)
 
         return checkbox
@@ -46,14 +47,14 @@ class TestCheckbox(TestCase):
         # Also tests the Clickable abstract class
 
         pos: RectPos = RectPos(1, 2, "center")
-        checkbox: Checkbox = Checkbox(pos, [IMG_OFF, IMG_ON], "hello", "world\n!", 1)
+        checkbox: Checkbox = Checkbox(pos, [_IMG_OFF, _IMG_ON], "hello", "world\n!", 1)
         self.assertEqual(mock_text_label_init.call_count, 2)
 
         self.assertEqual(checkbox.init_pos, pos)
-        self.assertListEqual(checkbox.init_imgs, [IMG_OFF, IMG_ON])
+        self.assertListEqual(checkbox.init_imgs, [_IMG_OFF, _IMG_ON])
 
-        self.assertListEqual(checkbox.imgs, [IMG_OFF, IMG_ON])
-        self.assertEqual(checkbox.rect, IMG_OFF.get_rect(center=(1, 2)))
+        self.assertListEqual(checkbox.imgs, [_IMG_OFF, _IMG_ON])
+        self.assertEqual(checkbox.rect, _IMG_OFF.get_rect(center=(1, 2)))
 
         self.assertEqual(checkbox.img_i, 0)
 
@@ -85,7 +86,7 @@ class TestCheckbox(TestCase):
 
         # Edge cases
 
-        no_hovering_text_checkbox: Checkbox = Checkbox(pos, [IMG_OFF, IMG_ON], "hello", None)
+        no_hovering_text_checkbox: Checkbox = Checkbox(pos, [_IMG_OFF, _IMG_ON], "hello", None)
         self.assertIsNone(no_hovering_text_checkbox.hovering_text_label)
 
     def test_blit_sequence(self) -> None:
@@ -96,12 +97,12 @@ class TestCheckbox(TestCase):
 
         checkbox: Checkbox = self._make_checkbox()
 
-        expected_sequence_0: list[LayeredBlitInfo] = [
+        expected_sequence_0: list[BlitInfo] = [
             (checkbox.imgs[0], checkbox.rect, checkbox.layer)
         ]
         self.assertListEqual(checkbox.blit_sequence, expected_sequence_0)
 
-        expected_sequence_1: list[LayeredBlitInfo] = [
+        expected_sequence_1: list[BlitInfo] = [
             (checkbox.imgs[1], checkbox.rect, checkbox.layer)
         ]
         if checkbox.hovering_text_label is not None:
@@ -157,11 +158,11 @@ class TestCheckbox(TestCase):
         expected_img: pg.Surface
 
         checkbox: Checkbox = Checkbox(
-            RectPos(1, 2, "center"), [IMG_OFF, IMG_ON], "hello", "world\n!", 1
+            RectPos(1, 2, "center"), [_IMG_OFF, _IMG_ON], "hello", "world\n!", 1
         )
         checkbox.resize(2, 3)
 
-        init_w, init_h = IMG_OFF.get_size()
+        init_w, init_h = _IMG_OFF.get_size()
 
         expected_xy, expected_wh = resize_obj(checkbox.init_pos, init_w, init_h, 2, 3)
         expected_imgs: list[pg.Surface] = [
@@ -236,7 +237,7 @@ class TestButton(TestCase):
 
         button: Button
 
-        button = Button(RectPos(1, 2, "center"), [IMG_OFF, IMG_ON], "hello", "world\n!", 1, 10)
+        button = Button(RectPos(1, 2, "center"), [_IMG_OFF, _IMG_ON], "hello", "world\n!", 1, 10)
         button.resize(2, 3)
 
         return button
@@ -247,7 +248,7 @@ class TestButton(TestCase):
         """Tests the init method, mocks Clickable.__init__ and TextLabel.__init__."""
 
         pos: RectPos = RectPos(1, 2, "center")
-        imgs: list[pg.Surface] = [IMG_OFF, IMG_ON]
+        imgs: list[pg.Surface] = [_IMG_OFF, _IMG_ON]
 
         button: Button = Button(pos, imgs, "hello", "world\n!", 1, 10)
         mock_clickable_init.assert_called_once_with(button, pos, imgs, "world\n!", 1)

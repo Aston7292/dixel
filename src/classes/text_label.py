@@ -9,15 +9,14 @@ import pygame as pg
 
 from src.utils import RectPos, resize_obj
 from src.lock_utils import LockException, FileException, try_lock_file
-from src.type_utils import XY, WH, LayeredBlitInfo
+from src.type_utils import XY, WH, BlitInfo
 from src.consts import WHITE, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY, BG_LAYER, TEXT_LAYER
 
-FONT_PATH: Final[Path] = Path("assets", "fonts", "fredoka.ttf")
-RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
-is_first_font_load_error: bool = True
+_RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
+_is_first_font_load_error: bool = True
 
 
-def try_add_renderer(h: int) -> None:
+def _try_add_renderer(h: int) -> None:
     """
     Adds a render to the cache.
 
@@ -27,11 +26,12 @@ def try_add_renderer(h: int) -> None:
 
     num_attempts: int
 
+    font_path: Path = Path("assets", "fonts", "fredoka.ttf")
     renderer: Optional[pg.Font] = None
     error_str: str = ""
     for num_attempts in range(1, NUM_MAX_FILE_ATTEMPTS + 1):
         try:
-            with FONT_PATH.open("rb") as f:
+            with font_path.open("rb") as f:
                 try_lock_file(f, True)
                 font_bytes: BytesIO = BytesIO(f.read())
                 renderer = pg.font.Font(font_bytes, h)
@@ -59,13 +59,13 @@ def try_add_renderer(h: int) -> None:
             pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
 
     if renderer is None:
-        global is_first_font_load_error
+        global _is_first_font_load_error
 
-        if is_first_font_load_error:
-            messagebox.showerror("Font Load Failed", f"{FONT_PATH.name}: {error_str}")
-            is_first_font_load_error = False
+        if _is_first_font_load_error:
+            messagebox.showerror("Font Load Failed", f"{font_path.name}: {error_str}")
+            _is_first_font_load_error = False
         renderer = pg.font.Font(size=round(h * 1.3))
-    RENDERERS_CACHE[h] = renderer
+    _RENDERERS_CACHE[h] = renderer
 
 
 class TextLabel:
@@ -74,8 +74,6 @@ class TextLabel:
     __slots__ = (
         "init_pos", "_init_h", "_renderer", "text", "_bg_color", "_imgs", "rect", "_rects", "layer"
     )
-
-    did_loading_failed: bool = False
 
     def __init__(
             self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 25,
@@ -92,9 +90,9 @@ class TextLabel:
         self.init_pos: RectPos = pos
         self._init_h: int = h
 
-        if self._init_h not in RENDERERS_CACHE:
-            try_add_renderer(self._init_h)
-        self._renderer: pg.Font = RENDERERS_CACHE[self._init_h]
+        if self._init_h not in _RENDERERS_CACHE:
+            _try_add_renderer(self._init_h)
+        self._renderer: pg.Font = _RENDERERS_CACHE[self._init_h]
 
         self.text: str = text
         self._bg_color: Optional[pg.Color] = bg_color
@@ -114,7 +112,7 @@ class TextLabel:
         self._refresh_rects((self.init_pos.x, self.init_pos.y))
 
     @property
-    def blit_sequence(self) -> list[LayeredBlitInfo]:
+    def blit_sequence(self) -> list[BlitInfo]:
         """
         Gets the blit sequence.
 
@@ -137,9 +135,9 @@ class TextLabel:
         h: int
 
         xy, (_w, h) = resize_obj(self.init_pos, 0, self._init_h, win_w_ratio, win_h_ratio, True)
-        if h not in RENDERERS_CACHE:
-            try_add_renderer(h)
-        self._renderer = RENDERERS_CACHE[h]
+        if h not in _RENDERERS_CACHE:
+            _try_add_renderer(h)
+        self._renderer = _RENDERERS_CACHE[h]
 
         lines: list[str] = self.text.split("\n")
         self._imgs = [

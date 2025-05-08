@@ -17,15 +17,15 @@ BLACK: Final[pg.Color] = pg.Color(0, 0, 0)
 WHITE: Final[pg.Color] = pg.Color(255, 255, 255)
 DARKER_GRAY: Final[pg.Color] = pg.Color(50, 50, 50)
 
-RGB_LIGHT_GRAY: Final[RGBColor] = (70, 70, 70)
-RGB_DARK_GRAY: Final[RGBColor] = (60, 60, 60)
+_RGB_LIGHT_GRAY: Final[RGBColor] = (70, 70, 70)
+_RGB_DARK_GRAY: Final[RGBColor] = (60, 60, 60)
 HEX_BLACK: Final[HexColor] = "000000"
 
 # Flip x and y because, when making it a surface, pygame uses it like this
 EMPTY_TILE_ARR: Final[NDArray[np.uint8]] = np.array(
     (
-        (RGB_LIGHT_GRAY, RGB_DARK_GRAY),
-        (RGB_DARK_GRAY, RGB_LIGHT_GRAY)
+        (_RGB_LIGHT_GRAY, _RGB_DARK_GRAY),
+        (_RGB_DARK_GRAY, _RGB_LIGHT_GRAY)
     ),
     np.uint8
 ).transpose((1, 0, 2))
@@ -47,5 +47,4 @@ SPECIAL_LAYER: Final[int] = 4  # Base for the special layers
 UI_LAYER: Final[int] = SPECIAL_LAYER * 2  # Base for the UI layers
 
 ANIMATION_I_GROW: Final[int] = 0
-ANIMATION_I_SHRINK_TO_MIN: Final[int] = 1
-ANIMATION_I_SHRINK_TO_0: Final[int] = 2
+ANIMATION_I_SHRINK: Final[int] = 1

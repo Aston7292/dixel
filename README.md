@@ -60,7 +60,7 @@ if the program crashes the image will always be saved.
 **CTRL S**: Save file\
 **CTRL SHIFT S**: Save file with name\
 **CTRL O**: Open file\
-**CTRL Q**: Close file\
+**CTRL W**: Close file\
 **arrows/page down/page up/home/end**: move in scrollbars
 
 ### Checkbox grids
@@ -76,22 +76,23 @@ if the program crashes the image will always be saved.
 **arrows**: Move\
 **Enter**: Draw\
 **Backspace**: Erase\
-**ALT arrows**: Move selected pixel by brush size\
 **SHIFT arrows**: Move selected pixel by visible area\
+**Tab arrows**: Move selected pixel by brush size\
 **CTRL arrows**: Move selected pixel to the limit of the grid\
 **CTRL +/-**: Zoom in/out\
 **CTRL SHIFT +/-**: Zoom in/out until limit\
 **CTRL R**: Reset offset and visible area
+**ALT**: Eye drop color
 
 ### UIs
 
 **arrows/tab/SHIFT tab**: Move selection\
 **CTRL left/right**: Go to end of text in input box\
 **+/-**: Increment/decrement numerical slider by 1\
-**SHIFT +/-**: Increment/decrement numerical slider by 10\
-**CTRL +/-**: Increment/decrement numerical slider by 50\
-**home/end**: Go to minimum/maximum numerical slider\
+**SHIFT +/-**: Increment/decrement numerical slider by 25\
+**CTRL +/-**: Reach limit in numerical slider
 **CTRL K**: Toggle keep ratio in grid UI\
+**CTRL C**: Crop in grid UI
 **Escape**: Close\
 **Enter**: Confirm
 

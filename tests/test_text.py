@@ -5,10 +5,10 @@ from unittest.mock import Mock
 
 import pygame as pg
 
-from src.classes.text_label import TextLabel, RENDERERS_CACHE
+from src.classes.text_label import TextLabel, _RENDERERS_CACHE
 
 from src.utils import RectPos, resize_obj
-from src.type_utils import XY, WH, LayeredBlitInfo
+from src.type_utils import XY, WH, BlitInfo
 from src.consts import WHITE, TEXT_LAYER
 
 from tests.utils import cmp_imgs
@@ -38,7 +38,7 @@ class TestTextLabel(TestCase):
         line: str
 
         text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 20, WHITE)
-        expected_renderer: pg.Font = RENDERERS_CACHE[text_label._init_h]
+        expected_renderer: pg.Font = _RENDERERS_CACHE[text_label._init_h]
 
         self.assertEqual(text_label.init_pos, RectPos(1, 2, "center"))
 
@@ -67,7 +67,7 @@ class TestTextLabel(TestCase):
 
         text_label: TextLabel = self._make_text_label()
 
-        expected_sequence: list[LayeredBlitInfo] = [
+        expected_sequence: list[BlitInfo] = [
             (img, rect, text_label.layer)
             for img, rect in zip(text_label._imgs, text_label._rects, strict=True)
         ]
@@ -93,7 +93,7 @@ class TestTextLabel(TestCase):
             text_label.init_pos, 0, text_label._init_h, 2, 3, True
         )
 
-        expected_renderer: pg.Font = RENDERERS_CACHE[expected_h]
+        expected_renderer: pg.Font = _RENDERERS_CACHE[expected_h]
         self.assertIs(text_label._renderer, expected_renderer)
 
         lines: list[str] = text_label.text.split("\n")

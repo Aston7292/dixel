@@ -19,31 +19,30 @@ from src.consts import (
     BLACK, EMPTY_TILE_ARR, TILE_W, TILE_H, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY
 )
 
-
-FUNCS_NAMES: Final[list[str]] = []
-FUNCS_TOT_TIMES: Final[list[float]] = []
-FUNCS_NUM_CALLS: Final[list[int]] = []
+_FUNCS_NAMES: Final[list[str]] = []
+_FUNCS_TOT_TIMES: Final[list[float]] = []
+_FUNCS_NUM_CALLS: Final[list[int]] = []
 
 
 def profile(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator to time the average run time of a function."""
 
-    func_i: int = len(FUNCS_NAMES)
-    FUNCS_NAMES.append(func.__qualname__)
-    FUNCS_TOT_TIMES.append(0)
-    FUNCS_NUM_CALLS.append(0)
+    func_i: int = len(_FUNCS_NAMES)
+    _FUNCS_NAMES.append(func.__qualname__)
+    _FUNCS_TOT_TIMES.append(0)
+    _FUNCS_NUM_CALLS.append(0)
 
-    def upt_info(*args: Any, **kwargs: dict[str, Any]) -> Any:
+    def _upt_info(*args: Any, **kwargs: dict[str, Any]) -> Any:
         """Runs a function and updates its total run time and number of calls."""
 
         start: float = time.time()
         res: Any = func(*args, **kwargs)
-        FUNCS_TOT_TIMES[func_i] += (time.time() - start) * 1_000
-        FUNCS_NUM_CALLS[func_i] += 1
+        _FUNCS_TOT_TIMES[func_i] += (time.time() - start) * 1_000
+        _FUNCS_NUM_CALLS[func_i] += 1
 
         return res
 
-    return upt_info
+    return _upt_info
 
 
 def print_funcs_profiles() -> None:
@@ -53,7 +52,7 @@ def print_funcs_profiles() -> None:
     tot_time: float
     num_calls: int
 
-    for name, tot_time, num_calls in zip(FUNCS_NAMES, FUNCS_TOT_TIMES, FUNCS_NUM_CALLS):
+    for name, tot_time, num_calls in zip(_FUNCS_NAMES, _FUNCS_TOT_TIMES, _FUNCS_NUM_CALLS):
         avg_time: float = tot_time / num_calls if num_calls else 0
         print(f"{name}: {avg_time:.4f}ms | calls: {num_calls}")
 
@@ -134,40 +133,6 @@ class ObjInfo:
                 getattr(info.obj, method_name)()
             if hasattr(info.obj, "objs_info"):
                 objs_info.extend(info.obj.objs_info)
-
-
-@dataclass(slots=True)
-class Mouse:
-    """
-    Dataclass for storing mouse info.
-
-    Args:
-        x coordinate, y coordinate pressed buttons, released buttons, scroll amount, hovered object
-    """
-
-    x: int
-    y: int
-    pressed: tuple[bool, bool, bool]
-    released: tuple[bool, bool, bool, bool, bool]
-    scroll_amount: int
-    hovered_obj: Any
-
-
-@dataclass(slots=True)
-class Keyboard:
-    """
-    Dataclass for storing keyboard info.
-
-    Args:
-        pressed keys, timed keys, control flag, shift flag, alt flag, numpad flag
-    """
-
-    pressed: list[int]
-    timed: list[int]
-    is_ctrl_on: bool
-    is_shift_on: bool
-    is_alt_on: bool
-    is_numpad_on: bool
 
 
 def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:

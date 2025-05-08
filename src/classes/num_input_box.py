@@ -1,17 +1,18 @@
-"""Class to choose a number in range with an input box."""
+"""Class to choose a number in a range with an input box."""
 
-from typing import Final, Optional, Any
+from typing import Final, Any
 
 import pygame as pg
 from pygame.locals import *
 
 from src.classes.text_label import TextLabel
+from src.classes.devices import Mouse, Keyboard
 
-from src.utils import RectPos, ObjInfo, Mouse, Keyboard, resize_obj
-from src.type_utils import XY, WH, LayeredBlitInfo
-from src.consts import MOUSE_LEFT, CHR_LIMIT, WHITE, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
+from src.utils import RectPos, ObjInfo, resize_obj
+from src.type_utils import XY, BlitInfo
+from src.consts import MOUSE_LEFT, CHR_LIMIT, WHITE, BG_LAYER, ELEMENT_LAYER
 
-INPUT_BOX_IMG: Final[pg.Surface] = pg.Surface((64, 40)).convert()
+_INPUT_BOX_IMG: Final[pg.Surface] = pg.Surface((64, 40)).convert()
 
 
 class NumInputBox:
@@ -19,15 +20,15 @@ class NumInputBox:
 
     __slots__ = (
         "_init_pos", "_img", "rect", "_init_w", "_init_h", "min_limit", "max_limit",
-        "_is_selected", "cursor_i", "layer", "_cursor_layer", "cursor_type", "text_label",
-        "_prev_text", "_prev_cursor_i", "_cursor_img", "cursor_rect", "objs_info"
+        "_is_selected", "cursor_i", "layer", "cursor_type", "text_label", "_prev_text",
+        "_prev_cursor_i", "_cursor_img", "cursor_rect", "objs_info"
     )
 
     def __init__(
             self, pos: RectPos, min_limit: int, max_limit: int, base_layer: int = BG_LAYER
     ) -> None:
         """
-        Creates the input box and text.
+        Creates the input box, text and cursor.
 
         Args:
             position, minimum limit, maximum limit, base layer (default = BG_LAYER)
@@ -35,7 +36,7 @@ class NumInputBox:
 
         self._init_pos: RectPos = pos
 
-        self._img: pg.Surface = INPUT_BOX_IMG
+        self._img: pg.Surface = _INPUT_BOX_IMG
         self.rect: pg.Rect = pg.Rect(0, 0, *self._img.get_size())
         setattr(self.rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
@@ -49,7 +50,6 @@ class NumInputBox:
         self.cursor_i: int = 0
 
         self.layer: int = base_layer + ELEMENT_LAYER
-        self._cursor_layer: int = base_layer + TOP_LAYER
         self.cursor_type: int = SYSTEM_CURSOR_IBEAM
 
         self.text_label = TextLabel(
@@ -69,7 +69,7 @@ class NumInputBox:
         self.objs_info: list[ObjInfo] = [ObjInfo(self.text_label)]
 
     @property
-    def blit_sequence(self) -> list[LayeredBlitInfo]:
+    def blit_sequence(self) -> list[BlitInfo]:
         """
         Gets the blit sequence.
 
@@ -77,9 +77,9 @@ class NumInputBox:
             sequence to add in the main blit sequence
         """
 
-        sequence: list[LayeredBlitInfo] = [(self._img, self.rect, self.layer)]
+        sequence: list[BlitInfo] = [(self._img, self.rect, self.layer)]
         if self._is_selected:
-            sequence.append((self._cursor_img, self.cursor_rect, self._cursor_layer))
+            sequence.append((self._cursor_img, self.cursor_rect, self.layer))
 
         return sequence
 
@@ -109,11 +109,11 @@ class NumInputBox:
         """
 
         xy: XY
-        wh: WH
 
-        xy, wh = resize_obj(self._init_pos, self._init_w, self._init_h, win_w_ratio, win_h_ratio)
-        self._img = pg.transform.scale(self._img, wh).convert()
-        self.rect.size = wh
+        xy, self.rect.size = resize_obj(
+            self._init_pos, self._init_w, self._init_h, win_w_ratio, win_h_ratio
+        )
+        self._img = pg.transform.scale(self._img, self.rect.size).convert()
         setattr(self.rect, self._init_pos.coord_type, xy)
 
         self._cursor_img = pg.Surface((1, self.text_label.rect.h)).convert()
@@ -124,7 +124,7 @@ class NumInputBox:
 
     def _move_with_keys(self, keyboard: Keyboard) -> None:
         """
-        Moves the cursor index with keys.
+        Moves the cursor index with the keyboard.
 
         Args:
             keyboard
@@ -142,7 +142,7 @@ class NumInputBox:
 
     def _handle_deletion(self, k: int) -> None:
         """
-        Handles backspace and delete.
+        Handles backspace and delete and moves the cursor.
 
         Args:
             key
@@ -166,7 +166,7 @@ class NumInputBox:
 
     def _insert_char(self, char: str) -> None:
         """
-        Inserts a character at the cursor position.
+        Inserts a character at the cursor position and moves the cursor.
 
         Args:
             character
@@ -192,7 +192,7 @@ class NumInputBox:
 
     def _handle_k(self, k: int) -> None:
         """
-        Handles input.
+        Handles a key.
 
         Args:
             key
@@ -206,7 +206,7 @@ class NumInputBox:
                 self._insert_char(char)
 
     def refresh(self) -> None:
-        """Refreshes text label and mouse position."""
+        """Refreshes text label and cursor position."""
 
         if self.text_label.text != self._prev_text:
             self.text_label.set_text(self.text_label.text)

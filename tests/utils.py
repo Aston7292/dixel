@@ -2,28 +2,27 @@
 
 import pygame as pg
 import numpy as np
+from numpy import uint8
 from numpy.typing import NDArray
 
 
-def cmp_imgs(img: pg.Surface, expected_img: pg.Surface, should_cmp_alpha: bool = True) -> bool:
+def cmp_imgs(img: pg.Surface, expected_img: pg.Surface) -> bool:
     """
     Compares two images.
 
     Args:
-        image, expected image, compare alpha flag (default = True)
+        image, expected image
     Returns:
         equal flag
     """
 
-    pixels: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
-    if should_cmp_alpha:
-        alpha_values: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
-        pixels = np.dstack((pixels, alpha_values))
+    pixels_rgb: NDArray[uint8] = pg.surfarray.pixels3d(img)
+    alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(img)
+    pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, alpha_values))
 
-    expected_pixels: NDArray[np.uint8] = pg.surfarray.pixels3d(expected_img)
-    if should_cmp_alpha:
-        expected_alpha_values: NDArray[np.uint8] = pg.surfarray.pixels_alpha(expected_img)
-        expected_pixels = np.dstack((expected_pixels, expected_alpha_values))
+    expected_pixels_rgb: NDArray[uint8] = pg.surfarray.pixels3d(expected_img)
+    expected_alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(expected_img)
+    expected_pixels: NDArray[uint8] = np.dstack((expected_pixels_rgb, expected_alpha_values))
 
     if pixels.shape != expected_pixels.shape:
         print(f"Size differs: {pixels.shape} {expected_pixels.shape}", end="")

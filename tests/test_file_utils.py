@@ -88,7 +88,7 @@ class TestFileUtils(TestCase):
 
         self.assertEqual(ask_save_to_file(), "a.png")
         mock_ask_save_as_file_name.assert_called_once_with(
-            defaultextension=".png", filetypes=[("Png Files", "*.png")], title="Save As",
+            defaultextension=".png", filetypes=[("png Files", "*.png")], title="Save As",
         )
         mock_get_img_state.assert_called_once_with("a.png", True)
 
@@ -111,7 +111,7 @@ class TestFileUtils(TestCase):
 
         self.assertEqual(ask_open_file(), "a.png")
         mock_ask_open_file_name.assert_called_once_with(
-            defaultextension=".png", filetypes=[("Png Files", "*.png")], title="Open",
+            defaultextension=".png", filetypes=[("png Files", "*.png")], title="Open",
         )
         mock_get_img_state.assert_called_once_with("a.png", False)
 

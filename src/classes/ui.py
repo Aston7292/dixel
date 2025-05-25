@@ -15,7 +15,7 @@ from src.type_utils import XY, BlitInfo
 from src.consts import DARKER_GRAY, UI_LAYER
 from src.imgs import CLOSE_BUTTON_OFF_IMG, CLOSE_BUTTON_ON_IMG, BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 
-_INTERFACE_IMG: Final[pg.Surface] = pg.Surface((512, 700)).convert()
+_INTERFACE_IMG: Final[pg.Surface] = pg.Surface((512, 700))
 _INTERFACE_IMG.fill(DARKER_GRAY)
 
 
@@ -26,10 +26,10 @@ class UI(ABC):
     Includes:
         blit_sequence() -> layered blit sequence
         resize(window width ratio, window height ratio) -> None,
-        base_upt(mouse, keyboard) -> tuple[confirmed, exited]
+        base_upt(mouse, keyboard) -> tuple[exited, confirmed]
 
     Children should include:
-        upt(mouse, keyboard) -> tuple[closed, extra info]
+        upt(mouse, keyboard) -> tuple[exited, confirmed, extra info]
     """
 
     __slots__ = (
@@ -86,26 +86,26 @@ class UI(ABC):
 
         self.blit_sequence[0] = (img, self._rect, UI_LAYER)
 
-    def _base_upt(self, mouse: Mouse, keys: list[int]) -> tuple[bool, bool]:
+    def _base_upt(self, mouse: Mouse, released_keys: list[int]) -> tuple[bool, bool]:
         """
         Checks if the exit or confirm button are pressed.
 
         Args:
-            mouse, keys
+            mouse, released keys
         Returns:
             exiting flag, confirming flag
         """
 
         is_exit_pressed: bool = self._exit.upt(mouse)
-        is_exiting: bool = is_exit_pressed or K_ESCAPE in keys
+        is_exiting: bool = is_exit_pressed or K_ESCAPE in released_keys
 
         is_confirm_pressed: bool = self._confirm.upt(mouse)
-        is_confirming: bool = is_confirm_pressed or K_RETURN in keys
+        is_confirming: bool = is_confirm_pressed or K_RETURN in released_keys
 
         return is_exiting, is_confirming
 
     @abstractmethod
-    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[Any, ...]:
+    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[bool, bool, Any]:
         """
         Should implement a way to make the object interactable.
 

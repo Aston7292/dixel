@@ -80,12 +80,14 @@ BUTTON_XS_OFF_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF_IMG, (64,
 BUTTON_XS_ON_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_ON_IMG, (64, 32)).convert()
 
 ARROW_UP_OFF_IMG: Final[pg.Surface] = _try_get_img("arrow.png", (35, 18))
-ARROW_UP_ON_IMG: Final[pg.Surface] = pg.transform.hsl(ARROW_UP_OFF_IMG, lightness=-0.5)
+ARROW_UP_ON_IMG: Final[pg.Surface] = pg.transform.hsl(ARROW_UP_OFF_IMG, lightness=-0.5).convert()
 ARROW_DOWN_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_OFF_IMG, 180).convert()
 ARROW_DOWN_ON_IMG: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_ON_IMG, 180).convert()
 
 CLOSE_BUTTON_OFF_IMG: Final[pg.Surface] = _try_get_img("close_button.png", (48, 48))
-CLOSE_BUTTON_ON_IMG: Final[pg.Surface] = pg.transform.hsl(CLOSE_BUTTON_OFF_IMG, lightness=-0.5)
+CLOSE_BUTTON_ON_IMG: Final[pg.Surface] = pg.transform.hsl(
+    CLOSE_BUTTON_OFF_IMG, lightness=-0.5
+).convert()
 
 BRUSH_IMG: Final[pg.Surface] = _try_get_img("brush_tool.png", (64, 64))
 BUCKET_IMG: Final[pg.Surface] = _try_get_img("bucket_tool.png", (64, 64))

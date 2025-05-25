@@ -1,4 +1,4 @@
-"""Class to simplify text rendering, renderers are cached."""
+"""Class to simplify multi-line text rendering, renderers are cached."""
 
 from tkinter import messagebox
 from pathlib import Path
@@ -53,7 +53,7 @@ def _try_add_renderer(h: int) -> None:
             break
         except OSError as e:
             if num_attempts == NUM_MAX_FILE_ATTEMPTS:
-                error_str = str(e)
+                error_str = e.strerror
                 break
 
             pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
@@ -69,10 +69,10 @@ def _try_add_renderer(h: int) -> None:
 
 
 class TextLabel:
-    """Class to simplify text rendering."""
+    """Class to simplify multi-text rendering."""
 
     __slots__ = (
-        "init_pos", "_init_h", "_renderer", "text", "_bg_color", "_imgs", "rect", "_rects", "layer"
+        "init_pos", "_init_h", "_renderer", "text", "_bg_color", "imgs", "rect", "_rects", "layer"
     )
 
     def __init__(
@@ -80,7 +80,7 @@ class TextLabel:
             bg_color: Optional[pg.Color] = None
     ) -> None:
         """
-        Creates the text images.
+        Creates the text images, rects and full rect.
 
         Args:
             position, text, base_layer (default = BG_LAYER), height (default = 25),
@@ -99,7 +99,7 @@ class TextLabel:
 
         lines: list[str] = self.text.split("\n")
 
-        self._imgs: list[pg.Surface] = [
+        self.imgs: list[pg.Surface] = [
             self._renderer.render(line, True, WHITE, self._bg_color).convert_alpha()
             for line in lines
         ]
@@ -120,7 +120,7 @@ class TextLabel:
             sequence to add in the main blit sequence
         """
 
-        return [(img, rect, self.layer) for img, rect in zip(self._imgs, self._rects)]
+        return [(img, rect, self.layer) for img, rect in zip(self.imgs, self._rects)]
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -140,7 +140,7 @@ class TextLabel:
         self._renderer = _RENDERERS_CACHE[h]
 
         lines: list[str] = self.text.split("\n")
-        self._imgs = [
+        self.imgs = [
             self._renderer.render(line, True, WHITE, self._bg_color).convert_alpha()
             for line in lines
         ]
@@ -149,7 +149,7 @@ class TextLabel:
 
     def _refresh_rects(self, xy: XY) -> None:
         """
-        Refreshes the rects and rect depending on the position coordinate.
+        Refreshes the rects and full rect depending on coord_type.
 
         Args:
             xy
@@ -158,7 +158,7 @@ class TextLabel:
         img_width: int
         img_height: int
 
-        img_sizes: list[WH] = [img.get_size() for img in self._imgs]
+        img_sizes: list[WH] = [img.get_size() for img in self.imgs]
         imgs_widths: list[int] = [img_width for img_width, _img_height in img_sizes]
         imgs_heights: list[int] = [img_height for _img_width, img_height in img_sizes]
 
@@ -214,7 +214,7 @@ class TextLabel:
         self.text = text
 
         lines: list[str] = self.text.split("\n")
-        self._imgs = [
+        self.imgs = [
             self._renderer.render(line, True, WHITE, self._bg_color).convert_alpha()
             for line in lines
         ]

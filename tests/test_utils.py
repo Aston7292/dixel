@@ -9,7 +9,7 @@ from typing import Final
 
 import pygame as pg
 from pygame import SRCALPHA
-import numpy as np
+from numpy import uint8
 from numpy.typing import NDArray
 
 from src.classes.devices import Mouse, Keyboard
@@ -127,7 +127,7 @@ class TestUtils(TestCase):
         img.fill((255, 0, 0))
         img.set_at((0, 1), (255, 0, 1))
 
-        pixels: NDArray[np.uint8] = get_pixels(img.copy())
+        pixels: NDArray[uint8] = get_pixels(img.copy())
         img_h: int = img.get_height()
         for x in range(img.get_width()):
             for y in range(img_h):

@@ -5,7 +5,7 @@ from typing import Optional
 
 from src.utils import RectPos, resize_obj
 from src.type_utils import XY, BlitInfo
-from src.consts import WHITE, ELEMENT_LAYER, ANIMATION_I_GROW, ANIMATION_I_SHRINK
+from src.consts import WHITE, ELEMENT_LAYER, TIME, ANIMATION_I_GROW, ANIMATION_I_SHRINK
 
 
 class UnsavedIcon:
@@ -29,7 +29,7 @@ class UnsavedIcon:
         dim: int = self._radius * 2 + 1
         max_dim: int = round(self._max_radius * 2 + 1)
 
-        img: pg.Surface = pg.Surface((dim, dim)).convert()
+        img: pg.Surface = pg.Surface((dim, dim))
         self.rect: pg.Rect = pg.Rect(0, 0, max_dim, max_dim)
         self.frame_rect: pg.Rect = pg.Rect(0, 0, *img.get_size())
         self.frame_rect.center = self.rect.center
@@ -70,7 +70,7 @@ class UnsavedIcon:
 
     def set_radius(self, radius: float) -> None:
         """
-        Sets the radius and refreshes image and rect, position should be reset manually.
+        Sets the radius and refreshes image and rect.
 
         Args:
             radius
@@ -79,14 +79,14 @@ class UnsavedIcon:
         self._radius = radius
 
         dim: int = round(self._radius * 2 + 1)  # Prevent cutoffs
-        img: pg.Surface = pg.Surface((dim, dim)).convert()
+        img: pg.Surface = pg.Surface((dim, dim))
         self.frame_rect.size = (dim, dim)
         self.frame_rect.center = self.rect.center
 
         center: tuple[float, float] = (self.frame_rect.w / 2, self.frame_rect.h / 2)
         pg.draw.aacircle(img, self._color, center, self._radius)
 
-        self.blit_sequence[0] = (img, self.frame_rect, ELEMENT_LAYER)
+        self.blit_sequence = [(img, self.frame_rect, ELEMENT_LAYER)] if dim != 0 else []
 
     def set_animation(self, i: int, color: pg.Color, shrink_to_0: bool) -> None:
         """
@@ -100,13 +100,8 @@ class UnsavedIcon:
         self._color = color
         self._min_radius = 0 if shrink_to_0 else self._normal_radius
 
-    def animate(self, dt: float) -> None:
-        """
-        Plays the animation.
-
-        Args:
-            delta time
-        """
+    def animate(self) -> None:
+        """Plays either the grow or shrink animation."""
 
         progress: float
 
@@ -115,14 +110,14 @@ class UnsavedIcon:
         # The animation is fast at the start and slow at the end
         if self._animation_i == ANIMATION_I_GROW:
             progress = (self._max_radius - self._radius) / self._max_radius
-            self._radius += (0.25 + progress) * dt
+            self._radius += (0.25 + progress) * TIME.delta
 
             if self._radius >= self._max_radius:
                 self._radius = self._max_radius
                 self._animation_i = ANIMATION_I_SHRINK
         elif self._animation_i == ANIMATION_I_SHRINK:
             progress = (self._radius - self._min_radius) / self._max_radius
-            self._radius -= (0.25 + progress) * dt
+            self._radius -= (0.25 + progress) * TIME.delta
 
             if self._radius <= self._min_radius:
                 self._radius = self._min_radius

@@ -1,14 +1,15 @@
 """
-Class to manage drawing tools.
+Class to manage the drawing tools.
 
 Tools must have:
 - name
 - base info (image and text)
+- shortcut key
 - info for extra UI elements with:
     - type
     - arguments to create it (excluding position)
     - arguments to pass in the upt method
-    - format to send it to the grid
+    - dict format to send it to the grid
 
 Extra UI elements need:
     - a position argument as first in the constructor
@@ -17,7 +18,7 @@ Extra UI elements need:
     - a rect attribute
 """
 
-from typing import TypeAlias, Final, Any
+from typing import TypeAlias, Final, Optional, Any
 
 import pygame as pg
 from pygame.locals import *
@@ -39,6 +40,7 @@ _CHECKBOX_IMGS: Final[list[pg.Surface]] = [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG]
 _TOOLS_INFO: Final[_ToolsInfo] = {
     "brush": {
         "base_info": (BRUSH_IMG, "Pencil\n(SHIFT+P)"),
+        "shortcut_k": K_p,
         "extra_info": (
             {
                 "type": Checkbox,
@@ -56,6 +58,7 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
     },
     "bucket": {
         "base_info": (BUCKET_IMG, "Bucket\n(SHIFT+B)"),
+        "shortcut_k": K_b,
         "extra_info": (
             {
                 "type": Checkbox,
@@ -67,26 +70,24 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
     },
     "eye_dropper": {
         "base_info": (EYE_DROPPER_IMG, "Eye Dropper\n(SHIFT+E)"),
+        "shortcut_k": K_e,
         "extra_info": ()
     }
 }
 
-BRUSH_I: Final[int] = 0
-BUCKET_I: Final[int] = 1
-EYE_DROPPER_I: Final[int] = 2
-
+_EYE_DROPPER_I: Final[int] = 2
 
 class ToolsManager:
     """Class to manage drawing tools."""
 
     __slots__ = (
-        "tools_grid", "_tool_name", "_tools_extra_info", "_is_on_temp_eye_drop",
-        "_saved_clicked_i", "blit_sequence", "objs_info", "_tools_objs_info_ranges"
+        "tools_grid", "_tool_name", "_tools_extra_info", "_saved_clicked_i", "blit_sequence",
+        "objs_info", "_tools_objs_info_ranges"
     )
 
     def __init__(self, pos: RectPos) -> None:
         """
-        Creates the grid of options and sub options.
+        Creates the grid of tools and sub options.
 
         Args:
             position
@@ -109,13 +110,12 @@ class ToolsManager:
             self._get_extra_info(raw_extra_info) for raw_extra_info in tools_raw_extra_info
         ]
 
-        self._is_on_temp_eye_drop: bool = False
-        self._saved_clicked_i: int = self.tools_grid.clicked_i
+        self._saved_clicked_i: Optional[int] = None
 
         self.blit_sequence: list[BlitInfo] = []
         self.objs_info: list[ObjInfo] = [ObjInfo(self.tools_grid)]
-
         objs_info: list[ObjInfo] = self.objs_info
+
         self._tools_objs_info_ranges: list[tuple[int, int]] = []
         for tool_extra_info in self._tools_extra_info:
             range_start: int = len(objs_info)
@@ -127,13 +127,13 @@ class ToolsManager:
 
         tool_i: int = self.tools_grid.clicked_i
         tool_range_start_i, tool_range_end_i = self._tools_objs_info_ranges[tool_i]
-        for i in range(self._tools_objs_info_ranges[0][0], self._tools_objs_info_ranges[-1][-1]):
+        for i in range(self._tools_objs_info_ranges[0][0], self._tools_objs_info_ranges[-1][1]):
             if i < tool_range_start_i or i >= tool_range_end_i:
                 objs_info[i].set_active(False)
 
     def _get_extra_info(self, raw_extra_info: tuple[dict[str, Any], ...]) -> _ToolExtraInfo:
         """
-        Creates the sub objects of a tool.
+        Creates the sub options of a tool.
 
         Args:
             raw extra info
@@ -145,9 +145,8 @@ class ToolsManager:
         obj_y: int
         raw_sub_tool_extra_info: dict[str, Any]
 
-        extra_info: _ToolExtraInfo = []
-
         obj_x, obj_y = self.tools_grid.rect.x + 10, self.tools_grid.rect.y - 20
+        extra_info: _ToolExtraInfo = []
         for raw_sub_tool_extra_info in raw_extra_info:
             obj_class: Any = raw_sub_tool_extra_info["type"]
             pos: RectPos = RectPos(obj_x, obj_y, "bottomleft")
@@ -164,7 +163,7 @@ class ToolsManager:
 
     def refresh_tools(self, prev_tool_i: int) -> None:
         """
-        Clears all the relevant data of the previous tool and activated a new one.
+        Sets the previous tool inactive and activates the new one.
 
         Args:
             index of the previous tool
@@ -188,23 +187,22 @@ class ToolsManager:
 
     def _handle_shortcuts(self, keyboard: Keyboard) -> None:
         """
-        Handles selection with the keyboard.
+        Handles changing the selection with the keyboard.
 
         Args:
             keyboard
         """
-        # TODO: some docstrings suck
 
-        if K_p in keyboard.pressed:
-            self.tools_grid.clicked_i = BRUSH_I
-        if K_b in keyboard.pressed:
-            self.tools_grid.clicked_i = BUCKET_I
-        if K_e in keyboard.pressed:
-            self.tools_grid.clicked_i = EYE_DROPPER_I
+        i: int
+        info: dict[str, Any]
+
+        for i, info in enumerate(_TOOLS_INFO.values()):
+            if info["shortcut_k"] in keyboard.pressed:
+                self.tools_grid.clicked_i = i
 
     def _upt_sub_objs(self, local_vars: dict[str, Any]) -> dict[str, Any]:
         """
-        Updates the sub objects and returns the needed attribute as a dictionary.
+        Updates the sub options and returns the needed attribute as a dictionary.
 
         Args:
             local variables
@@ -228,7 +226,7 @@ class ToolsManager:
 
     def upt(self, mouse: Mouse, keyboard: Keyboard) -> ToolInfo:
         """
-        Allows selecting a tool and it's extra options.
+        Allows selecting a tool and its extra options.
 
         Args:
             mouse, keyboard
@@ -236,21 +234,17 @@ class ToolsManager:
             tool name, sub objects states
         """
 
-        if keyboard.is_alt_on and mouse.pressed[0]:
-            pass
-
         if keyboard.is_shift_on:
             self._handle_shortcuts(keyboard)
         self.tools_grid.upt(mouse, keyboard)
 
         if keyboard.is_alt_on:
-            if self.tools_grid.clicked_i != EYE_DROPPER_I:
-                self._is_on_temp_eye_drop = True
+            if self.tools_grid.clicked_i != _EYE_DROPPER_I:
                 self._saved_clicked_i = self.tools_grid.clicked_i
-                self.tools_grid.clicked_i = EYE_DROPPER_I
-        elif self._is_on_temp_eye_drop:
-            self._is_on_temp_eye_drop = False
+                self.tools_grid.clicked_i = _EYE_DROPPER_I
+        elif self._saved_clicked_i is not None:
             self.tools_grid.clicked_i = self._saved_clicked_i
+            self._saved_clicked_i = None
 
         if self.tools_grid.clicked_i != self.tools_grid.prev_clicked_i:
             self.refresh_tools(self.tools_grid.prev_clicked_i)

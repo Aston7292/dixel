@@ -1,9 +1,8 @@
-"""Functions to operate with files."""
+"""Functions to lock files on different OSes."""
 
-import platform
-
+from platform import system
 from contextlib import suppress
-from typing import IO, Final, Any
+from typing import TextIO, BinaryIO, Final, Any
 
 import pygame as pg
 
@@ -34,9 +33,8 @@ class FileException(Exception):
         self.error_str = error_str
 
 
-_OS_STR: Final[str] = platform.system()
 # Files are unlocked when closed
-if _OS_STR == "Windows":
+if system() == "Windows":
     import win32file
     import pywintypes
     from win32con import LOCKFILE_EXCLUSIVE_LOCK, LOCKFILE_FAIL_IMMEDIATELY
@@ -59,7 +57,7 @@ if _OS_STR == "Windows":
         ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION, ERROR_INVALID_BLOCK_LENGTH
     )
 
-    def try_lock_file(file_obj: IO, shared: bool) -> None:
+    def try_lock_file(file_obj: TextIO | BinaryIO, shared: bool) -> None:
         """
         Locks a file.
 
@@ -68,10 +66,9 @@ if _OS_STR == "Windows":
         """
 
         num_attempts: int
-        file_handle: int
 
-        # Handle is closed when the file is closed
-
+        # file_handle is closed when the file is closed
+        file_handle: int = 0
         for num_attempts in range(1, NUM_MAX_FILE_ATTEMPTS + 1):
             try:
                 file_handle = win32file._get_osfhandle(file_obj.fileno())  # type: ignore
@@ -90,7 +87,7 @@ if _OS_STR == "Windows":
                 win32file.LockFileEx(file_handle, flag, 0, 0xffffffff, win32file.OVERLAPPED())
                 break
             except pywintypes.error as e:
-                if e.winerror in _WINDOWS_FILE_MISSING_CODES:  # Can happen
+                if e.winerror in _WINDOWS_FILE_MISSING_CODES:
                     raise FileNotFoundError from e
                 if e.winerror in _WINDOWS_PERMISSION_DENIED_CODES:
                     raise PermissionError from e
@@ -116,7 +113,7 @@ elif fcntl is not None:
         EINTR, EIO, ENOMEM, EBUSY, ENFILE, EMFILE
     )
 
-    def try_lock_file(file_obj: IO, shared: bool) -> None:
+    def try_lock_file(file_obj: TextIO | BinaryIO, shared: bool) -> None:
         """
         Locks a file.
 
@@ -134,7 +131,7 @@ elif fcntl is not None:
             except EOFError as e:
                 raise FileException("End of file reached.") from e
             except OSError as e:
-                if e.errno == ENOENT:  # Can happen
+                if e.errno == ENOENT:
                     raise FileNotFoundError from e
                 if e.errno == EPERM or e.errno == EROFS:
                     raise PermissionError from e
@@ -154,9 +151,9 @@ elif fcntl is not None:
                 else:
                     raise FileException(f"{e}.") from e
 else:
-    print(f"File locking not implemented for this operating system: {_OS_STR}.")
+    print(f"File locking not implemented for this operating system: {system()}.")
 
-    def try_lock_file(file_obj: IO, shared: bool) -> None:
+    def try_lock_file(file_obj: TextIO | BinaryIO, shared: bool) -> None:
         """
         Locks a file.
 

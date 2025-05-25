@@ -51,9 +51,11 @@ class TestTextLabel(TestCase):
         self.assertEqual(text_label.layer, 1 + TEXT_LAYER)
 
         lines: list[str] = text_label.text.split("\n")
-        for img, line in zip(text_label._imgs, lines, strict=True):
-            expected_img: pg.Surface = expected_renderer.render(line, True, WHITE, WHITE).convert()
-            self.assertTrue(cmp_imgs(img.convert(), expected_img, False))
+        for img, line in zip(text_label.imgs, lines, strict=True):
+            expected_img: pg.Surface = expected_renderer.render(
+                line, True, WHITE, WHITE
+            ).convert_alpha()
+            self.assertTrue(cmp_imgs(img, expected_img))
 
         mock_refresh_rects.assert_called_once_with(
             text_label, (text_label.init_pos.x, text_label.init_pos.y)
@@ -69,7 +71,7 @@ class TestTextLabel(TestCase):
 
         expected_sequence: list[BlitInfo] = [
             (img, rect, text_label.layer)
-            for img, rect in zip(text_label._imgs, text_label._rects, strict=True)
+            for img, rect in zip(text_label.imgs, text_label._rects, strict=True)
         ]
 
         self.assertListEqual(text_label.blit_sequence, expected_sequence)
@@ -97,9 +99,11 @@ class TestTextLabel(TestCase):
         self.assertIs(text_label._renderer, expected_renderer)
 
         lines: list[str] = text_label.text.split("\n")
-        for img, line in zip(text_label._imgs, lines, strict=True):
-            expected_img: pg.Surface = expected_renderer.render(line, True, WHITE, WHITE).convert()
-            self.assertTrue(cmp_imgs(img.convert(), expected_img, False))
+        for img, line in zip(text_label.imgs, lines, strict=True):
+            expected_img: pg.Surface = expected_renderer.render(
+                line, True, WHITE, WHITE
+            ).convert_alpha()
+            self.assertTrue(cmp_imgs(img, expected_img))
 
         self.assertEqual(mock_refresh_rects.call_count, init_num_get_rects_calls + 1)
         mock_refresh_rects.assert_called_with(text_label, expected_xy)
@@ -116,14 +120,14 @@ class TestTextLabel(TestCase):
 
         expected_rect: pg.Rect = pg.Rect()
         expected_rect.size = (
-            max([img.get_width() for img in text_label._imgs]),
-            sum([img.get_height() for img in text_label._imgs])
+            max([img.get_width() for img in text_label.imgs]),
+            sum([img.get_height() for img in text_label.imgs])
         )
         expected_rect.center = (2, 3)
 
         expected_rects: list[pg.Rect] = []
         expected_line_rect_x, expected_line_rect_y = expected_rect.topleft
-        for img in text_label._imgs:
+        for img in text_label.imgs:
             expected_line_rect: pg.Rect = pg.Rect(
                 expected_line_rect_x, expected_line_rect_y, expected_rect.w, img.get_height()
             )
@@ -174,9 +178,11 @@ class TestTextLabel(TestCase):
 
         lines: list[str] = text_label.text.split("\n")
         expected_renderer: pg.Font = pg.font.SysFont("helvetica", 60)
-        for img, line in zip(text_label._imgs, lines, strict=True):
-            expected_img: pg.Surface = expected_renderer.render(line, True, WHITE, WHITE).convert()
-            self.assertTrue(cmp_imgs(img.convert(), expected_img, False))
+        for img, line in zip(text_label.imgs, lines, strict=True):
+            expected_img: pg.Surface = expected_renderer.render(
+                line, True, WHITE, WHITE
+            ).convert_alpha()
+            self.assertTrue(cmp_imgs(img, expected_img))
 
         mock_refresh_rects.assert_called_with(text_label, text_label.rect.center)
 
@@ -206,7 +212,7 @@ class TestTextLabel(TestCase):
         text_label: TextLabel = self._make_text_label()
         expected_renderer: pg.Font = pg.font.SysFont("helvetica", 60)
 
-        rect_left, rect_right = text_label.rect.left, text_label.rect.right
+        rect_left, rect_right = text_label.rect.x, text_label.rect.right
         pos_2: int = rect_left + expected_renderer.render("he", True, WHITE, WHITE).get_width()
         turning_x: int = pos_2 + expected_renderer.render("l", True, WHITE, WHITE).get_width() // 2
         first_line: str = text_label.text.split("\n")[0]

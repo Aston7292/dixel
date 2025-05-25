@@ -1,10 +1,10 @@
 """Functions and dataclasses shared between files."""
 
-from tkinter import messagebox
-from pathlib import Path
-import time
 import dataclasses
 
+from tkinter import messagebox
+from pathlib import Path
+from time import time
 from dataclasses import dataclass
 from math import ceil
 from collections.abc import Callable
@@ -12,6 +12,7 @@ from typing import Final, Any
 
 import pygame as pg
 import numpy as np
+from numpy import uint8
 from numpy.typing import NDArray
 
 from src.type_utils import XY, WH
@@ -25,7 +26,7 @@ _FUNCS_NUM_CALLS: Final[list[int]] = []
 
 
 def profile(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorator to time the average run time of a function."""
+    """Decorator to time the average runtime of a function."""
 
     func_i: int = len(_FUNCS_NAMES)
     _FUNCS_NAMES.append(func.__qualname__)
@@ -33,11 +34,11 @@ def profile(func: Callable[..., Any]) -> Callable[..., Any]:
     _FUNCS_NUM_CALLS.append(0)
 
     def _upt_info(*args: Any, **kwargs: dict[str, Any]) -> Any:
-        """Runs a function and updates its total run time and number of calls."""
+        """Runs a function and updates its total runtime and number of calls."""
 
-        start: float = time.time()
+        start: float = time()
         res: Any = func(*args, **kwargs)
-        _FUNCS_TOT_TIMES[func_i] += (time.time() - start) * 1_000
+        _FUNCS_TOT_TIMES[func_i] += (time() - start) * 1_000
         _FUNCS_NUM_CALLS[func_i] += 1
 
         return res
@@ -100,7 +101,7 @@ class RectPos:
 @dataclass(slots=True)
 class ObjInfo:
     """
-    Dataclass for storing a name, object and active flag.
+    Dataclass for storing an object and its active flag.
 
     Args:
         object
@@ -110,32 +111,30 @@ class ObjInfo:
     is_active: bool = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
-        """Initializes is_active."""
+        """Initializes the active flag."""
 
         self.is_active = True  # field(default=True) only works on python 3.10.16 or higher
 
     def set_active(self, should_activate: bool) -> None:
         """
-        Sets the active flag for the object and its sub objects and calls the enter/leave method.
+        Sets the active flag for the object and sub objects, calls the leave method if inactive.
 
         Args:
             activate flag
         """
-
-        method_name: str = "enter" if should_activate else "leave"
 
         objs_info: list[ObjInfo] = [self]
         while objs_info != []:
             info: ObjInfo = objs_info.pop()
             info.is_active = should_activate
 
-            if hasattr(info.obj, method_name):
-                getattr(info.obj, method_name)()
+            if not should_activate and hasattr(info.obj, "leave"):
+                info.obj.leave()
             if hasattr(info.obj, "objs_info"):
                 objs_info.extend(info.obj.objs_info)
 
 
-def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
+def get_pixels(img: pg.Surface) -> NDArray[uint8]:
     """
     Gets the rgba values of the pixels in an image.
 
@@ -145,8 +144,8 @@ def get_pixels(img: pg.Surface) -> NDArray[np.uint8]:
         pixels
     """
 
-    pixels_rgb: NDArray[np.uint8] = pg.surfarray.pixels3d(img)
-    alpha_values: NDArray[np.uint8] = pg.surfarray.pixels_alpha(img)
+    pixels_rgb: NDArray[uint8] = pg.surfarray.pixels3d(img)
+    alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(img)
 
     return np.dstack((pixels_rgb, alpha_values))
 
@@ -168,24 +167,24 @@ def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
     return new_img
 
 
-def get_brush_dim_img(dim: int) -> pg.Surface:
+def get_brush_dim_checkbox_info(dim: int) -> tuple[pg.Surface, str]:
     """
-    Gets an image to represent a brush dimension.
+    Gets the checkbox info for a brush dimension.
 
     Args:
         dimension
     Returns:
-        image
+        image, hovering text
     """
 
-    img_arr: NDArray[np.uint8] = np.tile(EMPTY_TILE_ARR, (8, 8, 1))
+    img_arr: NDArray[uint8] = np.tile(EMPTY_TILE_ARR, (8, 8, 1))
     rect: pg.Rect = pg.Rect(0, 0, dim * TILE_W, dim * TILE_H)
     rect.center = (round(img_arr.shape[0] / 2), round(img_arr.shape[1] / 2))
 
     img: pg.Surface = pg.surfarray.make_surface(img_arr)
     pg.draw.rect(img, BLACK, rect)
 
-    return pg.transform.scale_by(img, 4).convert()
+    return pg.transform.scale_by(img, 4).convert(), f"{dim}px\n(CTRL+{dim})"
 
 
 def try_create_dir(dir_path: Path, should_ask_create: bool, num_creation_attempts: int) -> bool:
@@ -287,22 +286,19 @@ def rec_move_rect(
         main_obj: Any, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float
 ) -> None:
     """
-    Moves an object and all it's sub objects.
+    Moves an object and it's sub objects.
 
     Args:
         object, initial x, initial y, window width ratio, window height ratio
     """
 
-    change_x: int
-    change_y: int
-
-    change_x = change_y = 0
     objs_hierarchy: list[Any] = [main_obj]
-    is_sub_obj: bool = False
+    change_x: int = 0
+    change_y: int = 0
     while objs_hierarchy != []:
         obj: Any = objs_hierarchy.pop()
         if hasattr(obj, "move_rect"):
-            if is_sub_obj:
+            if obj != main_obj:
                 obj.move_rect(
                     obj.init_pos.x + change_x, obj.init_pos.y + change_y,
                     win_w_ratio, win_h_ratio
@@ -310,7 +306,6 @@ def rec_move_rect(
             else:
                 change_x, change_y = init_x - obj.init_pos.x, init_y - obj.init_pos.y
                 obj.move_rect(init_x, init_y, win_w_ratio, win_h_ratio)
-                is_sub_obj = True
 
         if hasattr(obj, "objs_info"):
             objs_hierarchy.extend([info.obj for info in obj.objs_info])

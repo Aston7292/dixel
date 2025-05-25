@@ -4,9 +4,24 @@ from typing import Final
 
 import pygame as pg
 import numpy as np
+from numpy import uint8
 from numpy.typing import NDArray
 
 from src.type_utils import RGBColor, HexColor
+
+
+class Time:
+    """Class to share ticks and delta time."""
+
+    __slots__ = (
+        "ticks", "delta"
+    )
+
+    def __init__(self):
+        """Initializes ticks and delta time."""
+
+        self.ticks: int = 0
+        self.delta: float = 0
 
 CHR_LIMIT: Final[int] = 1_114_111
 MOUSE_LEFT: Final[int] = 0
@@ -22,12 +37,12 @@ _RGB_DARK_GRAY: Final[RGBColor] = (60, 60, 60)
 HEX_BLACK: Final[HexColor] = "000000"
 
 # Flip x and y because, when making it a surface, pygame uses it like this
-EMPTY_TILE_ARR: Final[NDArray[np.uint8]] = np.array(
+EMPTY_TILE_ARR: Final[NDArray[uint8]] = np.array(
     (
         (_RGB_LIGHT_GRAY, _RGB_DARK_GRAY),
         (_RGB_DARK_GRAY, _RGB_LIGHT_GRAY)
     ),
-    np.uint8
+    uint8
 ).transpose((1, 0, 2))
 TILE_W: Final[int] = EMPTY_TILE_ARR.shape[0]
 TILE_H: Final[int] = EMPTY_TILE_ARR.shape[1]
@@ -46,5 +61,6 @@ TOP_LAYER: Final[int] = 3
 SPECIAL_LAYER: Final[int] = 4  # Base for the special layers
 UI_LAYER: Final[int] = SPECIAL_LAYER * 2  # Base for the UI layers
 
+TIME: Final[Time] = Time()
 ANIMATION_I_GROW: Final[int] = 0
 ANIMATION_I_SHRINK: Final[int] = 1

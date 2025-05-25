@@ -19,7 +19,7 @@ from src.consts import WHITE, ELEMENT_LAYER
 
 from tests.utils import cmp_imgs
 
-_IMG_OFF: Final[pg.Surface] = pg.Surface((10, 11), SRCALPHA).convert_alpha()
+_IMG_OFF: Final[pg.Surface] = pg.Surface((10, 11), SRCALPHA)
 _IMG_ON: Final[pg.Surface] = _IMG_OFF.copy()
 _IMG_ON.fill((0, 0, 1, 0))
 

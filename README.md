@@ -61,6 +61,8 @@ if the program crashes the image will always be saved.
 **CTRL SHIFT S**: Save file with name\
 **CTRL O**: Open file\
 **CTRL W**: Close file\
+**SHIFT H**: Mirror tool horizontally\
+**SHIFT V**: Mirror tool vertically\
 **arrows/page down/page up/home/end**: move in scrollbars
 
 ### Checkbox grids
@@ -77,22 +79,25 @@ if the program crashes the image will always be saved.
 **Enter**: Draw\
 **Backspace**: Erase\
 **SHIFT arrows**: Move selected pixel by visible area\
-**Tab arrows**: Move selected pixel by brush size\
+**TAB arrows**: Move selected pixel by brush size\
 **CTRL arrows**: Move selected pixel to the limit of the grid\
 **CTRL +/-**: Zoom in/out\
 **CTRL SHIFT +/-**: Zoom in/out until limit\
-**CTRL R**: Reset offset and visible area
+**CTRL Z**: Undo\
+**CTRL SHIFT Z/CTRL Y**: Redo\
+**CTRL R**: Reset offset and visible area\
 **ALT**: Eye drop color
 
 ### UIs
 
 **arrows/tab/SHIFT tab**: Move selection\
 **CTRL left/right**: Go to end of text in input box\
-**+/-**: Increment/decrement numerical slider by 1\
-**SHIFT +/-**: Increment/decrement numerical slider by 25\
-**CTRL +/-**: Reach limit in numerical slider
+**+/-**: Increment/decrement numerical slider\
+**CTRL +/-**: Reach limit in numerical slider\
 **CTRL K**: Toggle keep ratio in grid UI\
-**CTRL C**: Crop in grid UI
+**CTRL C**: Crop in grid UI\
+**CTRL R**: Rotate right in grid UI\
+**CTRL SHIFT R**: Rotate left in Grid UI\
 **Escape**: Close\
 **Enter**: Confirm
 

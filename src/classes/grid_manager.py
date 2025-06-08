@@ -9,7 +9,8 @@ from pathlib import Path
 from zlib import compress, decompress
 from collections import deque
 from itertools import islice
-from typing import TypeAlias, Final, Optional, Any
+from math import ceil
+from typing import TypeAlias, Final, Any
 
 import pygame as pg
 from pygame.locals import *
@@ -18,14 +19,16 @@ from numpy import uint8, uint16, uint32, intp, bool_
 from numpy.typing import NDArray
 import cv2
 
+from src.classes.text_label import TextLabel
 from src.classes.devices import Mouse, Keyboard
 
 from src.utils import Point, RectPos, Size, ObjInfo, get_pixels, try_create_dir, resize_obj
 from src.lock_utils import LockException, FileException, try_lock_file
 from src.type_utils import XY, RGBColor, RGBAColor, HexColor, ToolInfo, BlitInfo
 from src.consts import (
-    MOUSE_LEFT, MOUSE_WHEEL, MOUSE_RIGHT, EMPTY_TILE_ARR, TILE_H, TILE_W,
-    GRID_TRANSITION_START, GRID_TRANSITION_END, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY, BG_LAYER
+    MOUSE_LEFT, MOUSE_WHEEL, MOUSE_RIGHT, BLACK, EMPTY_TILE_ARR, TILE_H, TILE_W,
+    GRID_TRANSITION_START, GRID_TRANSITION_END, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY,
+    BG_LAYER, TOP_LAYER, TIME
 )
 
 
@@ -124,7 +127,7 @@ class Grid:
         "_grid_init_pos", "area", "visible_area", "grid_tile_dim", "grid_rect", "tiles",
         "brush_dim", "history", "history_i", "_minimap_init_pos", "_minimap_rect",
         "_small_minimap_img", "offset", "selected_tiles", "layer", "blit_sequence", "_win_w_ratio",
-        "_win_h_ratio"
+        "_win_h_ratio",
     )
 
     cursor_type: int = SYSTEM_CURSOR_CROSSHAIR
@@ -235,7 +238,7 @@ class Grid:
 
         if should_reset_history:
             self.history = deque([(self.area.w, self.area.h, compress(self.tiles.tobytes()))], 512)
-            self.history_i: int = 0
+            self.history_i = 0
 
     def _resize_grid(self, small_img: pg.Surface) -> None:
         """
@@ -265,7 +268,7 @@ class Grid:
             img = pg.transform.scale(small_img, (w, h))
         elif max_visible_dim > GRID_TRANSITION_END:
             img = pg.transform.smoothscale(small_img, (w, h))
-        else:
+        elif GRID_TRANSITION_START <= max_visible_dim <= GRID_TRANSITION_END:
             # Gradual transition
             img_arr: NDArray[uint8] = pg.surfarray.pixels3d(small_img)
             img_arr = cv2.resize(img_arr, (h, w), interpolation=cv2.INTER_AREA).astype(uint8)
@@ -345,7 +348,7 @@ class Grid:
             img = pg.transform.scale(self._small_minimap_img, self._minimap_rect.size)
         elif max_visible_dim > GRID_TRANSITION_END:
             img = pg.transform.smoothscale(self._small_minimap_img, self._minimap_rect.size)
-        else:
+        elif GRID_TRANSITION_START <= max_visible_dim <= GRID_TRANSITION_END:
             # Gradual transition
             img_arr: NDArray[uint8] = pg.surfarray.pixels3d(self._small_minimap_img)
             img_arr = cv2.resize(
@@ -421,7 +424,7 @@ class Grid:
         self._refresh_minimap_rect()
         self.refresh_minimap_img()
 
-    def set_tiles(self, img: Optional[pg.Surface]) -> None:
+    def set_tiles(self, img: pg.Surface | None) -> None:
         """
         Sets the grid tiles using an image pixels.
 
@@ -528,10 +531,10 @@ class Grid:
             amount
         """
 
-        if self.visible_area.w > self.visible_area.h:
+        if   self.visible_area.w > self.visible_area.h:
             self.visible_area.w = max(self.visible_area.w - amount, 1)
             self.visible_area.h = min(self.visible_area.h, self.visible_area.w)
-        else:
+        elif self.visible_area.h > self.visible_area.w:
             self.visible_area.h = max(self.visible_area.h - amount, 1)
             self.visible_area.w = min(self.visible_area.w, self.visible_area.h)
 
@@ -586,7 +589,7 @@ class Grid:
             mouse, keyboard
         """
 
-        amount: Optional[int] = None
+        amount: int | None = None
         should_reach_min_limit: bool = False
         should_reach_max_limit: bool = False
 
@@ -652,7 +655,7 @@ class Grid:
             rgba_color = (
                 int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16), 255
             )
-        else:
+        else:  # is_erasing
             rgba_color = (0, 0, 0, 0)
         self.tiles[self.selected_tiles] = rgba_color
 
@@ -677,14 +680,14 @@ class Grid:
 
             if is_coloring:
                 img_arr[target_xs, target_ys] = rgba_color[:3]
-            else:
+            else:  # is_erasing
                 img_arr[target_xs, target_ys] = EMPTY_TILE_ARR[
                     target_xs % TILE_W, target_ys % TILE_H
                 ]
 
         return did_draw
 
-    def try_save_to_file(self, file_str: str, should_ask_create_dir: bool) -> Optional[pg.Surface]:
+    def try_save_to_file(self, file_str: str, should_ask_create_dir: bool) -> pg.Surface | None:
         """
         Saves the image to a file.
 
@@ -735,11 +738,12 @@ class Grid:
                 break
             except OSError as e:
                 num_system_attempts += 1
-                if num_system_attempts == NUM_MAX_FILE_ATTEMPTS:
-                    messagebox.showerror("Image Save Failed", f"{file_path.name}\n{e}")
-                    break
+                if num_system_attempts != NUM_MAX_FILE_ATTEMPTS:
+                    pg.time.wait(FILE_ATTEMPT_DELAY * num_system_attempts)
+                    continue
 
-                pg.time.wait(FILE_ATTEMPT_DELAY * num_system_attempts)
+                messagebox.showerror("Image Save Failed", f"{file_path.name}\n{e}")
+                break
 
         return img if did_succeed else None
 
@@ -748,9 +752,10 @@ class GridManager:
     """Class to create and edit a grid of pixels."""
 
     __slots__ = (
-        "_prev_hovered_obj", "_can_leave", "_prev_mouse_col", "_prev_mouse_row", "_mouse_col",
-        "_mouse_row", "_traveled_x", "_traveled_y", "_is_coloring", "_is_erasing",
-        "eye_dropped_color", "_can_add_to_history", "grid", "blit_sequence", "objs_info"
+        "_is_hovering", "_prev_hovered_obj", "_can_leave", "_prev_mouse_col", "_prev_mouse_row",
+        "_mouse_col", "_mouse_row", "_traveled_x", "_traveled_y", "_is_coloring", "_is_erasing",
+        "is_x_mirror_on", "is_y_mirror_on", "eye_dropped_color", "_can_add_to_history", "grid",
+        "_hovering_text_label", "_hovering_text_alpha", "_last_mouse_move_time", "objs_info",
     )
 
     def __init__(self, grid_pos: RectPos, minimap_pos: RectPos) -> None:
@@ -761,7 +766,8 @@ class GridManager:
             grid position, minimap position
         """
 
-        self._prev_hovered_obj: Optional[Grid] = None
+        self._is_hovering: bool = False
+        self._prev_hovered_obj: Grid | None = None
         self._can_leave: bool = False
 
         self._prev_mouse_col: int = 0
@@ -773,14 +779,55 @@ class GridManager:
 
         self._is_coloring: bool = False
         self._is_erasing: bool = False
-        self.eye_dropped_color: Optional[RGBColor] = None
+        self.is_x_mirror_on: bool = False
+        self.is_y_mirror_on: bool = False
+        self.eye_dropped_color: RGBColor | None = None
 
         self._can_add_to_history: bool = False
 
         self.grid: Grid = Grid(grid_pos, minimap_pos)
 
-        self.blit_sequence: list[BlitInfo] = []
+        self._hovering_text_label: TextLabel = TextLabel(
+            RectPos(0, 0, "topleft"),
+            "Enter\nBackspace", BG_LAYER, 12, BLACK
+        )
+        self._hovering_text_label.layer = TOP_LAYER
+        self._hovering_text_alpha: int = 0
+
+        self._last_mouse_move_time: int = TIME.ticks
+
         self.objs_info: list[ObjInfo] = [ObjInfo(self.grid)]
+
+    @property
+    def blit_sequence(self) -> list[BlitInfo]:
+        """
+        Gets the blit sequence and handles the gradual appearance of the hovering text.
+
+        Returns:
+            sequence to add in the main blit sequence
+        """
+
+        mouse_x: int
+        mouse_y: int
+        img: pg.Surface
+
+        sequence: list[BlitInfo] = []
+        if self._is_hovering and TIME.ticks - self._last_mouse_move_time >= 750:
+            if self._hovering_text_alpha != 255:
+                self._hovering_text_alpha = round(self._hovering_text_alpha + 16 * TIME.delta)
+                self._hovering_text_alpha = min(self._hovering_text_alpha, 255)
+                for img in self._hovering_text_label.imgs:
+                    img.set_alpha(self._hovering_text_alpha)
+
+            mouse_x, mouse_y = pg.mouse.get_pos()
+            self._hovering_text_label.move_rect(mouse_x + 5, mouse_y, 1, 1)
+            sequence = self._hovering_text_label.blit_sequence
+        elif self._hovering_text_alpha != 0:
+            self._hovering_text_alpha = 0
+            for img in self._hovering_text_label.imgs:
+                img.set_alpha(self._hovering_text_alpha)
+
+        return sequence
 
     def leave(self) -> None:
         """Clears the relevant data when the object state is leaved."""
@@ -895,13 +942,8 @@ class GridManager:
         self._mouse_col = rel_mouse_col + self.grid.offset.x
         self._mouse_row = rel_mouse_row + self.grid.offset.y
 
-    def _brush(self, extra_info: dict[str, Any]) -> None:
-        """
-        Handles the brush tool.
-
-        Args:
-            drawing flag, extra info (mirrors)
-        """
+    def _brush(self) -> None:
+        """Handles the brush tool."""
 
         w_edge: int = self.grid.area.w - 1
         h_edge: int = self.grid.area.h - 1
@@ -921,9 +963,9 @@ class GridManager:
             for y in range(max(original_y, 0), min(original_y + brush_dim, self.grid.area.h))
         ]
 
-        if extra_info["mirror_x"]:
+        if self.is_x_mirror_on:
             selected_tiles_list.extend([(w_edge - x, y) for x, y in selected_tiles_list])
-        if extra_info["mirror_y"]:
+        if self.is_y_mirror_on:
             selected_tiles_list.extend([(x, h_edge - y) for x, y in selected_tiles_list])
         self.grid.selected_tiles[*zip(*selected_tiles_list)] = True
 
@@ -1065,7 +1107,7 @@ class GridManager:
         self._is_erasing = mouse.pressed[MOUSE_RIGHT] or K_BACKSPACE in keyboard.pressed
         tool_name, extra_tool_info = tool_info
         if tool_name == "brush":
-            self._brush(extra_tool_info)
+            self._brush()
         elif tool_name == "bucket":
             self._bucket(extra_tool_info)
         elif tool_name == "eye_dropper":
@@ -1094,6 +1136,10 @@ class GridManager:
 
         grid: Grid = self.grid
 
+        self._is_hovering = mouse.hovered_obj == grid
+        if mouse.x != mouse.prev_x or mouse.y != mouse.prev_y:
+            self._last_mouse_move_time = TIME.ticks
+
         prev_visible_w: int = grid.visible_area.w
         prev_visible_h: int = grid.visible_area.h
         prev_offset_x: int = grid.offset.x
@@ -1105,7 +1151,7 @@ class GridManager:
         else:
             self._traveled_x = self._traveled_y = 0
 
-        if grid == mouse.hovered_obj and (mouse.scroll_amount != 0 or keyboard.is_ctrl_on):
+        if self._is_hovering and (mouse.scroll_amount != 0 or keyboard.is_ctrl_on):
             grid.zoom(mouse, keyboard)
 
         did_move_history_i: bool = False
@@ -1121,7 +1167,7 @@ class GridManager:
                 grid.offset.x = grid.offset.y = 0
                 self._traveled_x = self._traveled_y = 0
 
-        if grid == mouse.hovered_obj or grid == self._prev_hovered_obj:  # Extra frame to draw
+        if self._is_hovering or self._prev_hovered_obj == grid:  # Extra frame to draw
             did_draw, did_selected_tiles_change = self._handle_draw(
                 mouse, keyboard, hex_color, tool_info
             )
@@ -1137,7 +1183,7 @@ class GridManager:
             mouse.released[MOUSE_LEFT] or mouse.released[MOUSE_RIGHT] or
             K_RETURN in keyboard.released or K_BACKSPACE in keyboard.released
         )
-        if self._can_add_to_history and (did_stop_drawing or grid != mouse.hovered_obj):
+        if self._can_add_to_history and (did_stop_drawing or not self._is_hovering):
             self.grid.add_to_history()
             self._can_add_to_history = False
 

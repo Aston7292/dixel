@@ -1,7 +1,7 @@
 """Classes to create various clickable objects."""
 
 from abc import ABC, abstractmethod
-from typing import Final, Optional
+from typing import Final
 
 import pygame as pg
 from pygame import SYSTEM_CURSOR_HAND
@@ -16,7 +16,7 @@ from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TOP_LAYER, TI
 _INIT_CLICK_INTERVAL: Final[int] = 100
 
 
-class Clickable(ABC):
+class _Clickable(ABC):
     """
     Abstract class to create a clickable object with various images and hovering text.
 
@@ -33,7 +33,7 @@ class Clickable(ABC):
 
     __slots__ = (
         "init_pos", "init_imgs", "imgs", "rect", "_hover_rect", "img_i", "_is_hovering", "layer",
-        "hovering_text_label", "_hovering_text_alpha", "_last_move_time"
+        "hovering_text_label", "_hovering_text_alpha", "_last_mouse_move_time"
     )
 
     cursor_type: int = SYSTEM_CURSOR_HAND
@@ -71,7 +71,7 @@ class Clickable(ABC):
         self.hovering_text_label.layer = base_layer + TOP_LAYER
         self._hovering_text_alpha: int = 0
 
-        self._last_move_time: int = TIME.ticks
+        self._last_mouse_move_time: int = TIME.ticks
 
     @property
     def blit_sequence(self) -> list[BlitInfo]:
@@ -87,9 +87,10 @@ class Clickable(ABC):
         img: pg.Surface
 
         sequence: list[BlitInfo] = [(self.imgs[self.img_i], self.rect, self.layer)]
-        if self._is_hovering and TIME.ticks - self._last_move_time >= 500:
+        if self._is_hovering and TIME.ticks - self._last_mouse_move_time >= 750:
             if self._hovering_text_alpha != 255:
-                self._hovering_text_alpha = min(self._hovering_text_alpha + 25 * TIME.delta, 255)
+                self._hovering_text_alpha = round(self._hovering_text_alpha + 16 * TIME.delta)
+                self._hovering_text_alpha = min(self._hovering_text_alpha, 255)
                 for img in self.hovering_text_label.imgs:
                     img.set_alpha(self._hovering_text_alpha)
 
@@ -197,7 +198,7 @@ class Clickable(ABC):
         """
 
 
-class Checkbox(Clickable):
+class Checkbox(_Clickable):
     """Class to create a checkbox with text on top."""
 
     __slots__ = (
@@ -205,26 +206,29 @@ class Checkbox(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: list[pg.Surface], text: str, hovering_text: str,
+            self, pos: RectPos, imgs: list[pg.Surface], text: str | None, hovering_text: str,
             base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the checkbox and text.
 
         Args:
-            position, two images, text, hovering text, base layer (default = BG_LAYER)
+            position, two images, text (can be None), hovering text,
+            base layer (default = BG_LAYER)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
 
         self.is_checked: bool = False
+        self.objs_info: list[ObjInfo] = []
 
-        text_label: TextLabel = TextLabel(
-            RectPos(self.rect.centerx, self.rect.y - 5, "midbottom"),
-            text, base_layer, 16
-        )
+        if text is not None:
+            text_label: TextLabel = TextLabel(
+                RectPos(self.rect.centerx, self.rect.y - 5, "midbottom"),
+                text, base_layer, 16
+            )
 
-        self.objs_info: list[ObjInfo] = [ObjInfo(text_label)]
+            self.objs_info.append(ObjInfo(text_label))
 
     def upt(self, mouse: Mouse, is_shortcutting: bool = False) -> bool:
         """
@@ -233,12 +237,12 @@ class Checkbox(Clickable):
         Args:
             mouse, shortcutting flag (default = False)
         Returns:
-            toggled flag
+            was checked flag
         """
 
         self._is_hovering = mouse.hovered_obj == self
         if mouse.x != mouse.prev_x or mouse.y != mouse.prev_y:
-            self._last_move_time = TIME.ticks
+            self._last_mouse_move_time = TIME.ticks
 
         did_toggle: bool = (mouse.released[MOUSE_LEFT] and self._is_hovering) or is_shortcutting
         if did_toggle:
@@ -248,7 +252,7 @@ class Checkbox(Clickable):
         return did_toggle and self.is_checked
 
 
-class LockedCheckbox(Clickable):
+class LockedCheckbox(_Clickable):
     """Class to create a checkbox that can't be unchecked."""
 
     __slots__ = (
@@ -283,18 +287,18 @@ class LockedCheckbox(Clickable):
         Args:
             mouse
         Returns:
-           checked flag
+           was checked flag
         """
 
         self._is_hovering = mouse.hovered_obj == self
         if mouse.x != mouse.prev_x or mouse.y != mouse.prev_y:
-            self._last_move_time = TIME.ticks
+            self._last_mouse_move_time = TIME.ticks
         self.img_i = int(self._is_hovering or self.is_checked)
 
         return mouse.released[MOUSE_LEFT] and self._is_hovering
 
 
-class Button(Clickable):
+class Button(_Clickable):
     """Class to create a button, when hovered changes image."""
 
     __slots__ = (
@@ -302,7 +306,7 @@ class Button(Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: list[pg.Surface], text: Optional[str], hovering_text: str,
+            self, pos: RectPos, imgs: list[pg.Surface], text: str | None, hovering_text: str,
             base_layer: int = BG_LAYER, text_h: int = 25
     ) -> None:
         """
@@ -332,7 +336,7 @@ class Button(Clickable):
 
     def upt(self, mouse: Mouse) -> bool:
         """
-        Changes the button image if the mouse is hovering it.
+        Changes the button image if the mouse is hovering it and checks for clicks.
 
         Args:
             mouse
@@ -342,13 +346,13 @@ class Button(Clickable):
 
         self._is_hovering = mouse.hovered_obj == self
         if mouse.x != mouse.prev_x or mouse.y != mouse.prev_y:
-            self._last_move_time = TIME.ticks
+            self._last_mouse_move_time = TIME.ticks
         self.img_i = int(self._is_hovering)
 
         return mouse.released[MOUSE_LEFT] and self._is_hovering
 
 
-class SpammableButton(Clickable):
+class SpammableButton(_Clickable):
     """Class to create a spammable button, when hovered changes image."""
 
     __slots__ = (
@@ -384,7 +388,7 @@ class SpammableButton(Clickable):
 
     def upt(self, mouse: Mouse) -> bool:
         """
-        Changes the button image if the mouse is hovering it.
+        Changes the button image if the mouse is hovering it and checks for timed clicks.
 
         Args:
             mouse
@@ -394,7 +398,7 @@ class SpammableButton(Clickable):
 
         self._is_hovering = mouse.hovered_obj == self
         if mouse.x != mouse.prev_x or mouse.y != mouse.prev_y:
-            self._last_move_time = TIME.ticks
+            self._last_mouse_move_time = TIME.ticks
         self.img_i = int(self._is_hovering)
 
         is_clicked: bool = False

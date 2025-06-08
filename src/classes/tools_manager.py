@@ -18,7 +18,7 @@ Extra UI elements need:
     - a rect attribute
 """
 
-from typing import TypeAlias, Final, Optional, Any
+from typing import TypeAlias, Final, Any
 
 import pygame as pg
 from pygame.locals import *
@@ -41,20 +41,7 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
     "brush": {
         "base_info": (BRUSH_IMG, "Pencil\n(SHIFT+P)"),
         "shortcut_k": K_p,
-        "extra_info": (
-            {
-                "type": Checkbox,
-                "init_args": [_CHECKBOX_IMGS, "X Mirror", "Mirror\nhorizontally"],
-                "upt_args": ["mouse"],
-                "out_format": {"mirror_x": "is_checked"}
-            },
-            {
-                "type": Checkbox,
-                "init_args": [_CHECKBOX_IMGS, "Y Mirror", "Mirror\nvertically"],
-                "upt_args": ["mouse"],
-                "out_format": {"mirror_y": "is_checked"}
-            }
-        )
+        "extra_info": ()
     },
     "bucket": {
         "base_info": (BUCKET_IMG, "Bucket\n(SHIFT+B)"),
@@ -110,7 +97,7 @@ class ToolsManager:
             self._get_extra_info(raw_extra_info) for raw_extra_info in tools_raw_extra_info
         ]
 
-        self._saved_clicked_i: Optional[int] = None
+        self._saved_clicked_i: int | None = None
 
         self.blit_sequence: list[BlitInfo] = []
         self.objs_info: list[ObjInfo] = [ObjInfo(self.tools_grid)]
@@ -129,7 +116,7 @@ class ToolsManager:
         tool_range_start_i, tool_range_end_i = self._tools_objs_info_ranges[tool_i]
         for i in range(self._tools_objs_info_ranges[0][0], self._tools_objs_info_ranges[-1][1]):
             if i < tool_range_start_i or i >= tool_range_end_i:
-                objs_info[i].set_active(False)
+                objs_info[i].rec_set_active(False)
 
     def _get_extra_info(self, raw_extra_info: tuple[dict[str, Any], ...]) -> _ToolExtraInfo:
         """
@@ -181,9 +168,9 @@ class ToolsManager:
         active_range_start_i, active_range_end_i = objs_info_ranges[self.tools_grid.clicked_i]
 
         for obj_info in self.objs_info[prev_active_range_start_i:prev_active_range_end_i]:
-            obj_info.set_active(False)
+            obj_info.rec_set_active(False)
         for obj_info in self.objs_info[active_range_start_i:active_range_end_i]:
-            obj_info.set_active(True)
+            obj_info.rec_set_active(True)
 
     def _handle_shortcuts(self, keyboard: Keyboard) -> None:
         """

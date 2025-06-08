@@ -2,12 +2,12 @@
 
 from unittest import TestCase, mock
 from unittest.mock import Mock
-from typing import Final, Optional, Any
+from typing import Final, Any
 
 import pygame as pg
 from pygame import SRCALPHA
 
-from src.classes.clickable import Clickable, Checkbox, Button
+from src.classes.clickable import _Clickable, Checkbox, Button
 from src.classes.text_label import TextLabel
 from src.classes.devices import Mouse
 
@@ -174,7 +174,7 @@ class TestCheckbox(TestCase):
             self.assertTrue(cmp_imgs(img, expected_img))
         self.assertEqual(checkbox.rect, expected_rect)
 
-        text_label: Optional[TextLabel] = checkbox.hovering_text_label
+        text_label: TextLabel | None = checkbox.hovering_text_label
         mock_text_label_resize.assert_called_once_with(text_label, 2, 3)
 
         checkbox.hovering_text_label = None
@@ -243,7 +243,7 @@ class TestButton(TestCase):
         return button
 
     @mock.patch.object(TextLabel, "__init__", autospec=True, return_value=None)
-    @mock.patch.object(Clickable, "__init__", autospec=True, wraps=Clickable.__init__)
+    @mock.patch.object(_Clickable, "__init__", autospec=True, wraps=_Clickable.__init__)
     def test_init(self, mock_clickable_init: Mock, mock_text_label_init: Mock) -> None:
         """Tests the init method, mocks Clickable.__init__ and TextLabel.__init__."""
 

@@ -13,7 +13,7 @@ from src.classes.devices import Mouse, Keyboard
 from src.utils import RectPos, ObjInfo, resize_obj
 from src.type_utils import XY, BlitInfo
 from src.consts import DARKER_GRAY, UI_LAYER
-from src.imgs import CLOSE_BUTTON_OFF_IMG, CLOSE_BUTTON_ON_IMG, BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
+from src.imgs import CLOSE_OFF_IMG, CLOSE_ON_IMG, BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 
 _INTERFACE_IMG: Final[pg.Surface] = pg.Surface((512, 700))
 _INTERFACE_IMG.fill(DARKER_GRAY)
@@ -56,7 +56,7 @@ class UI(ABC):
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10, self._rect.y + 10, "topright"),
-            [CLOSE_BUTTON_OFF_IMG, CLOSE_BUTTON_ON_IMG], None, "Escape", UI_LAYER
+            [CLOSE_OFF_IMG, CLOSE_ON_IMG], None, "Escape", UI_LAYER
         )
         self._confirm: Button = Button(
             RectPos(self._exit.rect.right, self._rect.bottom - 10, "bottomright"),

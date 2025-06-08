@@ -1,5 +1,6 @@
 """Constants shared between files."""
 
+from dataclasses import dataclass
 from typing import Final
 
 import pygame as pg
@@ -10,18 +11,12 @@ from numpy.typing import NDArray
 from src.type_utils import RGBColor, HexColor
 
 
+@dataclass(slots=True)
 class Time:
-    """Class to share ticks and delta time."""
+    """Dataclass for sharing ticks and delta time."""
 
-    __slots__ = (
-        "ticks", "delta"
-    )
-
-    def __init__(self):
-        """Initializes ticks and delta time."""
-
-        self.ticks: int = 0
-        self.delta: float = 0
+    ticks: int = 0
+    delta: float = 0
 
 CHR_LIMIT: Final[int] = 1_114_111
 MOUSE_LEFT: Final[int] = 0

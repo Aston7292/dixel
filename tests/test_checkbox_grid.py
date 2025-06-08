@@ -3,13 +3,13 @@
 from unittest import TestCase, mock
 from unittest.mock import Mock
 from collections.abc import Iterator
-from typing import Final, Optional
+from typing import Final
 
 import pygame as pg
 from pygame.locals import *
 
 from src.classes.checkbox_grid import LockedCheckbox, CheckboxGrid
-from src.classes.clickable import Clickable
+from src.classes.clickable import _Clickable
 from src.classes.text_label import TextLabel
 from src.classes.devices import Mouse
 
@@ -50,7 +50,7 @@ class TestLockedCheckbox(TestCase):
             self._locked_checkbox.init_pos.x, self._locked_checkbox.init_pos.y, coord_type
         )
         imgs: list[pg.Surface] = self._locked_checkbox.init_imgs
-        hovering_text: Optional[str] = None
+        hovering_text: str | None = None
         if self._locked_checkbox.hovering_text_label is not None:
             hovering_text = self._locked_checkbox.hovering_text_label.text
         layer: int = self._locked_checkbox.layer - ELEMENT_LAYER
@@ -60,7 +60,7 @@ class TestLockedCheckbox(TestCase):
 
         return copy_locked_checkbox
 
-    @mock.patch.object(Clickable, "__init__", autospec=True)
+    @mock.patch.object(_Clickable, "__init__", autospec=True)
     def test_init(self, mock_clickable_init: Mock) -> None:
         """Tests the init method, mocks Clickable.__init__."""
 
@@ -86,7 +86,7 @@ class TestLockedCheckbox(TestCase):
         copy_locked_checkbox.hovering_text_label = None
         copy_locked_checkbox.set_info([_IMG_ON, _IMG_OFF], "world")  # Assert it doesn't crash
 
-    @mock.patch.object(Clickable, "_handle_hover", autospec=True, wraps=Clickable._handle_hover)
+    @mock.patch.object(_Clickable, "_handle_hover", autospec=True, wraps=_Clickable._handle_hover)
     def test_upt(self, mock_handle_hover: Mock) -> None:
         """Tests the upt method, mocks Clickable._handle_hover."""
 

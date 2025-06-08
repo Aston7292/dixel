@@ -1,7 +1,6 @@
 """Class to create a grid of connected checkboxes."""
 
 from math import ceil
-from typing import Optional
 
 import pygame as pg
 from pygame.locals import *
@@ -52,7 +51,7 @@ class CheckboxGrid:
 
         self.checkboxes: list[LockedCheckbox] = []
         self.visible_checkboxes: list[LockedCheckbox] = []
-        self._hovered_checkbox: Optional[LockedCheckbox] = None
+        self._hovered_checkbox: LockedCheckbox | None = None
 
         self.clicked_i: int = 0
         self.prev_clicked_i: int = self.clicked_i
@@ -89,13 +88,12 @@ class CheckboxGrid:
             window width ratio, window height ratio
         """
 
-        rects_x_coords: list[int]
-        rects_y_coords: list[int]
-
         self._win_w_ratio, self._win_h_ratio = win_w_ratio, win_h_ratio
 
         rects: list[pg.Rect] = [checkbox.rect for checkbox in self.visible_checkboxes]
-        rects_x_coords, rects_y_coords = [rect.x for rect in rects], [rect.y for rect in rects]
+        rects_x_coords: list[int] = [rect.x for rect in rects]
+        rects_y_coords: list[int] = [rect.y for rect in rects]
+
         self.rect.topleft = (min(rects_x_coords), min(rects_y_coords))
         self.rect.size = (
             max(rects_x_coords) + rects[0].w - self.rect.x,
@@ -191,6 +189,8 @@ class CheckboxGrid:
         """
         Modifies the grid, sets clicked checkbox index and row offset.
 
+        The second image of a checkbox is the first one with a white border
+
         Args:
             checkboxes images and hovering texts, clicked index, y offset
         """
@@ -207,7 +207,9 @@ class CheckboxGrid:
         self.set_offset_y(offset_y)
 
         rects: list[pg.Rect] = [checkbox.rect for checkbox in self.visible_checkboxes]
-        rects_x_coords, rects_y_coords = [rect.x for rect in rects], [rect.y for rect in rects]
+        rects_x_coords: list[int] = [rect.x for rect in rects]
+        rects_y_coords: list[int] = [rect.y for rect in rects]
+
         self.rect.topleft = (min(rects_x_coords), min(rects_y_coords))
         self.rect.size = (
             max(rects_x_coords) + rects[0].w - self.rect.x,
@@ -216,7 +218,7 @@ class CheckboxGrid:
 
     def edit(self, edit_i: int, img: pg.Surface, hovering_text: str) -> None:
         """
-        Edits a checkbox image and hovering text.
+        Edits a checkbox images and hovering text.
 
         Args:
             index, image, hovering text
@@ -236,9 +238,6 @@ class CheckboxGrid:
         Args:
             image, hovering text
         """
-
-        rects_x_coords: list[int]
-        rects_y_coords: list[int]
 
         coord_type: str = self._init_pos.coord_type
         checkbox: LockedCheckbox = LockedCheckbox(
@@ -265,7 +264,9 @@ class CheckboxGrid:
                 self._unresized_last_point.x += self._increment_x
 
             rects: list[pg.Rect] = [checkbox.rect for checkbox in self.visible_checkboxes]
-            rects_x_coords, rects_y_coords = [rect.x for rect in rects], [rect.y for rect in rects]
+            rects_x_coords: list[int] = [rect.x for rect in rects]
+            rects_y_coords: list[int] = [rect.y for rect in rects]
+
             self.rect.topleft = (min(rects_x_coords), min(rects_y_coords))
             self.rect.size = (
                 max(rects_x_coords) + rects[0].w - self.rect.x,
@@ -274,14 +275,11 @@ class CheckboxGrid:
 
     def remove(self, remove_i: int, fallback_img: pg.Surface, fallback_text: str) -> None:
         """
-        Removes at an index, if there's only a checkbox it will be edited with the fallback info.
+        Removes at an index, if there's only one checkbox it will be edited with the fallback info.
 
         Args:
             index, fallback image, fallback text
         """
-
-        rects_x_coords: list[int]
-        rects_y_coords: list[int]
 
         if len(self.checkboxes) == 1:
             self.edit(0, fallback_img, fallback_text)
@@ -317,52 +315,62 @@ class CheckboxGrid:
             self.checkboxes[self.clicked_i].is_checked = True
 
         rects: list[pg.Rect] = [checkbox.rect for checkbox in self.visible_checkboxes]
-        rects_x_coords, rects_y_coords = [rect.x for rect in rects], [rect.y for rect in rects]
+        rects_x_coords: list[int] = [rect.x for rect in rects]
+        rects_y_coords: list[int] = [rect.y for rect in rects]
+
         self.rect.topleft = (min(rects_x_coords), min(rects_y_coords))
         self.rect.size = (
             max(rects_x_coords) + rects[0].w - self.rect.x,
             max(rects_y_coords) + rects[0].h - self.rect.y
         )
 
-    def _move_with_left_right(self, keyboard: Keyboard, k_sub_1: int, k_add_1: int) -> None:
+    def _move_with_left_right(self, keyboard: Keyboard) -> None:
         """
         Moves the selected checkbox with left and right keys.
 
         Args:
-            keyboard, clicked index, left key, right key
-        Returns:
-            clicked index
+            keyboard
         """
 
-        if k_sub_1 in keyboard.timed:
+        k_sub: int
+        k_add: int
+        if self._increment_x < 0:
+            k_sub, k_add = k_sub, k_add
+
+        if k_sub in keyboard.timed:
             if keyboard.is_ctrl_on:
                 self.clicked_i -= self.clicked_i % self.num_cols
             else:
                 self.clicked_i = max(self.clicked_i - 1, 0)
 
-        if k_add_1 in keyboard.timed:
+        if k_add in keyboard.timed:
             if keyboard.is_ctrl_on:
                 row_start: int = self.clicked_i - self.clicked_i % self.num_cols
                 self.clicked_i = min(row_start + self.num_cols - 1, len(self.checkboxes) - 1)
             else:
                 self.clicked_i = min(self.clicked_i + 1, len(self.checkboxes) - 1)
 
-    def _move_with_up_down(self, keyboard: Keyboard, k_sub_cols: int, k_add_cols: int) -> None:
+    def _move_with_up_down(self, keyboard: Keyboard) -> None:
         """
         Moves the selected checkbox with up and down keys.
 
         Args:
-            keyboard, down key, up key
+            keyboard
         """
 
-        if k_sub_cols in keyboard.timed:
+        k_sub: int = K_UP
+        k_add: int = K_DOWN
+        if self._increment_y < 0:
+            k_sub, k_add = k_add, k_sub
+
+        if k_sub in keyboard.timed:
             can_sub_cols: bool = self.clicked_i - self.num_cols >= 0
             if keyboard.is_ctrl_on:
                 self.clicked_i %= self.num_cols
             elif can_sub_cols:
                 self.clicked_i -= self.num_cols
 
-        if k_add_cols in keyboard.timed:
+        if k_add in keyboard.timed:
             can_add_cols: bool = self.clicked_i + self.num_cols < len(self.checkboxes)
             if keyboard.is_ctrl_on:
                 col: int = self.clicked_i % self.num_cols
@@ -382,23 +390,8 @@ class CheckboxGrid:
             keyboard
         """
 
-        k_sub_1: int
-        k_add_1: int
-        k_sub_cols: int
-        k_add_cols: int
-
-        if self._increment_x > 0:
-            k_sub_1, k_add_1 = K_LEFT, K_RIGHT
-        else:
-            k_sub_1, k_add_1 = K_RIGHT, K_LEFT
-
-        if self._increment_y > 0:
-            k_sub_cols, k_add_cols = K_UP, K_DOWN
-        else:
-            k_sub_cols, k_add_cols = K_DOWN, K_UP
-
-        self._move_with_left_right(keyboard, k_sub_1, k_add_1)
-        self._move_with_up_down(keyboard, k_sub_cols, k_add_cols)
+        self._move_with_left_right(keyboard)
+        self._move_with_up_down(keyboard)
         if K_HOME in keyboard.pressed:
             self.clicked_i = 0
         if K_END in keyboard.pressed:
@@ -412,7 +405,7 @@ class CheckboxGrid:
             mouse
         """
 
-        prev_hovered_checkbox: Optional[LockedCheckbox] = self._hovered_checkbox
+        prev_hovered_checkbox: LockedCheckbox | None = self._hovered_checkbox
         self._hovered_checkbox = None
         if mouse.hovered_obj in self.visible_checkboxes:
             self._hovered_checkbox = mouse.hovered_obj

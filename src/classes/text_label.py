@@ -3,7 +3,7 @@
 from tkinter import messagebox
 from pathlib import Path
 from io import BytesIO
-from typing import Final, Optional
+from typing import Final
 
 import pygame as pg
 
@@ -27,7 +27,7 @@ def _try_add_renderer(h: int) -> None:
     num_attempts: int
 
     font_path: Path = Path("assets", "fonts", "fredoka.ttf")
-    renderer: Optional[pg.Font] = None
+    renderer: pg.Font | None = None
     error_str: str = ""
     for num_attempts in range(1, NUM_MAX_FILE_ATTEMPTS + 1):
         try:
@@ -52,11 +52,12 @@ def _try_add_renderer(h: int) -> None:
             error_str = str(e)
             break
         except OSError as e:
-            if num_attempts == NUM_MAX_FILE_ATTEMPTS:
-                error_str = e.strerror
-                break
+            if num_attempts != NUM_MAX_FILE_ATTEMPTS:
+                pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
+                continue
 
-            pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
+            error_str = e.strerror if e.strerror is not None else ""
+            break
 
     if renderer is None:
         global _is_first_font_load_error
@@ -77,7 +78,7 @@ class TextLabel:
 
     def __init__(
             self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 25,
-            bg_color: Optional[pg.Color] = None
+            bg_color: pg.Color | None = None
     ) -> None:
         """
         Creates the text images, rects and full rect.
@@ -95,7 +96,7 @@ class TextLabel:
         self._renderer: pg.Font = _RENDERERS_CACHE[self._init_h]
 
         self.text: str = text
-        self._bg_color: Optional[pg.Color] = bg_color
+        self._bg_color: pg.Color | None = bg_color
 
         lines: list[str] = self.text.split("\n")
 
@@ -155,26 +156,26 @@ class TextLabel:
             xy
         """
 
-        img_width: int
-        img_height: int
+        img_w: int
+        img_h: int
 
-        img_sizes: list[WH] = [img.get_size() for img in self.imgs]
-        imgs_widths: list[int] = [img_width for img_width, _img_height in img_sizes]
-        imgs_heights: list[int] = [img_height for _img_width, img_height in img_sizes]
+        imgs_whs: list[WH] = [img.get_size() for img in self.imgs]
+        imgs_ws: list[int] = [img_w for img_w , _img_h in imgs_whs]
+        imgs_hs: list[int] = [img_h for _img_w, img_h  in imgs_whs]
 
-        self.rect.size = (max(imgs_widths), sum(imgs_heights))
+        self.rect.size = (max(imgs_ws), sum(imgs_hs))
         setattr(self.rect, self.init_pos.coord_type, xy)
 
         self._rects = []
         line_rect_y: int = self.rect.y
-        for img_width, img_height in img_sizes:
+        for img_w, img_h in imgs_whs:
             # Create full line rect to get the position at coord_type
             # Shrink it to the line width and move it there
 
-            line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, self.rect.w, img_height)
+            line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, self.rect.w, img_h)
             line_xy: XY = getattr(line_rect, self.init_pos.coord_type)
 
-            line_rect.w = img_width
+            line_rect.w = img_w
             setattr(line_rect, self.init_pos.coord_type, line_xy)
             self._rects.append(line_rect)
 

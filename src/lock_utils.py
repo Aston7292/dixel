@@ -1,4 +1,4 @@
-"""Functions to lock files on different OSes."""
+"""Functions to lock files on different OSes either in an exclusive or shared way."""
 
 from platform import system
 from contextlib import suppress
@@ -59,7 +59,7 @@ if system() == "Windows":
 
     def try_lock_file(file_obj: TextIO | BinaryIO, shared: bool) -> None:
         """
-        Locks a file.
+        Locks a file either in an exclusive or shared way.
 
         Args:
             file, shared flag
@@ -115,7 +115,7 @@ elif fcntl is not None:
 
     def try_lock_file(file_obj: TextIO | BinaryIO, shared: bool) -> None:
         """
-        Locks a file.
+        Locks a file either in an exclusive or shared way.
 
         Args:
             file, shared flag
@@ -155,7 +155,7 @@ else:
 
     def try_lock_file(file_obj: TextIO | BinaryIO, shared: bool) -> None:
         """
-        Locks a file.
+        Locks a file either in an exclusive or shared way.
 
         Args:
             file, shared flag

@@ -2,10 +2,11 @@
 
 from tkinter import messagebox
 from pathlib import Path
-from typing import Final, Optional
+from typing import Final
 
 import pygame as pg
 
+from src.utils import add_border
 from src.lock_utils import LockException, FileException, try_lock_file
 from src.type_utils import WH
 from src.consts import BLACK, WHITE, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY
@@ -30,7 +31,7 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
     num_attempts: int
 
     file_path: Path = Path("assets", "sprites", file_str)
-    img: Optional[pg.Surface] = None
+    img: pg.Surface | None = None
     for num_attempts in range(1, NUM_MAX_FILE_ATTEMPTS + 1):
         try:
             with file_path.open("rb") as f:
@@ -53,11 +54,12 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
             _ERRORS_LIST.append(f"{file_path.name}: {e}")
             break
         except OSError as e:
-            if num_attempts == NUM_MAX_FILE_ATTEMPTS:
-                _ERRORS_LIST.append(f"{file_path.name}: {e}")
-                break
+            if num_attempts != NUM_MAX_FILE_ATTEMPTS:
+                pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
+                continue
 
-            pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
+            _ERRORS_LIST.append(f"{file_path.name}: {e}")
+            break
 
     if img is None:
         img = pg.transform.scale(_MISSING_IMG, missing_img_wh)
@@ -69,29 +71,42 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
 ICON_IMG: Final[pg.Surface] = _try_get_img("icon.png", (32, 32))
 
 CHECKBOX_OFF_IMG: Final[pg.Surface] = _try_get_img("checkbox_off.png", (48, 48))
-CHECKBOX_ON_IMG: Final[pg.Surface] = _try_get_img("checkbox_on.png", (48, 48))
+CHECKBOX_ON_IMG: Final[pg.Surface]  = _try_get_img("checkbox_on.png" , (48, 48))
 
 BUTTON_M_OFF_IMG: Final[pg.Surface] = _try_get_img("button_off.png", (128, 64))
-BUTTON_M_ON_IMG: Final[pg.Surface] = _try_get_img("button_on.png", (128, 64))
-
+BUTTON_M_ON_IMG: Final[pg.Surface]  = _try_get_img("button_on.png" , (128, 64))
 BUTTON_S_OFF_IMG = pg.transform.scale(BUTTON_M_OFF_IMG, (96, 48)).convert()
-BUTTON_S_ON_IMG = pg.transform.scale(BUTTON_M_ON_IMG, (96, 48)).convert()
+BUTTON_S_ON_IMG  = pg.transform.scale(BUTTON_M_ON_IMG , (96, 48)).convert()
 BUTTON_XS_OFF_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF_IMG, (64, 32)).convert()
-BUTTON_XS_ON_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_ON_IMG, (64, 32)).convert()
+BUTTON_XS_ON_IMG: Final[pg.Surface]  = pg.transform.scale(BUTTON_M_ON_IMG , (64, 32)).convert()
 
-ARROW_UP_OFF_IMG: Final[pg.Surface] = _try_get_img("arrow.png", (35, 18))
+X_MIRROR_OFF_IMG: Final[pg.Surface] = _try_get_img("mirror.png", (63, 64))
+X_MIRROR_ON_IMG: Final[pg.Surface] = add_border(X_MIRROR_OFF_IMG, WHITE)
+Y_MIRROR_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(X_MIRROR_OFF_IMG, -90)
+Y_MIRROR_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(X_MIRROR_ON_IMG, -90)
+
+ARROW_UP_OFF_IMG: Final[pg.Surface] = _try_get_img("arrow.png", (11, 6))
 ARROW_UP_ON_IMG: Final[pg.Surface] = pg.transform.hsl(ARROW_UP_OFF_IMG, lightness=-0.5).convert()
 ARROW_DOWN_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_OFF_IMG, 180).convert()
-ARROW_DOWN_ON_IMG: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_ON_IMG, 180).convert()
+ARROW_DOWN_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(ARROW_UP_ON_IMG , 180).convert()
 
-CLOSE_BUTTON_OFF_IMG: Final[pg.Surface] = _try_get_img("close_button.png", (48, 48))
-CLOSE_BUTTON_ON_IMG: Final[pg.Surface] = pg.transform.hsl(
-    CLOSE_BUTTON_OFF_IMG, lightness=-0.5
+CLOSE_OFF_IMG: Final[pg.Surface] = _try_get_img("close.png", (48, 48))
+CLOSE_ON_IMG: Final[pg.Surface] = pg.transform.hsl(CLOSE_OFF_IMG, lightness=-0.5).convert()
+
+ROTATE_LEFT_OFF_IMG: Final[pg.Surface] = _try_get_img("rotate.png", (23, 34))
+ROTATE_LEFT_ON_IMG: Final[pg.Surface] = pg.transform.hsl(
+    ROTATE_LEFT_OFF_IMG, lightness=-0.5
+).convert()
+ROTATE_RIGHT_OFF_IMG: Final[pg.Surface] = pg.transform.flip(
+    ROTATE_LEFT_OFF_IMG, True, False
+).convert()
+ROTATE_RIGHT_ON_IMG: Final[pg.Surface]  = pg.transform.flip(
+    ROTATE_LEFT_ON_IMG , True, False
 ).convert()
 
-BRUSH_IMG: Final[pg.Surface] = _try_get_img("brush_tool.png", (64, 64))
-BUCKET_IMG: Final[pg.Surface] = _try_get_img("bucket_tool.png", (64, 64))
-EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper_tool.png", (64, 64))
+BRUSH_IMG: Final[pg.Surface]       = _try_get_img("brush.png"      , (64, 64))
+BUCKET_IMG: Final[pg.Surface]      = _try_get_img("bucket.png"     , (64, 64))
+EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper.png", (64, 64))
 
 if _ERRORS_LIST != []:
     error_str: str = "\n".join(_ERRORS_LIST)

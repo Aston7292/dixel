@@ -1,7 +1,5 @@
 """Functions and dataclasses shared between files."""
 
-import dataclasses
-
 from tkinter import messagebox
 from pathlib import Path
 from time import time
@@ -47,7 +45,7 @@ def profile(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def print_funcs_profiles() -> None:
-    """Prints the info of every timed function."""
+    """Prints the info of every profiled function."""
 
     name: str
     tot_time: float
@@ -108,14 +106,9 @@ class ObjInfo:
     """
 
     obj: Any
-    is_active: bool = dataclasses.field(init=False)
+    is_active: bool = True
 
-    def __post_init__(self) -> None:
-        """Initializes the active flag."""
-
-        self.is_active = True  # field(default=True) only works on python 3.10.16 or higher
-
-    def set_active(self, should_activate: bool) -> None:
+    def rec_set_active(self, should_activate: bool) -> None:
         """
         Sets the active flag for the object and sub objects, calls the leave method if inactive.
 
@@ -229,11 +222,14 @@ def try_create_dir(dir_path: Path, should_ask_create: bool, num_creation_attempt
             )
             break
         except OSError as e:
-            if num_system_attempts == NUM_MAX_FILE_ATTEMPTS:
-                messagebox.showerror("Directory Creation Failed", f"{dir_path.name}: {e}")
-                break
+            if num_system_attempts != NUM_MAX_FILE_ATTEMPTS:
+                pg.time.wait(FILE_ATTEMPT_DELAY * num_system_attempts)
+                continue
 
-            pg.time.wait(FILE_ATTEMPT_DELAY * num_system_attempts)
+            messagebox.showerror(
+                "Directory Creation Failed", f"{dir_path.name}: {e}"
+            )
+            break
 
     return did_fail
 
@@ -286,7 +282,7 @@ def rec_move_rect(
         main_obj: Any, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float
 ) -> None:
     """
-    Moves an object and it's sub objects.
+    Moves an object and it's sub objects to a specific coordinate.
 
     Args:
         object, initial x, initial y, window width ratio, window height ratio

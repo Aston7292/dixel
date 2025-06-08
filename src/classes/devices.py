@@ -26,7 +26,7 @@ _NUMPAD_MAP: Final[_NumPadMap] = {
 
 
 class Mouse:
-    """Class for storing mouse info."""
+    """Class to store mouse info."""
 
     __slots__ = (
         "x", "y", "prev_x", "prev_y", "pressed", "released", "scroll_amount", "hovered_obj",
@@ -48,12 +48,12 @@ class Mouse:
         self.hovered_obj: Any = None
         self._cursor_type: int = SYSTEM_CURSOR_ARROW
 
-    def refresh_hovered_obj(self, state_active_objs: list[any]) -> None:
+    def refresh_hovered_obj(self, state_active_objs: list[Any]) -> None:
         """
-            Refreshes the hovered object with the get_hovering method of the active objects.
+        Refreshes the hovered object with the get_hovering method of the active objects.
 
-            Args:
-                state active objects
+        Args:
+            state active objects
         """
 
         obj: Any
@@ -69,18 +69,13 @@ class Mouse:
         """Refreshes the cursor type using the cursor_type attribute of the hovered object."""
 
         prev_cursor_type: int = self._cursor_type
-
-        if hasattr(self.hovered_obj, "cursor_type"):
-            self._cursor_type = self.hovered_obj.cursor_type
-        else:
-            self._cursor_type = SYSTEM_CURSOR_ARROW
-
+        self._cursor_type = getattr(self.hovered_obj, "cursor_type", SYSTEM_CURSOR_ARROW)
         if self._cursor_type != prev_cursor_type:
             pg.mouse.set_cursor(self._cursor_type)
 
 
 class Keyboard:
-    """Class for storing keyboard info."""
+    """Class to store keyboard info."""
 
     __slots__ = (
         "_raws", "pressed", "released", "timed", "is_ctrl_on", "is_shift_on", "is_alt_on",
@@ -180,7 +175,4 @@ class Keyboard:
         """Clears the keyboard data."""
 
         self._raws = self.pressed = self.released = self.timed = []
-        self.is_ctrl_on = pg.key.get_mods() & KMOD_CTRL != 0
-        self.is_shift_on = pg.key.get_mods() & KMOD_SHIFT != 0
-        self.is_alt_on = pg.key.get_mods() & KMOD_ALT != 0
-        self.is_numpad_on = pg.key.get_mods() & KMOD_NUM != 0
+        self.is_ctrl_on = self.is_shift_on = self.is_alt_on = self.is_numpad_on = False

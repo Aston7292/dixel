@@ -64,7 +64,7 @@ class NumInputBox:
             "", base_layer
         )
 
-        self._prev_text: int = self.text_label.text
+        self._prev_text: str = self.text_label.text
         self._prev_cursor_i: int = self._cursor_i
 
         self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h))
@@ -74,15 +74,15 @@ class NumInputBox:
         )
 
         self._increase: SpammableButton = SpammableButton(
-            RectPos(self.rect.right + 5, self.rect.centery - 5, "bottomleft"),
-            [ARROW_UP_OFF_IMG, ARROW_UP_ON_IMG], "Increase", base_layer
+            RectPos(self.rect.right + 5, self.rect.centery - 3, "bottomleft"),
+            [ARROW_UP_OFF_IMG, ARROW_UP_ON_IMG],     "(CTRL +)\n(CTRL SHIFT +)", base_layer
         )
         self._decrease: SpammableButton = SpammableButton(
-            RectPos(self.rect.right + 5, self.rect.centery + 5, "topleft"),
-            [ARROW_DOWN_OFF_IMG, ARROW_DOWN_ON_IMG], "Decrease", base_layer
+            RectPos(self.rect.right + 5, self.rect.centery + 3, "topleft"),
+            [ARROW_DOWN_OFF_IMG, ARROW_DOWN_ON_IMG], "(CTRL -)\n(CTRL SHIFT -)", base_layer
         )
-        self._increase.set_hover_extra_size(5, 10, 10, 5)
-        self._decrease.set_hover_extra_size(5, 10, 5, 10)
+        self._increase.set_hover_extra_size(5, 10, 10, 3)
+        self._decrease.set_hover_extra_size(5, 10, 3,  10)
 
         self.objs_info: list[ObjInfo] = [
             ObjInfo(self.text_label), ObjInfo(self._increase), ObjInfo(self._decrease)
@@ -142,9 +142,8 @@ class NumInputBox:
 
         self._cursor_img = pg.Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
-        self.cursor_rect.topleft = (
-            self.text_label.get_x_at(self._cursor_i), self.text_label.rect.y
-        )
+        self.cursor_rect.x = self.text_label.get_x_at(self._cursor_i)
+        self.cursor_rect.y = self.text_label.rect.y
 
     def set_cursor_i(self, cursor_i: int) -> None:
         """
@@ -167,9 +166,9 @@ class NumInputBox:
         """
 
         if K_LEFT in keyboard.timed:
-            self._cursor_i = 0 if keyboard.is_ctrl_on else max(self._cursor_i - 1, 0)
+            self._cursor_i = 0        if keyboard.is_ctrl_on else max(self._cursor_i - 1, 0)
         if K_RIGHT in keyboard.timed:
-            text_len: int = len(self.text_label.text)
+            text_len: int  = len(self.text_label.text)
             self._cursor_i = text_len if keyboard.is_ctrl_on else min(self._cursor_i + 1, text_len)
         if K_HOME in keyboard.pressed:
             self._cursor_i = 0
@@ -187,19 +186,23 @@ class NumInputBox:
         first_part: str
         second_part: str
 
-        if k == K_DELETE:
-            first_part = self.text_label.text[:self._cursor_i]
+        if   k == K_DELETE:
+            first_part  = self.text_label.text[:self._cursor_i]
             second_part = self.text_label.text[self._cursor_i + 1:]
             self.text_label.text = first_part + second_part
         elif k == K_BACKSPACE:
-            first_part = self.text_label.text[:self._cursor_i - 1]
+            first_part  = self.text_label.text[:self._cursor_i - 1]
             second_part = self.text_label.text[self._cursor_i:]
             self.text_label.text = first_part + second_part
             self._cursor_i = max(self._cursor_i - 1, 0)
 
         if self.text_label.text.startswith("0"):  # If it's empty keep it empty
             self.text_label.text = self.text_label.text.lstrip("0") or str(self.min_limit)
+
         self.value = int(self.text_label.text or self.min_limit)
+        if self.value < self.min_limit:
+            self.value = self.min_limit
+            self.text_label.text = str(self.value)
 
     def _insert_char(self, char: str) -> None:
         """
@@ -211,7 +214,7 @@ class NumInputBox:
 
         prev_text: str = self.text_label.text
 
-        first_half: str = self.text_label.text[:self._cursor_i]
+        first_half: str  = self.text_label.text[:self._cursor_i]
         second_half: str = self.text_label.text[self._cursor_i:]
         self.text_label.text = first_half + char + second_half
         self.text_label.text = self.text_label.text.lstrip("0") or str(self.min_limit)
@@ -219,7 +222,7 @@ class NumInputBox:
         max_len: int = len(str(self.max_limit))
         self.text_label.text = self.text_label.text[:max_len]
 
-        if int(self.text_label.text) < self.min_limit:
+        if   int(self.text_label.text) < self.min_limit:
             self.text_label.text = str(self.min_limit)
         elif int(self.text_label.text) > self.max_limit:
             self.text_label.text = str(self.max_limit)
@@ -236,7 +239,7 @@ class NumInputBox:
             key
         """
 
-        if k == K_BACKSPACE or k == K_DELETE:
+        if   k == K_BACKSPACE or k == K_DELETE:
             self._handle_deletion(k)
         elif k <= CHR_LIMIT:
             char: str = chr(k)
@@ -246,7 +249,7 @@ class NumInputBox:
     def refresh(self) -> None:
         """Refreshes text label and cursor position."""
 
-        if self.text_label.text != self._prev_text:
+        if   self.text_label.text != self._prev_text:
             self.text_label.set_text(self.text_label.text)
             self.cursor_rect.x = self.text_label.get_x_at(self._cursor_i)
             self._should_show_cursor = True
@@ -271,6 +274,9 @@ class NumInputBox:
             clicked flag
         """
 
+        # Text may be modified externally
+        self._cursor_i = min(self._cursor_i, len(self.text_label.text))
+
         is_clicked: bool = mouse.hovered_obj == self and mouse.released[MOUSE_LEFT]
         if is_clicked:
             self._cursor_i = self.text_label.get_closest_to(mouse.x)
@@ -284,12 +290,20 @@ class NumInputBox:
                 self._handle_k(keyboard.timed[-1])
 
         is_increase_clicked: bool = self._increase.upt(mouse)
-        if is_increase_clicked:
-            self.value = min(self.value + 1, self.max_limit)
+        if is_increase_clicked or (selected_obj == self and K_PLUS in keyboard.timed):
+            self.value = (
+                self.max_limit if keyboard.is_ctrl_on and K_PLUS  in keyboard.timed else
+                min(self.value + 1, self.max_limit)
+            )
             self.text_label.text = str(self.value)
+
         is_decrease_clicked: bool = self._decrease.upt(mouse)
-        if is_decrease_clicked:
-            self.value = max(self.value - 1, self.min_limit)
+        if is_decrease_clicked or (selected_obj == self and K_MINUS in keyboard.timed):
+            self.value = (
+                self.min_limit if keyboard.is_ctrl_on and K_MINUS in keyboard.timed else
+                max(self.value - 1, self.min_limit)
+            )
             self.text_label.text = str(self.value)
+            self._cursor_i = min(self._cursor_i, len(self.text_label.text))
 
         return is_clicked

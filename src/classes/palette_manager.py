@@ -5,7 +5,7 @@ Everything is refreshed automatically.
 """
 
 from math import ceil
-from typing import Final, Optional
+from typing import Final
 
 import pygame as pg
 from pygame.locals import *
@@ -118,8 +118,8 @@ class VerScrollbar:
             RectPos(self._bar_rect.centerx, self._bar_rect.bottom + 5, "midtop"),
             [ARROW_DOWN_OFF_IMG, ARROW_DOWN_ON_IMG], "Down"
         )
-        self._up.set_hover_extra_size(16, 16, 16, 5)
-        self._down.set_hover_extra_size(16, 16, 5, 16)
+        self._up  .set_hover_extra_size(16, 16, 16, 5)
+        self._down.set_hover_extra_size(16, 16, 5 , 16)
 
         self.objs_info: list[ObjInfo] = [ObjInfo(self._up), ObjInfo(self._down)]
 
@@ -406,7 +406,7 @@ class PaletteManager:
         self.objs_info.append(ObjInfo(self._scrollbar))
 
         for obj_info in self.objs_info[self._dropdown_info_start_i:self._dropdown_info_end_i]:
-            obj_info.set_active(False)
+            obj_info.rec_set_active(False)
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -425,12 +425,12 @@ class PaletteManager:
         option: Button
 
         checkbox: LockedCheckbox = self.colors_grid.checkboxes[self.dropdown_i]
-        should_be_visible: bool = checkbox in self.colors_grid.visible_checkboxes
-        if self.objs_info[self._dropdown_info_start_i].is_active != should_be_visible:
+        is_visible: bool = checkbox in self.colors_grid.visible_checkboxes
+        if self.objs_info[self._dropdown_info_start_i].is_active != is_visible:
             for obj_info in self.objs_info[self._dropdown_info_start_i:self._dropdown_info_end_i]:
-                obj_info.set_active(should_be_visible)
+                obj_info.rec_set_active(is_visible)
 
-        if should_be_visible:
+        if is_visible:
             start_x: int = checkbox.rect.x + self._dropdown_offset_x
             start_y: int = checkbox.rect.y + self._dropdown_offset_y
             option_init_x: int = round(start_x / self._win_w_ratio)
@@ -442,8 +442,7 @@ class PaletteManager:
                 option_init_y += int(option.rect.h / self._win_h_ratio)
 
     def set_info(
-            self, hex_colors: list[HexColor], color_i: int, offset_y: int,
-            dropdown_i: Optional[int]
+            self, hex_colors: list[HexColor], color_i: int, offset_y: int, dropdown_i: int | None
     ) -> None:
         """
         Sets the colors, offset, clicked color and drop-down menu
@@ -517,7 +516,7 @@ class PaletteManager:
         self.is_dropdown_on = not self.is_dropdown_on if self.dropdown_i == checkbox_i else True
         if not self.is_dropdown_on:
             for obj_info in self.objs_info[self._dropdown_info_start_i:self._dropdown_info_end_i]:
-                obj_info.set_active(self.is_dropdown_on)
+                obj_info.rec_set_active(self.is_dropdown_on)
         else:
             self.dropdown_i = checkbox_i
             self._dropdown_offset_x = mouse.x - checkbox.rect.x
@@ -544,7 +543,7 @@ class PaletteManager:
         if self.is_dropdown_on:
             self.is_dropdown_on = False
             for obj_info in self.objs_info[self._dropdown_info_start_i:self._dropdown_info_end_i]:
-                obj_info.set_active(self.is_dropdown_on)
+                obj_info.rec_set_active(self.is_dropdown_on)
 
     def _handle_grid_shortcuts(self, keys: list[int]) -> None:
         """
@@ -556,8 +555,8 @@ class PaletteManager:
 
         k: int
 
-        max_color_i_shift_shortcut: int = min(len(self.colors_grid.checkboxes), 9)
-        for k in range(K_1, K_1 + max_color_i_shift_shortcut):
+        num_color_i_shift_shortcut: int = min(len(self.colors_grid.checkboxes), 9)
+        for k in range(K_1, K_1 + num_color_i_shift_shortcut):
             if k in keys:
                 self.colors_grid.clicked_i = k - K_1
 
@@ -640,7 +639,7 @@ class PaletteManager:
             clicked_row: int = self.colors_grid.clicked_i // self.colors_grid.num_cols
             self._scrollbar.set_clicked_value(clicked_row)
 
-    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[HexColor, bool, Optional[HexColor]]:
+    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[HexColor, bool, HexColor | None]:
         """
         Allows selecting a color, using a drop-down menu and moving the visible section.
 
@@ -684,7 +683,7 @@ class PaletteManager:
             self._handle_dropdown_movement()
 
         did_change: bool = did_offset_y_change or len(self.colors) != prev_num_colors
-        color_to_edit: Optional[HexColor] = None
+        color_to_edit: HexColor | None = None
         if self.is_editing_color:
             color_to_edit = self.colors[self._edit_i]
 

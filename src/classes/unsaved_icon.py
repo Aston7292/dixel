@@ -1,7 +1,6 @@
 """Class to indicate an unsaved file."""
 
 import pygame as pg
-from typing import Optional
 
 from src.utils import RectPos, resize_obj
 from src.type_utils import XY, BlitInfo
@@ -35,7 +34,7 @@ class UnsavedIcon:
         self.frame_rect.center = self.rect.center
 
         self._color: pg.Color = WHITE
-        self._animation_i: Optional[int] = None
+        self._animation_i: int | None = None
 
         self.blit_sequence: list[BlitInfo] = [(img, self.frame_rect, ELEMENT_LAYER)]
         self._min_win_ratio: float = 1

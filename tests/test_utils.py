@@ -90,7 +90,7 @@ class TestUtils(TestCase):
         self.assertIs(main_obj_info.obj, main_obj)
         self.assertTrue(main_obj_info.is_active)
 
-        main_obj_info.set_active(False)
+        main_obj_info.rec_set_active(False)
         self.assertFalse(main_obj_info.is_active)
         sub_obj_info: ObjInfo = main_obj_info.obj.objs_info[0]
         self.assertFalse(sub_obj_info.is_active)

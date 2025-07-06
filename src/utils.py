@@ -2,25 +2,31 @@
 
 from tkinter import messagebox
 from pathlib import Path
-from time import time
 from dataclasses import dataclass
 from math import ceil
 from collections.abc import Callable
-from typing import Final, Any
+from errno import *
+from typing import Protocol, Final, Any
 
 import pygame as pg
 import numpy as np
 from numpy import uint8
 from numpy.typing import NDArray
 
-from src.type_utils import XY, WH
+from src.type_utils import XY, WH, BlitInfo
 from src.consts import (
-    BLACK, EMPTY_TILE_ARR, TILE_W, TILE_H, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY
+    BLACK,
+    EMPTY_TILE_ARR, TILE_W, TILE_H,
+    FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I,
 )
 
 _FUNCS_NAMES: Final[list[str]] = []
 _FUNCS_TOT_TIMES: Final[list[float]] = []
 _FUNCS_NUM_CALLS: Final[list[int]] = []
+
+_FILE_TRANSIENT_ERROR_CODES: tuple[int, ...] = (
+    EIO, EBUSY, ENFILE, EMFILE, EDEADLK,
+)
 
 
 def profile(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -31,14 +37,15 @@ def profile(func: Callable[..., Any]) -> Callable[..., Any]:
     _FUNCS_TOT_TIMES.append(0)
     _FUNCS_NUM_CALLS.append(0)
 
-    def _upt_info(*args: Any, **kwargs: dict[str, Any]) -> Any:
+    def _upt_info(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Any:
         """Runs a function and updates its total runtime and number of calls."""
 
-        start: float = time()
+        start: int = pg.time.get_ticks()
         res: Any = func(*args, **kwargs)
-        _FUNCS_TOT_TIMES[func_i] += (time() - start) * 1_000
-        _FUNCS_NUM_CALLS[func_i] += 1
+        stop: int  = pg.time.get_ticks()
 
+        _FUNCS_TOT_TIMES[func_i] += stop - start
+        _FUNCS_NUM_CALLS[func_i] += 1
         return res
 
     return _upt_info
@@ -54,6 +61,38 @@ def print_funcs_profiles() -> None:
     for name, tot_time, num_calls in zip(_FUNCS_NAMES, _FUNCS_TOT_TIMES, _FUNCS_NUM_CALLS):
         avg_time: float = tot_time / num_calls if num_calls else 0
         print(f"{name}: {avg_time:.4f}ms | calls: {num_calls}")
+
+
+class UIElement(Protocol):
+    """Class to reinforce type hinting."""
+
+    hover_rects: list[pg.Rect]
+    layer: int
+    blit_sequence: list[BlitInfo]
+    cursor_type: int
+
+    def enter(self) -> None:
+        """Initializes all the relevant data when the object state is entered."""
+
+    def leave(self) -> None:
+        """Clears the relevant data when the object state is leaved."""
+
+    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
+        """
+        Resizes the object.
+
+        Args:
+            window width ratio, window height ratio
+        """
+
+    @property
+    def objs_info(self) -> list["ObjInfo"]:
+        """
+        Gets the sub objects info.
+
+        Returns:
+            objects info
+        """
 
 
 @dataclass(slots=True)
@@ -105,7 +144,7 @@ class ObjInfo:
         object
     """
 
-    obj: Any
+    obj: UIElement
     is_active: bool = True
 
     def rec_set_active(self, should_activate: bool) -> None:
@@ -121,10 +160,11 @@ class ObjInfo:
             info: ObjInfo = objs_info.pop()
             info.is_active = should_activate
 
-            if not should_activate and hasattr(info.obj, "leave"):
+            if should_activate:
+                info.obj.enter()
+            else:
                 info.obj.leave()
-            if hasattr(info.obj, "objs_info"):
-                objs_info.extend(info.obj.objs_info)
+            objs_info.extend(info.obj.objs_info)
 
 
 def get_pixels(img: pg.Surface) -> NDArray[uint8]:
@@ -139,7 +179,6 @@ def get_pixels(img: pg.Surface) -> NDArray[uint8]:
 
     pixels_rgb: NDArray[uint8] = pg.surfarray.pixels3d(img)
     alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(img)
-
     return np.dstack((pixels_rgb, alpha_values))
 
 
@@ -156,7 +195,6 @@ def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
     new_img: pg.Surface = img.copy()
     side_w: int = round(min(new_img.get_size()) / 10)
     pg.draw.rect(new_img, border_color, new_img.get_rect(), side_w)
-
     return new_img
 
 
@@ -176,23 +214,82 @@ def get_brush_dim_checkbox_info(dim: int) -> tuple[pg.Surface, str]:
 
     img: pg.Surface = pg.surfarray.make_surface(img_arr)
     pg.draw.rect(img, BLACK, rect)
-
     return pg.transform.scale_by(img, 4).convert(), f"{dim}px\n(CTRL+{dim})"
 
 
-def try_create_dir(dir_path: Path, should_ask_create: bool, num_creation_attempts: int) -> bool:
+def prettify_path_str(path_str: str) -> str:
+    """
+    If a path string is longer than 32 chars it transform into the form root/.../parent/element.
+
+    It then transforms it into an absolute and resolved string.
+
+    Args:
+        path string
+    Returns:
+        path string
+    """
+
+    path_obj: Path = Path(path_str).resolve()
+    path_str = str(path_obj)
+    if len(path_str) > 32:
+        parts: tuple[str, ...] = path_obj.parts
+        num_extra_parts: int = len(parts) - 1  # Drive is always present
+
+        start: str = path_obj.drive
+        parent: str = path_obj.parent.name
+        name: str = path_obj.name
+        if start == "":
+            # Represent start as /home or similar if there's something between root and element
+            start = parts[0]
+            if num_extra_parts >= 2:
+                start += "/" + parts[1]
+                num_extra_parts -= 1
+
+        path_str = f"{start[:3]}...{start[-3:]}" if len(start) > 10 else start
+        if num_extra_parts >= 3:  # There's something between root and parent so add dots
+            path_str += "/..."
+        if num_extra_parts >= 2:  # There's something between root and element so add parent
+            path_str += "/" + (f"{parent[:5]}...{parent[-5:]}" if len(parent) > 16 else parent)
+        if num_extra_parts >= 1:  # Root and element are different so add element
+            path_str += "/" + (f"{name[:5]}...{name[-5:]}" if len(name) > 16 else name)
+
+        path_str = str(Path(path_str))  # Replaces / with the right linker
+
+    return path_str
+
+
+def handle_file_os_error(e: OSError) -> tuple[str, bool]:
+    """
+    Handles an OSError from a file opening, deciding if a retry should occur or not.
+
+    Args:
+        error
+    Returns:
+        message, retry flag
+    """
+
+    error_str: str = e.strerror + "." if e.strerror is not None else ""
+    if e.errno == EINVAL:
+        error_str = "Reserved path."
+
+    return error_str, e in _FILE_TRANSIENT_ERROR_CODES
+
+
+def try_create_dir(dir_path: Path, should_ask_create: bool, creation_attempt_i: int) -> bool:
     """
     Creates a directory.
 
     Args:
-        directory path, ask creation flag, attempts
+        directory path, ask creation flag, attempt index
     Returns:
         failed flag
     """
 
-    num_system_attempts: int
+    system_attempt_i: int
+    error_str: str
+    should_retry: bool
 
-    if num_creation_attempts == 1 and should_ask_create:
+    if creation_attempt_i == 1 and should_ask_create:
         should_create: bool = messagebox.askyesno(
             "Image Save Failed",
             f"Directory missing: {dir_path.name}\nDo you wanna create it?",
@@ -201,12 +298,12 @@ def try_create_dir(dir_path: Path, should_ask_create: bool, num_creation_attempt
 
         if not should_create:
             return True
-    elif num_creation_attempts == NUM_MAX_FILE_ATTEMPTS:
+    elif creation_attempt_i == FILE_ATTEMPT_STOP_I:
         messagebox.showerror("Directory Creation Failed", "Repeated failure in creation.")
         return True
 
     did_fail: bool = True
-    for num_system_attempts in range(1, NUM_MAX_FILE_ATTEMPTS + 1):
+    for system_attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             dir_path.mkdir(parents=True, exist_ok=True)
             did_fail = False
@@ -222,12 +319,13 @@ def try_create_dir(dir_path: Path, should_ask_create: bool, num_creation_attempt
             )
             break
         except OSError as e:
-            if num_system_attempts != NUM_MAX_FILE_ATTEMPTS:
-                pg.time.wait(FILE_ATTEMPT_DELAY * num_system_attempts)
+            error_str, should_retry = handle_file_os_error(e)
+            if should_retry and system_attempt_i != FILE_ATTEMPT_STOP_I:
+                pg.time.wait(2 ** system_attempt_i)
                 continue
 
             messagebox.showerror(
-                "Directory Creation Failed", f"{dir_path.name}: {e}"
+                "Directory Creation Failed", f"{dir_path.name}: {error_str}"
             )
             break
 
@@ -258,28 +356,11 @@ def resize_obj(
 
     resized_xy: XY = (round(init_pos.x * win_w_ratio), round(init_pos.y * win_h_ratio))
     resized_wh: WH = (ceil(init_w * img_w_ratio), ceil(init_h * img_h_ratio))
-
     return resized_xy, resized_wh
 
 
-def rec_resize(main_objs: list[Any], win_w_ratio: float, win_h_ratio: float) -> None:
-    """
-    Resizes objects and their sub objects, modifies the original list.
-
-    Args:
-        objects, window width ratio, window height ratio
-    """
-
-    while main_objs != []:
-        obj: Any = main_objs.pop()
-        if hasattr(obj, "resize"):
-            obj.resize(win_w_ratio, win_h_ratio)
-        if hasattr(obj, "objs_info"):
-            main_objs.extend([info.obj for info in obj.objs_info])
-
-
 def rec_move_rect(
-        main_obj: Any, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float
+        main_obj: UIElement, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float
 ) -> None:
     """
     Moves an object and it's sub objects to a specific coordinate.
@@ -288,12 +369,16 @@ def rec_move_rect(
         object, initial x, initial y, window width ratio, window height ratio
     """
 
-    objs_hierarchy: list[Any] = [main_obj]
+    objs_hierarchy: list[UIElement] = [main_obj]
     change_x: int = 0
     change_y: int = 0
     while objs_hierarchy != []:
-        obj: Any = objs_hierarchy.pop()
+        obj: UIElement = objs_hierarchy.pop()
         if hasattr(obj, "move_rect"):
+            class_name: str = obj.__class__.__name__
+            assert                              callable(  obj.move_rect        ), class_name
+            assert hasattr(obj, "init_pos") and isinstance(obj.init_pos, RectPos), class_name
+
             if obj != main_obj:
                 obj.move_rect(
                     obj.init_pos.x + change_x, obj.init_pos.y + change_y,
@@ -303,5 +388,4 @@ def rec_move_rect(
                 change_x, change_y = init_x - obj.init_pos.x, init_y - obj.init_pos.y
                 obj.move_rect(init_x, init_y, win_w_ratio, win_h_ratio)
 
-        if hasattr(obj, "objs_info"):
-            objs_hierarchy.extend([info.obj for info in obj.objs_info])
+        objs_hierarchy.extend([info.obj for info in obj.objs_info])

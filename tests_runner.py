@@ -6,7 +6,7 @@ from typing import Final
 import pygame as pg
 
 pg.init()
-pg.Window(hidden=True).get_surface()
+pg.Window("", (1, 1), hidden=True).get_surface()
 
 _TEST_SUITE: Final[TestSuite] = TestLoader().discover("tests")
 TextTestRunner().run(_TEST_SUITE)

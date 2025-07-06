@@ -6,11 +6,12 @@ from io import BytesIO
 from typing import Final
 
 import pygame as pg
+from pygame import SYSTEM_CURSOR_ARROW
 
-from src.utils import RectPos, resize_obj
+from src.utils import RectPos, ObjInfo, resize_obj, handle_file_os_error
 from src.lock_utils import LockException, FileException, try_lock_file
 from src.type_utils import XY, WH, BlitInfo
-from src.consts import WHITE, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY, BG_LAYER, TEXT_LAYER
+from src.consts import WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I, BG_LAYER, TEXT_LAYER
 
 _RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
 _is_first_font_load_error: bool = True
@@ -24,12 +25,13 @@ def _try_add_renderer(h: int) -> None:
         height
     """
 
-    num_attempts: int
+    attempt_i: int
+    should_retry: bool
 
     font_path: Path = Path("assets", "fonts", "fredoka.ttf")
     renderer: pg.Font | None = None
     error_str: str = ""
-    for num_attempts in range(1, NUM_MAX_FILE_ATTEMPTS + 1):
+    for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             with font_path.open("rb") as f:
                 try_lock_file(f, True)
@@ -52,11 +54,11 @@ def _try_add_renderer(h: int) -> None:
             error_str = str(e)
             break
         except OSError as e:
-            if num_attempts != NUM_MAX_FILE_ATTEMPTS:
-                pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
+            error_str, should_retry = handle_file_os_error(e)
+            if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
+                pg.time.wait(2 ** attempt_i)
                 continue
 
-            error_str = e.strerror if e.strerror is not None else ""
             break
 
     if renderer is None:
@@ -73,8 +75,13 @@ class TextLabel:
     """Class to simplify multi-text rendering."""
 
     __slots__ = (
-        "init_pos", "_init_h", "_renderer", "text", "_bg_color", "imgs", "rect", "_rects", "layer"
+        "init_pos", "_init_h", "_renderer", "text", "_bg_color",
+        "imgs", "rect", "_rects",
+        "hover_rects", "layer", "blit_sequence"
     )
+
+    cursor_type: int = SYSTEM_CURSOR_ARROW
+    objs_info: list[ObjInfo] = []
 
     def __init__(
             self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 25,
@@ -108,20 +115,19 @@ class TextLabel:
         self.rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self._rects: list[pg.Rect] = []
 
+        self.hover_rects: list[pg.Rect] = []
         self.layer: int = base_layer + TEXT_LAYER
+        self.blit_sequence: list[BlitInfo] = [
+            (img, rect, self.layer) for img, rect in zip(self.imgs, self._rects)
+        ]
 
         self._refresh_rects((self.init_pos.x, self.init_pos.y))
 
-    @property
-    def blit_sequence(self) -> list[BlitInfo]:
-        """
-        Gets the blit sequence.
+    def enter(self) -> None:
+        """Initializes all the relevant data when the object state is entered."""
 
-        Returns:
-            sequence to add in the main blit sequence
-        """
-
-        return [(img, rect, self.layer) for img, rect in zip(self.imgs, self._rects)]
+    def leave(self) -> None:
+        """Clears the relevant data when the object state is leaved."""
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -160,10 +166,11 @@ class TextLabel:
         img_h: int
 
         imgs_whs: list[WH] = [img.get_size() for img in self.imgs]
-        imgs_ws: list[int] = [img_w for img_w , _img_h in imgs_whs]
-        imgs_hs: list[int] = [img_h for _img_w, img_h  in imgs_whs]
 
-        self.rect.size = (max(imgs_ws), sum(imgs_hs))
+        self.rect.size = (
+            max([img_w for img_w , _img_h in imgs_whs]),
+            sum([img_h for _img_w, img_h  in imgs_whs]),
+        )
         setattr(self.rect, self.init_pos.coord_type, xy)
 
         self._rects = []
@@ -180,6 +187,8 @@ class TextLabel:
             self._rects.append(line_rect)
 
             line_rect_y += line_rect.h
+
+        self.blit_sequence = [(img, rect, self.layer) for img, rect in zip(self.imgs, self._rects)]
 
     def move_rect(self, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -249,8 +258,9 @@ class TextLabel:
         char: str
 
         prev_x: int = self.rect.x
+        renderer: pg.Font = self._renderer
         for i, char in enumerate(self.text):
-            current_x: int = prev_x + self._renderer.size(char)[0]
+            current_x: int = prev_x + renderer.size(char)[0]
             if x < current_x:
                 return i if abs(x - prev_x) < abs(x - current_x) else i + 1
 

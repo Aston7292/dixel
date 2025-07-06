@@ -16,11 +16,11 @@ def cmp_imgs(img: pg.Surface, expected_img: pg.Surface) -> bool:
         equal flag
     """
 
-    pixels_rgb: NDArray[uint8] = pg.surfarray.pixels3d(img)
-    alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(img)
-    pixels: NDArray[np.uint8] = np.dstack((pixels_rgb, alpha_values))
+    pixels_rgb: NDArray[uint8]            = pg.surfarray.pixels3d(img)
+    alpha_values: NDArray[uint8]          = pg.surfarray.pixels_alpha(img)
+    pixels: NDArray[np.uint8]       = np.dstack((pixels_rgb         , alpha_values))
 
-    expected_pixels_rgb: NDArray[uint8] = pg.surfarray.pixels3d(expected_img)
+    expected_pixels_rgb: NDArray[uint8]   = pg.surfarray.pixels3d(expected_img)
     expected_alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(expected_img)
     expected_pixels: NDArray[uint8] = np.dstack((expected_pixels_rgb, expected_alpha_values))
 

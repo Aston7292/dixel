@@ -6,10 +6,10 @@ from typing import Final
 
 import pygame as pg
 
-from src.utils import add_border
+from src.utils import add_border, handle_file_os_error
 from src.lock_utils import LockException, FileException, try_lock_file
 from src.type_utils import WH
-from src.consts import BLACK, WHITE, NUM_MAX_FILE_ATTEMPTS, FILE_ATTEMPT_DELAY
+from src.consts import BLACK, WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I
 
 
 _ERRORS_LIST: Final[list[str]] = []
@@ -28,11 +28,13 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
         image (if it fails returns MISSING_IMG)
     """
 
-    num_attempts: int
+    attempt_i: int
+    error_str: str
+    should_retry: bool
 
     file_path: Path = Path("assets", "sprites", file_str)
     img: pg.Surface | None = None
-    for num_attempts in range(1, NUM_MAX_FILE_ATTEMPTS + 1):
+    for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             with file_path.open("rb") as f:
                 try_lock_file(f, True)
@@ -54,17 +56,17 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
             _ERRORS_LIST.append(f"{file_path.name}: {e}")
             break
         except OSError as e:
-            if num_attempts != NUM_MAX_FILE_ATTEMPTS:
-                pg.time.wait(FILE_ATTEMPT_DELAY * num_attempts)
+            error_str, should_retry = handle_file_os_error(e)
+            if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
+                pg.time.wait(2 ** attempt_i)
                 continue
 
-            _ERRORS_LIST.append(f"{file_path.name}: {e}")
+            _ERRORS_LIST.append(f"{file_path.name}: {error_str}")
             break
 
     if img is None:
         img = pg.transform.scale(_MISSING_IMG, missing_img_wh)
     img.set_colorkey(BLACK)
-
     return img.convert()
 
 
@@ -104,10 +106,13 @@ ROTATE_RIGHT_ON_IMG: Final[pg.Surface]  = pg.transform.flip(
     ROTATE_LEFT_ON_IMG , True, False
 ).convert()
 
-BRUSH_IMG: Final[pg.Surface]       = _try_get_img("brush.png"      , (64, 64))
+PENCIL_IMG: Final[pg.Surface]      = _try_get_img("pencil.png"     , (64, 64))
 BUCKET_IMG: Final[pg.Surface]      = _try_get_img("bucket.png"     , (64, 64))
 EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper.png", (64, 64))
 
+SETTINGS_OFF_IMG: Final[pg.Surface] = _try_get_img("settings.png", (32, 32))
+SETTINGS_ON_IMG: Final[pg.Surface] = pg.transform.hsl(SETTINGS_OFF_IMG, lightness=-0.5).convert()
+
 if _ERRORS_LIST != []:
-    error_str: str = "\n".join(_ERRORS_LIST)
-    messagebox.showerror("Image Load Failed", error_str)
+    full_error_str: str = "\n".join(_ERRORS_LIST)
+    messagebox.showerror("Image Load Failed", full_error_str)

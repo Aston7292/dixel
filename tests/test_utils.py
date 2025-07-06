@@ -12,10 +12,11 @@ from pygame import SRCALPHA
 from numpy import uint8
 from numpy.typing import NDArray
 
-from src.classes.devices import Mouse, Keyboard
+from src.classes.devices import _Mouse, _Keyboard
 
 from src.utils import (
-    Point, RectPos, Size, ObjInfo, get_pixels, add_border, resize_obj, rec_resize, rec_move_rect
+    Point, RectPos, Size, ObjInfo,
+    get_pixels, add_border, resize_obj, rec_resize, rec_move_rect,
 )
 from src.type_utils import XY, WH, RGBAColor
 
@@ -98,7 +99,7 @@ class TestUtils(TestCase):
     def test_mouse(self) -> None:
         """Tests the Mouse dataclass."""
 
-        mouse: Mouse = Mouse(0, 1, [False] * 3, [False] * 3, 2, None)
+        mouse: _Mouse = _Mouse(0, 1, [False] * 3, [False] * 3, 2, None)
         self.assertEqual(mouse.x, 0)
         self.assertEqual(mouse.y, 1)
         self.assertListEqual(mouse.pressed, [False] * 3)
@@ -109,7 +110,7 @@ class TestUtils(TestCase):
     def test_keyboard(self) -> None:
         """Tests the keyboard dataclass."""
 
-        keyboard: Keyboard = Keyboard([1], [2], False, True, False, True)
+        keyboard: _Keyboard = _Keyboard([1], [2], False, True, False, True)
         self.assertListEqual(keyboard.pressed, [1])
         self.assertListEqual(keyboard.timed, [2])
         self.assertFalse(keyboard.is_ctrl_on)
@@ -186,8 +187,8 @@ class TestUtils(TestCase):
             init_pos.x, init_pos.y = x, y
             resized_xy, resized_wh = resize_obj(init_pos, w, h, win_w_ratio, win_h_ratio)
 
-            expected_sum_x: int = round(x * win_w_ratio + w * win_w_ratio)
-            expected_sum_y: int = round(y * win_h_ratio + h * win_h_ratio)
+            expected_sum_x: int = round((x * win_w_ratio) + (w * win_w_ratio))
+            expected_sum_y: int = round((y * win_h_ratio) + (h * win_h_ratio))
             self.assertGreaterEqual(resized_xy[0] + resized_wh[0], expected_sum_x)
             self.assertGreaterEqual(resized_xy[1] + resized_wh[1], expected_sum_y)
 

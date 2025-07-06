@@ -11,18 +11,17 @@ import cv2
 
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI
+from src.classes.grid_manager import GRID_TRANSITION_START, GRID_TRANSITION_END
 from src.classes.clickable import Checkbox, Button, SpammableButton
 from src.classes.text_label import TextLabel
-from src.classes.devices import Mouse, Keyboard
+from src.classes.devices import KEYBOARD
 
 from src.utils import RectPos, Size, ObjInfo, resize_obj
 from src.type_utils import XY
-from src.consts import (
-    EMPTY_TILE_ARR, TILE_H, TILE_W, GRID_TRANSITION_START, GRID_TRANSITION_END, UI_LAYER
-)
+from src.consts import EMPTY_TILE_ARR, TILE_H, TILE_W
 from src.imgs import (
     CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG, BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG,
-    ROTATE_LEFT_OFF_IMG, ROTATE_LEFT_ON_IMG, ROTATE_RIGHT_OFF_IMG, ROTATE_RIGHT_ON_IMG
+    ROTATE_LEFT_OFF_IMG, ROTATE_LEFT_ON_IMG, ROTATE_RIGHT_OFF_IMG, ROTATE_RIGHT_ON_IMG,
 )
 
 _Selection: TypeAlias = NumInputBox
@@ -34,20 +33,19 @@ class GridUI(UI):
     """Class to create an interface that allows editing the grid, has a preview."""
 
     __slots__ = (
-        "_preview_init_pos", "_preview_rect", "w_ratio", "h_ratio", "_original_tiles", "_tiles",
-        "_h_box", "_w_box", "_selection_i", "checkbox", "_crop", "_rotate_left", "_rotate_right",
+        "_preview_init_pos", "_preview_rect",
+        "w_ratio", "h_ratio", "_original_tiles", "_tiles",
+        "_h_box", "_w_box", "_selection_i",
+        "checkbox", "_rotate_left", "_rotate_right", "_crop",
         "_win_w_ratio", "_win_h_ratio",
     )
 
-    def __init__(self, pos: RectPos) -> None:
-        """
-        Creates the interface, sliders and preview.
+    def __init__(self) -> None:
+        """Creates the interface, sliders and preview."""
 
-        Args:
-            position
-        """
 
-        super().__init__(pos, "EDIT GRID")
+        super().__init__("EDIT GRID", True)
+        assert self._confirm is not None, "Grid UI requires a confirm button."
 
         self._preview_init_pos: RectPos = RectPos(
             self._rect.centerx, self._rect.centery + 20, "center"
@@ -65,53 +63,55 @@ class GridUI(UI):
 
         self._h_box: NumInputBox = NumInputBox(
             RectPos(self._preview_rect.x - 8, self._preview_rect.y - 25, "bottomleft"),
-            1, 999, UI_LAYER
+            1, 999, self.layer
         )
         h_text_label: TextLabel = TextLabel(
             RectPos(self._h_box.rect.x   - 8, self._h_box.rect.centery, "midright"),
-            "Height", UI_LAYER
+            "Height", self.layer
         )
 
         self._w_box: NumInputBox = NumInputBox(
             RectPos(self._preview_rect.x - 8, self._h_box.rect.y   - 25, "bottomleft"),
-            1, 999, UI_LAYER
+            1, 999, self.layer
         )
         w_text_label: TextLabel = TextLabel(
             RectPos(self._w_box.rect.x   - 8, self._w_box.rect.centery, "midright"),
-            "Width" , UI_LAYER
+            "Width" , self.layer
         )
 
         self._selection_i: int = 0
 
         self.checkbox: Checkbox = Checkbox(
-            RectPos(self._preview_rect.right - 16, self._confirm.rect.y - 8, "bottomright"),
-            [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG], "Keep Ratio", "CTRL+K", UI_LAYER
-        )
-        self._crop: Button = Button(
-            RectPos(self.checkbox.rect.x     - 16, self.checkbox.rect.centery, "midright"),
-            [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], "Crop", "(CTRL+C)", UI_LAYER
-        )
-        self._rotate_left: SpammableButton = SpammableButton(
-            RectPos(self._preview_rect.centerx - 8, self._preview_rect.bottom + 8, "topright"),
-            [ROTATE_LEFT_OFF_IMG, ROTATE_LEFT_ON_IMG] , "(CTRL+SHIFT+R)", UI_LAYER
-        )
-        self._rotate_right: SpammableButton = SpammableButton(
-            RectPos(self._preview_rect.centerx + 8, self._preview_rect.bottom + 8, "topleft"),
-            [ROTATE_RIGHT_OFF_IMG, ROTATE_RIGHT_ON_IMG], "(CTRL+R)"     , UI_LAYER
+            RectPos(self._preview_rect.right    - 16, self._confirm.rect.y - 16, "bottomright"),
+            [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG], "Keep Ratio", "CTRL+K", self.layer
         )
 
-        self.blit_sequence.append((preview_img, self._preview_rect, UI_LAYER))
+        self._rotate_left: SpammableButton = SpammableButton(
+            RectPos(self._preview_rect.x        + 16, self.checkbox.rect.centery, "midleft"),
+            [ROTATE_LEFT_OFF_IMG , ROTATE_LEFT_ON_IMG ], "(CTRL+SHIFT+R)", self.layer
+        )
+        self._rotate_right: SpammableButton = SpammableButton(
+            RectPos(self._rotate_left.rect.right + 8, self.checkbox.rect.centery, "midleft"),
+            [ROTATE_RIGHT_OFF_IMG, ROTATE_RIGHT_ON_IMG], "(CTRL+R)"     , self.layer
+        )
+        self._crop: Button = Button(
+            RectPos(self._rotate_left.rect.right + 4, self._confirm.rect.centery, "center"),
+            [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], "Crop", "(CTRL+C)", self.layer
+        )
+
+        self.blit_sequence.append((preview_img, self._preview_rect, self.layer))
         self._win_w_ratio: float = 1
         self._win_h_ratio: float = 1
-        self.objs_info.extend([
+        self.objs_info.extend((
             ObjInfo(self._w_box), ObjInfo(w_text_label), ObjInfo(self._h_box), ObjInfo(h_text_label),
-            ObjInfo(self.checkbox), ObjInfo(self._crop),
-            ObjInfo(self._rotate_left), ObjInfo(self._rotate_right)
-        ])
+            ObjInfo(self.checkbox),
+            ObjInfo(self._rotate_left), ObjInfo(self._rotate_right), ObjInfo(self._crop),
+        ))
 
     def leave(self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
+        super().leave()
         self._selection_i = 0
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
@@ -136,19 +136,12 @@ class GridUI(UI):
         """
 
         self._original_tiles = self._tiles = tiles
-        self._w_box.value, self._h_box.value = area.w, area.h
-
-        self._w_box.text_label.set_text(str(self._w_box.value))
-        self._w_box.set_cursor_i(0)
-        self._w_box.cursor_rect.x = self._w_box.text_label.rect.x
-
-        self._h_box.text_label.set_text(str(self._h_box.value))
-        self._h_box.set_cursor_i(0)
-        self._h_box.cursor_rect.x = self._h_box.text_label.rect.x
+        self._w_box.set_value(area.w)
+        self._h_box.set_value(area.h)
 
         self._refresh_preview()
 
-    def _resize_preview(self, small_preview_img: pg.Surface) -> None:
+    def _resize_preview(self, unscaled_preview_img: pg.Surface) -> None:
         """
         Resizes the small preview with a gradual blur.
 
@@ -162,34 +155,30 @@ class GridUI(UI):
         img: pg.Surface
 
         init_tile_dim: float = _GRID_PREVIEW_DIM_CAP / max(self._w_box.value, self._h_box.value)
-        init_w: float = self._w_box.value * init_tile_dim
-        init_h: float = self._h_box.value * init_tile_dim
-
         xy, (w, h) = resize_obj(
-            self._preview_init_pos, init_w, init_h, self._win_w_ratio, self._win_h_ratio, True
+            self._preview_init_pos,
+            self._w_box.value * init_tile_dim, self._h_box.value * init_tile_dim,
+            self._win_w_ratio, self._win_h_ratio, True
         )
 
         max_dim: int = max(self._w_box.value, self._h_box.value)
         if   max_dim < GRID_TRANSITION_START:
-            img = pg.transform.scale(      small_preview_img, (w, h))
+            img = pg.transform.scale(      unscaled_preview_img, (w, h))
         elif max_dim > GRID_TRANSITION_END:
-            img = pg.transform.smoothscale(small_preview_img, (w, h))
+            img = pg.transform.smoothscale(unscaled_preview_img, (w, h))
         elif GRID_TRANSITION_START <= max_dim <= GRID_TRANSITION_END:
             # Gradual transition
-            img_arr: NDArray[uint8] = pg.surfarray.pixels3d(small_preview_img)
+            img_arr: NDArray[uint8] = pg.surfarray.pixels3d(unscaled_preview_img)
             img_arr = cv2.resize(img_arr, (h, w), interpolation=cv2.INTER_AREA).astype(uint8)
             img = pg.surfarray.make_surface(img_arr)
 
         self._preview_rect.size = (w, h)
         setattr(self._preview_rect, self._preview_init_pos.coord_type, xy)
 
-        self.blit_sequence[1] = (img.convert(), self._preview_rect, UI_LAYER)
+        self.blit_sequence[1] = (img.convert(), self._preview_rect, self.layer)
 
     def _refresh_preview(self) -> None:
         """Refreshes the preview by using original_tiles."""
-
-        empty_img_arr: NDArray[uint8]
-        img_arr: NDArray[uint8]
 
         self._tiles = self._original_tiles  # Copying is unnecessary
 
@@ -207,49 +196,41 @@ class GridUI(UI):
 
         # Repeat tiles so an empty tile image takes 1 normal-sized tile
         repeated_tiles: NDArray[uint8] = self._tiles.repeat(TILE_W, 0).repeat(TILE_H, 1)
-        empty_img_arr = np.tile(EMPTY_TILE_ARR, (self._w_box.value, self._h_box.value, 1))
+        empty_img_arr_reps: tuple[int, ...] = (self._w_box.value, self._h_box.value, 1)
+        empty_img_arr: NDArray[uint8] = np.tile(EMPTY_TILE_ARR, empty_img_arr_reps)
+
         empty_tiles_mask: NDArray[bool_] = (repeated_tiles[..., 3] == 0)[..., np.newaxis]
-        img_arr = np.where(empty_tiles_mask, empty_img_arr, repeated_tiles[..., :3])
+        rgb_repeated_tiles: NDArray[uint8] = repeated_tiles[..., :3]
+        img_arr: NDArray[uint8] = np.where(empty_tiles_mask, empty_img_arr, rgb_repeated_tiles)
 
         # Having a version where 1 tile = 1 pixel is better for scaling
         self._resize_preview(pg.surfarray.make_surface(img_arr))
 
-    def _move_with_keys(self, timed_keys: list[int]) -> None:
-        """
-        Moves the selection with the keyboard.
+    def _move_with_keys(self) -> None:
+        """Moves the selection with the keyboard."""
 
-        Args:
-            timed keys
-        """
-
-        if K_UP in timed_keys:
+        if K_UP   in KEYBOARD.timed:
             self._selection_i = 0
             w_box_cursor_i: int = self._w_box.text_label.get_closest_to(self._h_box.cursor_rect.x)
             self._w_box.set_cursor_i(w_box_cursor_i)
-        if K_DOWN in timed_keys:
+        if K_DOWN in KEYBOARD.timed:
             self._selection_i = 1
             h_box_cursor_i: int = self._h_box.text_label.get_closest_to(self._w_box.cursor_rect.x)
             self._h_box.set_cursor_i(h_box_cursor_i)
 
-    def _upt_sliders(self, mouse: Mouse, keyboard: Keyboard) -> None:
-        """
-        Updates sliders and selection.
+    def _upt_sliders(self) -> None:
+        """Updates sliders and selection."""
 
-        Args:
-            mouse, keyboard
-        """
+        obj: _Selection
 
         selected_obj: _Selection = (self._w_box, self._h_box)[self._selection_i]
+        for i, obj in enumerate((self._w_box, self._h_box)):
+            is_clicked: bool = obj.upt(selected_obj)
 
-        is_w_slider_clicked: bool = self._w_box.upt(mouse, keyboard, selected_obj)
-        if is_w_slider_clicked:
-            self._selection_i = 0
-            selected_obj = self._w_box
-
-        is_h_slider_clicked: bool = self._h_box.upt(mouse, keyboard, selected_obj)
-        if is_h_slider_clicked:
-            self._selection_i = 1
-            selected_obj = self._h_box
+            if is_clicked and self._selection_i != i:
+                selected_obj.leave()
+                self._selection_i = i
+                selected_obj = obj
 
     def _adjust_opp_slider(self, did_grid_w_change: bool) -> None:
         """
@@ -279,24 +260,27 @@ class GridUI(UI):
     def _crop_tiles(self) -> None:
         """Removes unnecessary padding from the image, sets sliders and ratios."""
 
-        top_left: NDArray[intp]
-        bottom_right: NDArray[intp]
+        left: intp
+        right: intp
+        top: intp
+        bottom: intp
 
         colored_tiles_indices: NDArray[intp] = np.argwhere(self._original_tiles[..., 3] != 0)
         if colored_tiles_indices.size == 0:
-            top_left     = np.array((0, 0), intp)
-            bottom_right = np.array((1, 1), intp)
+            left  = top    = intp(0)
+            right = bottom = intp(1)
         else:
-            top_left     = colored_tiles_indices.min(0)
-            bottom_right = colored_tiles_indices.max(0) + 1
+            left , top    = colored_tiles_indices.min(0)
+            right, bottom = colored_tiles_indices.max(0) + 1
 
-        self._original_tiles = self._tiles = self._original_tiles[
-            top_left[0]:bottom_right[0], top_left[1]:bottom_right[1]
-        ]  # Copying is unnecessary
-
-        self._w_box.value, self._h_box.value = self._tiles.shape[0], self._tiles.shape[1]
-        self._w_box.text_label.text = str(self._w_box.value)
-        self._h_box.text_label.text = str(self._h_box.value)
+        # Copying is unnecessary
+        self._original_tiles = self._tiles = self._original_tiles[left:right, top:bottom]
+        self._w_box.value = min(
+            max(self._tiles.shape[0], self._w_box.min_limit), self._w_box.max_limit
+        )
+        self._h_box.value = min(
+            max(self._tiles.shape[1], self._h_box.min_limit), self._h_box.max_limit
+        )
         self.w_ratio = self._h_box.value / self._w_box.value
         self.h_ratio = self._w_box.value / self._h_box.value
 
@@ -312,21 +296,15 @@ class GridUI(UI):
 
         # Copying is unnecessary
         self._original_tiles = self._tiles = np.rot90(self._original_tiles, direction)
-
         self._w_box.value, self._h_box.value = self._h_box.value, self._w_box.value
-        self._w_box.text_label.text, self._h_box.text_label.text = (
-            self._h_box.text_label.text, self._w_box.text_label.text
-        )
         self.w_ratio, self.h_ratio = self.h_ratio, self.w_ratio
 
         self._refresh_preview()
 
-    def upt(self, mouse: Mouse, keyboard: Keyboard) -> tuple[bool, bool, NDArray[uint8]]:
+    def upt(self) -> tuple[bool, bool, NDArray[uint8]]:
         """
         Allows selecting an area with 2 sliders and view its preview.
 
-        Args:
-            mouse, keyboard
         Returns:
             exiting flag, confirming flag, tiles
         """
@@ -334,17 +312,17 @@ class GridUI(UI):
         is_exiting: bool
         is_confirming: bool
 
-        if keyboard.timed != []:
-            self._move_with_keys(keyboard.timed)
-
         prev_w_slider_text: str = self._w_box.text_label.text
         prev_h_slider_text: str = self._h_box.text_label.text
 
-        self._upt_sliders(mouse, keyboard)
+        if KEYBOARD.timed != []:
+            self._move_with_keys()
 
-        is_ctrl_k_pressed: bool = keyboard.is_ctrl_on and K_k in keyboard.timed
-        was_checkbox_checked: bool = self.checkbox.upt(mouse, is_ctrl_k_pressed)
-        if was_checkbox_checked:
+        self._upt_sliders()
+
+        is_ctrl_k_pressed: bool = KEYBOARD.is_ctrl_on and K_k in KEYBOARD.timed
+        did_toggle_checkbox: bool = self.checkbox.upt(is_ctrl_k_pressed)
+        if did_toggle_checkbox and self.checkbox.is_checked:
             self.w_ratio = self._h_box.value / self._w_box.value
             self.h_ratio = self._w_box.value / self._h_box.value
 
@@ -355,29 +333,28 @@ class GridUI(UI):
                 self._adjust_opp_slider(did_grid_w_change)
             self._refresh_preview()
 
-        is_crop_clicked: bool = self._crop.upt(mouse)
-        is_ctrl_c_pressed: bool = keyboard.is_ctrl_on and K_c in keyboard.pressed
+        is_crop_clicked: bool = self._crop.upt()
+        is_ctrl_c_pressed: bool = KEYBOARD.is_ctrl_on and K_c in KEYBOARD.pressed
         if is_crop_clicked or is_ctrl_c_pressed:
             self._crop_tiles()
 
         is_ctrl_r_pressed: bool       = False
         is_ctrl_shift_r_pressed: bool = False
-        if keyboard.is_ctrl_on and K_r in keyboard.timed:
-            if keyboard.is_shift_on:
+        if KEYBOARD.is_ctrl_on and K_r in KEYBOARD.timed:
+            if KEYBOARD.is_shift_on:
                 is_ctrl_shift_r_pressed = True
             else:
                 is_ctrl_r_pressed       = True
 
-        is_rotate_left_clicked: bool = self._rotate_left.upt(mouse)
+        is_rotate_left_clicked: bool = self._rotate_left.upt()
         if is_rotate_left_clicked or is_ctrl_shift_r_pressed:
             self._rotate_tiles(-1)
 
-        is_rotate_right_clicked: bool = self._rotate_right.upt(mouse)
+        is_rotate_right_clicked: bool = self._rotate_right.upt()
         if is_rotate_right_clicked or is_ctrl_r_pressed:
             self._rotate_tiles(1)
 
         self._w_box.refresh()
         self._h_box.refresh()
-        is_exiting, is_confirming = self._base_upt(mouse, keyboard.released)
-
+        is_exiting, is_confirming = self._base_upt()
         return is_exiting, is_confirming, self._tiles

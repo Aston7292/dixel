@@ -9,7 +9,7 @@ from pygame import SRCALPHA
 
 from src.classes.clickable import _Clickable, Checkbox, Button
 from src.classes.text_label import TextLabel
-from src.classes.devices import Mouse
+from src.classes.devices import _Mouse
 
 from src.utils import RectPos, ObjInfo, resize_obj
 from src.type_utils import XY, WH, BlitInfo
@@ -17,9 +17,9 @@ from src.consts import BLACK, ELEMENT_LAYER
 
 from tests.utils import cmp_imgs
 
-_IMG_OFF: Final[pg.Surface] = pg.Surface((10, 11), SRCALPHA)
-_IMG_ON: Final[pg.Surface] = _IMG_OFF.copy()
-_IMG_ON.fill((0, 0, 1, 0))
+_OFF_IMG: Final[pg.Surface] = pg.Surface((10, 11), SRCALPHA)
+_ON_IMG: Final[pg.Surface] = _OFF_IMG.copy()
+_ON_IMG.fill((0, 0, 1, 0))
 
 
 class TestCheckbox(TestCase):
@@ -35,9 +35,8 @@ class TestCheckbox(TestCase):
 
         checkbox: Checkbox
 
-        checkbox = Checkbox(RectPos(1, 2, "center"), [_IMG_OFF, _IMG_ON], "hello", "world\n!", 1)
+        checkbox = Checkbox(RectPos(1, 2, "center"), [_OFF_IMG, _ON_IMG], "hello", "world\n!", 1)
         checkbox.resize(2, 3)
-
         return checkbox
 
     @mock.patch.object(TextLabel, "__init__", autospec=True, return_value=None)
@@ -47,14 +46,14 @@ class TestCheckbox(TestCase):
         # Also tests the Clickable abstract class
 
         pos: RectPos = RectPos(1, 2, "center")
-        checkbox: Checkbox = Checkbox(pos, [_IMG_OFF, _IMG_ON], "hello", "world\n!", 1)
+        checkbox: Checkbox = Checkbox(pos, [_OFF_IMG, _ON_IMG], "hello", "world\n!", 1)
         self.assertEqual(mock_text_label_init.call_count, 2)
 
         self.assertEqual(checkbox.init_pos, pos)
-        self.assertListEqual(checkbox.init_imgs, [_IMG_OFF, _IMG_ON])
+        self.assertListEqual(checkbox.init_imgs, [_OFF_IMG, _ON_IMG])
 
-        self.assertListEqual(checkbox.imgs, [_IMG_OFF, _IMG_ON])
-        self.assertEqual(checkbox.rect, _IMG_OFF.get_rect(center=(1, 2)))
+        self.assertListEqual(checkbox.imgs, [_OFF_IMG, _ON_IMG])
+        self.assertEqual(checkbox.rect, _OFF_IMG.get_rect(center=(1, 2)))
 
         self.assertEqual(checkbox.img_i, 0)
 
@@ -64,7 +63,8 @@ class TestCheckbox(TestCase):
 
         hovering_text_label_init_call: mock._Call = mock_text_label_init.call_args_list[0]
         expected_hovering_text_label_init_args: tuple[Any, ...] = (
-            checkbox.hovering_text_label, RectPos(0, 0, "topleft"), "world\n!", 2, 12, BLACK
+            checkbox.hovering_text_label, RectPos(0, 0, "topleft"),
+            "world\n!", 2, 12, BLACK
         )
         self.assertTupleEqual(
             hovering_text_label_init_call[0], expected_hovering_text_label_init_args
@@ -86,7 +86,7 @@ class TestCheckbox(TestCase):
 
         # Edge cases
 
-        no_hovering_text_checkbox: Checkbox = Checkbox(pos, [_IMG_OFF, _IMG_ON], "hello", None)
+        no_hovering_text_checkbox: Checkbox = Checkbox(pos, [_OFF_IMG, _ON_IMG], "hello", None)
         self.assertIsNone(no_hovering_text_checkbox.hovering_text_label)
 
     def test_blit_sequence(self) -> None:
@@ -158,11 +158,12 @@ class TestCheckbox(TestCase):
         expected_img: pg.Surface
 
         checkbox: Checkbox = Checkbox(
-            RectPos(1, 2, "center"), [_IMG_OFF, _IMG_ON], "hello", "world\n!", 1
+            RectPos(1, 2, "center"),
+            [_OFF_IMG, _ON_IMG], "hello", "world\n!", 1
         )
         checkbox.resize(2, 3)
 
-        init_w, init_h = _IMG_OFF.get_size()
+        init_w, init_h = _OFF_IMG.get_size()
 
         expected_xy, expected_wh = resize_obj(checkbox.init_pos, init_w, init_h, 2, 3)
         expected_imgs: list[pg.Surface] = [
@@ -198,8 +199,8 @@ class TestCheckbox(TestCase):
         """Tests the upt method."""
 
         checkbox: Checkbox = self._make_checkbox()
-        mouse_info: Mouse = Mouse(0, 0, [False] * 3, [True] * 3, 0)
-        blank_mouse_info: Mouse = Mouse(0, 0, [False] * 3, [False] * 3, 0)
+        mouse_info: _Mouse = _Mouse(0, 0, [False] * 3, [True] * 3, 0)
+        blank_mouse_info: _Mouse = _Mouse(0, 0, [False] * 3, [False] * 3, 0)
 
         # Don't hover and click
         self.assertFalse(checkbox.upt(None, mouse_info))
@@ -235,12 +236,11 @@ class TestButton(TestCase):
             button
         """
 
-        button: Button
+        btn: Button
 
-        button = Button(RectPos(1, 2, "center"), [_IMG_OFF, _IMG_ON], "hello", "world\n!", 1, 10)
-        button.resize(2, 3)
-
-        return button
+        btn = Button(RectPos(1, 2, "center"), [_OFF_IMG, _ON_IMG], "hello", "world\n!", 1, 10)
+        btn.resize(2, 3)
+        return btn
 
     @mock.patch.object(TextLabel, "__init__", autospec=True, return_value=None)
     @mock.patch.object(_Clickable, "__init__", autospec=True, wraps=_Clickable.__init__)
@@ -248,38 +248,39 @@ class TestButton(TestCase):
         """Tests the init method, mocks Clickable.__init__ and TextLabel.__init__."""
 
         pos: RectPos = RectPos(1, 2, "center")
-        imgs: list[pg.Surface] = [_IMG_OFF, _IMG_ON]
+        imgs: list[pg.Surface] = [_OFF_IMG, _ON_IMG]
 
-        button: Button = Button(pos, imgs, "hello", "world\n!", 1, 10)
-        mock_clickable_init.assert_called_once_with(button, pos, imgs, "world\n!", 1)
+        btn: Button = Button(pos, imgs, "hello", "world\n!", 1, 10)
+        mock_clickable_init.assert_called_once_with(btn, pos, imgs, "world\n!", 1)
         self.assertEqual(mock_text_label_init.call_count, 2)
 
         text_label: TextLabel = mock_text_label_init.call_args[0][0]
         mock_text_label_init.assert_called_with(
-            text_label, RectPos(button.rect.centerx, button.rect.centery, "center"), "hello", 1, 10
+            text_label, RectPos(btn.rect.centerx, btn.rect.centery, "center"),
+            "hello", 1, 10
         )
-        self.assertListEqual(button.objs_info, [ObjInfo(text_label)])
+        self.assertListEqual(btn.objs_info, [ObjInfo(text_label)])
 
-        no_text_button: Button = Button(pos, imgs, None, None)
-        self.assertListEqual(no_text_button.objs_info, [])
+        no_text_btn: Button = Button(pos, imgs, None, None)
+        self.assertListEqual(no_text_btn.objs_info, [])
 
     def test_upt(self) -> None:
         """Tests the upt method."""
 
-        button: Button = self._make_button()
-        mouse_info: Mouse = Mouse(0, 0, [False] * 3, [True] * 3, 0)
-        blank_mouse_info: Mouse = Mouse(0, 0, [False] * 3, [False] * 3, 0)
+        btn: Button = self._make_button()
+        mouse_info: _Mouse = _Mouse(0, 0, [False] * 3, [True] * 3, 0)
+        blank_mouse_info: _Mouse = _Mouse(0, 0, [False] * 3, [False] * 3, 0)
 
         # Don't hover and click
-        self.assertFalse(button.upt(None, mouse_info))
-        self.assertEqual(button.img_i, 0)
+        self.assertFalse(btn.upt(None, mouse_info))
+        self.assertEqual(btn.img_i, 0)
 
         # Hover and click
-        button._is_hovering = False
-        self.assertTrue(button.upt(button, mouse_info))
-        self.assertEqual(button.img_i, 1)
+        btn._is_hovering = False
+        self.assertTrue(btn.upt(btn, mouse_info))
+        self.assertEqual(btn.img_i, 1)
 
         # Don't hover and don't click
-        self.assertFalse(button.upt(None, blank_mouse_info))
+        self.assertFalse(btn.upt(None, blank_mouse_info))
         # Hover and don't click
-        self.assertFalse(button.upt(button, blank_mouse_info))
+        self.assertFalse(btn.upt(btn, blank_mouse_info))

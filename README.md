@@ -63,15 +63,24 @@ if the program crashes the image will always be saved.
 **CTRL W**: Close file\
 **SHIFT H**: Mirror tool horizontally\
 **SHIFT V**: Mirror tool vertically\
+**CTRL ,**: Open settings\
 **arrows/page down/page up/home/end**: move in scrollbars
 
 ### Checkbox grids
 
 **arrows/home/end**: Move\
 **CTRL arrows**: Move to the limit of the grid\
-**CTRL 1-5**: Change brush size\
+
+**CTRL B 1-5**: Change brush size\
+
+**CTRL C Number**: Change color\
 **CTRL E**: Edit selected color\
-**CTRL Del**: delete selected color
+**CTRL Del**: delete selected color\
+
+**CTRL P**: Select pencil tool\
+**CTRL B**: Select bucket tool\
+**CTRL E**: Select eyedropper tool\
+**ALT**: Temporarily select eyedropper tool
 
 ### Grid
 
@@ -85,21 +94,26 @@ if the program crashes the image will always be saved.
 **CTRL SHIFT +/-**: Zoom in/out until limit\
 **CTRL Z**: Undo\
 **CTRL SHIFT Z/CTRL Y**: Redo\
-**CTRL R**: Reset offset and visible area\
-**ALT**: Eye drop color
+**CTRL R**: Reset offset and visible area
 
 ### UIs
 
+**Escape**: Close\
+**Enter**: Confirm\
 **arrows/tab/SHIFT tab**: Move selection\
 **CTRL left/right**: Go to end of text in input box\
-**+/-**: Increment/decrement numerical slider\
-**CTRL +/-**: Reach limit in numerical slider\
+**+/-**: Increment/decrement numerical input box\
+**CTRL +/-**: Reach limit in numerical input box\
+
 **CTRL K**: Toggle keep ratio in grid UI\
 **CTRL C**: Crop in grid UI\
 **CTRL R**: Rotate right in grid UI\
-**CTRL SHIFT R**: Rotate left in Grid UI\
-**Escape**: Close\
-**Enter**: Confirm
+**CTRL SHIFT R**: Rotate left in Grid UI
+
+### Settings
+
+**CTRL F**: Show/hide fps counter in settings\
+**CTRL C 1-5**: Change fps cap
 
 ## Screenshots
 

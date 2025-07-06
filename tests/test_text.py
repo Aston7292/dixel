@@ -27,7 +27,6 @@ class TestTextLabel(TestCase):
 
         text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 20, WHITE)
         text_label.resize(2, 3)
-
         return text_label
 
     @mock.patch.object(TextLabel, "_refresh_rects", autospec=True)
@@ -92,7 +91,8 @@ class TestTextLabel(TestCase):
         text_label.resize(2, 3)
 
         expected_xy, (_expected_w, expected_h) = resize_obj(
-            text_label.init_pos, 0, text_label._init_h, 2, 3, True
+            text_label.init_pos, 0, text_label._init_h,
+            2, 3, True
         )
 
         expected_renderer: pg.Font = _RENDERERS_CACHE[expected_h]
@@ -214,7 +214,7 @@ class TestTextLabel(TestCase):
 
         rect_left, rect_right = text_label.rect.x, text_label.rect.right
         pos_2: int = rect_left + expected_renderer.render("he", True, WHITE, WHITE).get_width()
-        turning_x: int = pos_2 + expected_renderer.render("l", True, WHITE, WHITE).get_width() // 2
+        turning_x: int = pos_2 + (expected_renderer.render("l", True, WHITE, WHITE).get_width() // 2)
         first_line: str = text_label.text.split("\n")[0]
 
         self.assertEqual(text_label.get_closest_to(rect_left - 1), 0)

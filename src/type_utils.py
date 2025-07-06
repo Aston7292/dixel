@@ -1,6 +1,6 @@
 """Types shared between files."""
 
-from typing import TypeAlias, Any
+from typing import TypeAlias
 
 from pygame import Surface, Rect
 
@@ -10,6 +10,4 @@ RGBColor: TypeAlias = tuple[int, int, int]
 RGBAColor: TypeAlias = tuple[int, int, int, int]
 HexColor: TypeAlias = str
 
-CheckboxInfo: TypeAlias = tuple[Surface, str]
-ToolInfo: TypeAlias = tuple[str, dict[str, Any]]
 BlitInfo: TypeAlias = tuple[Surface, Rect, int]

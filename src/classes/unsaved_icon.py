@@ -1,19 +1,25 @@
 """Class to indicate an unsaved file."""
 
 import pygame as pg
+from pygame import SYSTEM_CURSOR_ARROW
 
-from src.utils import RectPos, resize_obj
+from src.utils import RectPos, ObjInfo, resize_obj
 from src.type_utils import XY, BlitInfo
-from src.consts import WHITE, ELEMENT_LAYER, TIME, ANIMATION_I_GROW, ANIMATION_I_SHRINK
+from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, TIME, ANIMATION_I_GROW, ANIMATION_I_SHRINK
 
 
 class UnsavedIcon:
     """Class to indicate an unsaved file."""
 
     __slots__ = (
-        "_init_radius", "_radius", "_min_radius", "_max_radius", "rect", "frame_rect", "_color",
-        "_animation_i", "_normal_radius", "blit_sequence", "_min_win_ratio"
+        "_init_radius", "_normal_radius", "_radius", "_min_radius", "_max_radius",
+        "rect", "frame_rect",
+        "_color", "_animation_i",
+        "hover_rects", "layer", "blit_sequence", "_min_win_ratio",
     )
+
+    cursor_type: int = SYSTEM_CURSOR_ARROW
+    objs_info: list[ObjInfo] = []
 
     def __init__(self) -> None:
         """Creates image and rect."""
@@ -25,8 +31,8 @@ class UnsavedIcon:
         self._max_radius: float = self._normal_radius * 1.5
 
         # Prevents cutoffs
-        dim: int = self._radius * 2 + 1
-        max_dim: int = round(self._max_radius * 2 + 1)
+        dim: int = (self._radius * 2) + 1
+        max_dim: int = round((self._max_radius * 2) + 1)
 
         img: pg.Surface = pg.Surface((dim, dim))
         self.rect: pg.Rect = pg.Rect(0, 0, max_dim, max_dim)
@@ -36,10 +42,18 @@ class UnsavedIcon:
         self._color: pg.Color = WHITE
         self._animation_i: int | None = None
 
+        self.hover_rects: list[pg.Rect] = []
+        self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = [(img, self.frame_rect, ELEMENT_LAYER)]
         self._min_win_ratio: float = 1
 
         self.set_radius(self._radius)
+
+    def enter(self) -> None:
+        """Initializes all the relevant data when the object state is entered."""
+
+    def leave(self) -> None:
+        """Clears the relevant data when the object state is leaved."""
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -49,21 +63,22 @@ class UnsavedIcon:
             window width ratio, window height ratio
         """
 
-        xy: XY
+        _xy: XY
 
         self._min_win_ratio = min(win_w_ratio, win_h_ratio)
 
         radius_ratio: float = self._radius / self._normal_radius
         min_radius_ratio: float = self._min_radius / self._normal_radius
         max_radius_ratio: float = self._max_radius / self._normal_radius
-        xy, (self._normal_radius, self._normal_radius) = resize_obj(
-            RectPos(0, 0, ""), self._init_radius, self._init_radius, win_w_ratio, win_h_ratio, True
+        _xy, (self._normal_radius, self._normal_radius) = resize_obj(
+            RectPos(0, 0, ""), self._init_radius, self._init_radius,
+            win_w_ratio, win_h_ratio, True
         )
 
         self._min_radius = self._normal_radius * min_radius_ratio
         self._max_radius = self._normal_radius * max_radius_ratio
 
-        max_dim: int = round(self._max_radius * 2 + 1)
+        max_dim: int = round((self._max_radius * 2) + 1)  # Prevent cutoffs
         self.rect.size = (max_dim, max_dim)
         self.set_radius(self._normal_radius * radius_ratio)
 
@@ -77,7 +92,7 @@ class UnsavedIcon:
 
         self._radius = radius
 
-        dim: int = round(self._radius * 2 + 1)  # Prevent cutoffs
+        dim: int = round((self._radius * 2) + 1)  # Prevent cutoffs
         img: pg.Surface = pg.Surface((dim, dim))
         self.frame_rect.size = (dim, dim)
         self.frame_rect.center = self.rect.center
@@ -85,7 +100,7 @@ class UnsavedIcon:
         center: tuple[float, float] = (self.frame_rect.w / 2, self.frame_rect.h / 2)
         pg.draw.aacircle(img, self._color, center, self._radius)
 
-        self.blit_sequence = [(img, self.frame_rect, ELEMENT_LAYER)] if dim != 0 else []
+        self.blit_sequence = [] if dim == 0 else [(img, self.frame_rect, ELEMENT_LAYER)]
 
     def set_animation(self, i: int, color: pg.Color, shrink_to_0: bool) -> None:
         """
@@ -108,14 +123,14 @@ class UnsavedIcon:
 
         # The animation is fast at the start and slow at the end
         if self._animation_i == ANIMATION_I_GROW:
-            progress = (self._max_radius - self._radius) / self._max_radius
+            progress = (self._max_radius - self._radius    ) / self._max_radius
             self._radius += (0.25 + progress) * TIME.delta
 
             if self._radius >= self._max_radius:
                 self._radius = self._max_radius
                 self._animation_i = ANIMATION_I_SHRINK
         elif self._animation_i == ANIMATION_I_SHRINK:
-            progress = (self._radius - self._min_radius) / self._max_radius
+            progress = (self._radius     - self._min_radius) / self._max_radius
             self._radius -= (0.25 + progress) * TIME.delta
 
             if self._radius <= self._min_radius:

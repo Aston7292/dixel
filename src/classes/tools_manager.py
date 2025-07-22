@@ -75,7 +75,7 @@ class ToolsManager:
         "tools_grid", "_tool_name", "_tools_extra_info",
         "saved_clicked_i",
         "hover_rects", "layer", "blit_sequence", "objs_info",
-        "_tools_objs_info_ranges",
+        "_sub_tools_ranges",
     )
 
     cursor_type: int = SYSTEM_CURSOR_ARROW
@@ -89,19 +89,17 @@ class ToolsManager:
         """
 
         tool_extra_info: _ToolExtraInfo
-        tool_objs_info_range_start_i: int
-        tool_objs_info_range_end_i: int
         i: int
-
-        tools_values_info: tuple[dict[str, Any], ...] = tuple(_TOOLS_INFO.values())
 
         self.tools_grid: CheckboxGrid = CheckboxGrid(
             pos,
-            [info["base_info"] for info in tools_values_info], 5, False, True
+            [info["base_info"] for info in _TOOLS_INFO.values()], 5, False, True
         )
         self._tool_name: str = tuple(_TOOLS_INFO.keys())[0]
 
-        tools_raw_extra_info: _ToolsExtraInfo = [info["extra_info"] for info in tools_values_info]
+        tools_raw_extra_info: _ToolsExtraInfo = [
+            info["extra_info"] for info in _TOOLS_INFO.values()
+        ]
         # Added keys: obj | removed keys: type, init_args
         self._tools_extra_info: list[_ToolExtraInfo] = [
             self._get_extra_info(raw_extra_info) for raw_extra_info in tools_raw_extra_info
@@ -114,7 +112,7 @@ class ToolsManager:
         self.blit_sequence: list[BlitInfo] = []
         self.objs_info: list[ObjInfo] = [ObjInfo(self.tools_grid)]
 
-        self._tools_objs_info_ranges: list[tuple[int, int]] = []
+        self._sub_tools_ranges: list[tuple[int, int]] = []
         for tool_extra_info in self._tools_extra_info:
             range_start: int = len(self.objs_info)
             self.objs_info.extend(
@@ -122,12 +120,13 @@ class ToolsManager:
             )
             range_end: int   = len(self.objs_info)
 
-            self._tools_objs_info_ranges.append((range_start, range_end))
+            self._sub_tools_ranges.append((range_start, range_end))
 
-        tool_i: int = self.tools_grid.clicked_i
-        tool_objs_info_range_start_i, tool_objs_info_range_end_i = self._tools_objs_info_ranges[tool_i]
-        for i in range(self._tools_objs_info_ranges[0][0], self._tools_objs_info_ranges[-1][1]):
-            if i < tool_objs_info_range_start_i or i >= tool_objs_info_range_end_i:
+        sub_tools_range_start_i: int = self._sub_tools_ranges[self.tools_grid.clicked_i][0]
+        sub_tools_range_end_i: int   = self._sub_tools_ranges[self.tools_grid.clicked_i][1]
+
+        for i in range(self._sub_tools_ranges[0][0], self._sub_tools_ranges[-1][1]):
+            if i < sub_tools_range_start_i or i >= sub_tools_range_end_i:
                 self.objs_info[i].rec_set_active(False)
 
     def enter(self) -> None:
@@ -163,21 +162,19 @@ class ToolsManager:
         raw_sub_tool_extra_info: dict[str, Any]
 
         obj_x: int = self.tools_grid.rect.x + 20
-        obj_y: int = self.tools_grid.rect.y - 20
         extra_info: _ToolExtraInfo = []
         for raw_sub_tool_extra_info in raw_extra_info:
             obj: Any = raw_sub_tool_extra_info["type"](
-                RectPos(obj_x, obj_y, "bottomleft"),
+                RectPos(obj_x, self.tools_grid.rect.y - 20, "bottomleft"),
                 *raw_sub_tool_extra_info["init_args"], base_layer=SPECIAL_LAYER
             )
+            obj_x += obj.rect.w + 20
 
             assert hasattr(obj, "rect") and isinstance(obj.rect, pg.Rect), obj.__class__.__name__
             assert hasattr(obj, "upt" ) and callable(  obj.upt          ), obj.__class__.__name__
 
             raw_sub_tool_extra_info["obj"] = obj
             del raw_sub_tool_extra_info["type"], raw_sub_tool_extra_info["init_args"]
-
-            obj_x += obj.rect.w + 20
             extra_info.append(raw_sub_tool_extra_info)
 
         return extra_info
@@ -190,23 +187,20 @@ class ToolsManager:
             index of the previous tool
         """
 
-        prev_active_range_start_i: int
-        prev_active_range_end_i: int
-        active_range_start_i: int
-        active_range_end_i: int
         obj_info: ObjInfo
 
         tool_i: int = self.tools_grid.clicked_i
         self._tool_name = tuple(_TOOLS_INFO.keys())[tool_i]
 
-        objs_info_ranges: list[tuple[int, int]] = self._tools_objs_info_ranges
-        prev_active_range_start_i, prev_active_range_end_i = objs_info_ranges[prev_tool_i]
-        active_range_start_i     , active_range_end_i      = objs_info_ranges[tool_i]
+        prev_sub_tools_range_start_i: int = self._sub_tools_ranges[prev_tool_i]              [0]
+        prev_sub_tools_range_end_i: int   = self._sub_tools_ranges[prev_tool_i]              [1]
+        sub_tools_range_start_i: int      = self._sub_tools_ranges[self.tools_grid.clicked_i][0]
+        sub_tools_range_end_i: int        = self._sub_tools_ranges[self.tools_grid.clicked_i][1]
 
-        for obj_info in self.objs_info[prev_active_range_start_i:prev_active_range_end_i]:
+        for obj_info in self.objs_info[prev_sub_tools_range_start_i:prev_sub_tools_range_end_i]:
             obj_info.rec_set_active(False)
-        for obj_info in self.objs_info[active_range_start_i     :active_range_end_i]:
-            obj_info.rec_set_active(True)
+        for obj_info in self.objs_info[     sub_tools_range_start_i:     sub_tools_range_end_i]:
+            obj_info.rec_set_active(True )
 
     def _handle_shortcuts(self) -> None:
         """Handles changing the selection with the keyboard."""
@@ -214,11 +208,9 @@ class ToolsManager:
         i: int
         info: dict[str, Any]
 
-        keys: list[int] = KEYBOARD.pressed
-        tools_grid: CheckboxGrid = self.tools_grid
         for i, info in enumerate(_TOOLS_INFO.values()):
-            if info["shortcut_k"] in keys:
-                tools_grid.clicked_i = i
+            if info["shortcut_k"] in KEYBOARD.pressed:
+                self.tools_grid.clicked_i = i
 
     def _upt_sub_objs(self, local_vars: dict[str, Any]) -> dict[str, Any]:
         """

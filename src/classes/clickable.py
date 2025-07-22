@@ -11,7 +11,8 @@ from src.classes.devices import MOUSE
 
 from src.utils import RectPos, ObjInfo, resize_obj, rec_move_rect
 from src.type_utils import XY, WH, BlitInfo
-from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TOP_LAYER, TIME
+import src.vars as VARS
+from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
 
 _INIT_CLICK_INTERVAL: Final[int] = 100
 
@@ -74,7 +75,7 @@ class _Clickable(ABC):
         )
         self.hovering_text_label.layer = base_layer + TOP_LAYER
         self.hovering_text_alpha: int = 0
-        self._last_mouse_move_time: int = TIME.ticks
+        self._last_mouse_move_time: int = VARS.ticks
 
         for img in self.hovering_text_label.imgs:
             img.set_alpha(self.hovering_text_alpha)
@@ -95,9 +96,9 @@ class _Clickable(ABC):
         img: pg.Surface
 
         sequence: list[BlitInfo] = [(self.imgs[self.img_i], self.rect, self.layer)]
-        if self._is_hovering and (TIME.ticks - self._last_mouse_move_time >= 750):
+        if self._is_hovering and (VARS.ticks - self._last_mouse_move_time >= 750):
             if self.hovering_text_alpha != 255:
-                self.hovering_text_alpha = round(self.hovering_text_alpha + (16 * TIME.delta))
+                self.hovering_text_alpha = round(self.hovering_text_alpha + (16 * VARS.dt))
                 self.hovering_text_alpha = min(self.hovering_text_alpha, 255)
                 for img in self.hovering_text_label.imgs:
                     img.set_alpha(self.hovering_text_alpha)
@@ -114,7 +115,7 @@ class _Clickable(ABC):
     def enter(self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
-        self._last_mouse_move_time = TIME.ticks
+        self._last_mouse_move_time = VARS.ticks
 
         self.hovering_text_label.enter()
 
@@ -221,7 +222,7 @@ class Checkbox(_Clickable):
 
         self._is_hovering = MOUSE.hovered_obj == self
         if MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y:
-            self._last_mouse_move_time = TIME.ticks
+            self._last_mouse_move_time = VARS.ticks
 
         did_toggle: bool = (MOUSE.released[MOUSE_LEFT] and self._is_hovering) or is_shortcutting
         if did_toggle:
@@ -269,7 +270,7 @@ class LockedCheckbox(_Clickable):
 
         self._is_hovering = MOUSE.hovered_obj == self
         if MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y:
-            self._last_mouse_move_time = TIME.ticks
+            self._last_mouse_move_time = VARS.ticks
         self.img_i = int(self._is_hovering or self.is_checked)
 
         return MOUSE.released[MOUSE_LEFT] and self._is_hovering
@@ -319,7 +320,7 @@ class Button(_Clickable):
 
         self._is_hovering = MOUSE.hovered_obj == self
         if MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y:
-            self._last_mouse_move_time = TIME.ticks
+            self._last_mouse_move_time = VARS.ticks
         self.img_i = int(self._is_hovering)
 
         return MOUSE.released[MOUSE_LEFT] and self._is_hovering
@@ -418,12 +419,12 @@ class SpammableButton(_Clickable):
         is_clicked: bool = False
         if self._is_first_click:
             self._click_interval = _INIT_CLICK_INTERVAL
-            self._last_click_time = TIME.ticks + 150  # Takes longer for second click
+            self._last_click_time = VARS.ticks + 150  # Takes longer for second click
             self._is_first_click = False
             is_clicked = True
-        elif TIME.ticks - self._last_click_time >= self._click_interval:
+        elif VARS.ticks - self._last_click_time >= self._click_interval:
             self._click_interval = max(self._click_interval - 10, 10)
-            self._last_click_time = TIME.ticks
+            self._last_click_time = VARS.ticks
             is_clicked = True
 
         return is_clicked
@@ -438,7 +439,7 @@ class SpammableButton(_Clickable):
 
         self._is_hovering = MOUSE.hovered_obj == self
         if MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y:
-            self._last_mouse_move_time = TIME.ticks
+            self._last_mouse_move_time = VARS.ticks
         self.img_i = int(self._is_hovering)
 
         is_clicked: bool = False

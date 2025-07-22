@@ -10,7 +10,7 @@ from typing import Final
 import pygame as pg
 from pygame.locals import *
 
-from src.classes.checkbox_grid import CheckboxGrid, CheckboxInfo, NUM_VISIBLE_CHECKBOX_GRID_ROWS
+from src.classes.checkbox_grid import CheckboxGrid, _CheckboxInfo, NUM_VISIBLE_CHECKBOX_GRID_ROWS
 from src.classes.clickable import LockedCheckbox, Button, SpammableButton
 from src.classes.devices import MOUSE, KEYBOARD
 
@@ -340,7 +340,7 @@ class PaletteManager:
 
         self.colors: list[HexColor] = [HEX_BLACK]
 
-        colors_grid_info: list[CheckboxInfo] = [_get_color_info(HEX_BLACK)]
+        colors_grid_info: list[_CheckboxInfo] = [_get_color_info(HEX_BLACK)]
         self.colors_grid: CheckboxGrid = CheckboxGrid(pos, colors_grid_info, 5, True, True)
 
         options_texts: tuple[tuple[str, str], ...] = (
@@ -418,11 +418,10 @@ class PaletteManager:
         if is_visible:
             start_x: int = checkbox.rect.x + self._dropdown_offset_x
             start_y: int = checkbox.rect.y + self._dropdown_offset_y
-            option_init_x: int = round(start_x / self._win_w_ratio)
             option_init_y: int = round(start_y / self._win_h_ratio)
             for option in self._dropdown_options:
                 rec_move_rect(
-                    option, option_init_x, option_init_y,
+                    option, round(start_x / self._win_w_ratio), option_init_y,
                     self._win_w_ratio, self._win_h_ratio
                 )
                 option_init_y += option.init_imgs[0].get_height()
@@ -437,24 +436,21 @@ class PaletteManager:
             colors, color index, grid y offset, drop-down index (can be None)
         """
 
-        checkbox_w: int
-        checkbox_h: int
-
         self.colors = colors
-        colors_grid_info: list[CheckboxInfo] = [_get_color_info(color) for color in self.colors]
+        colors_grid_info: list[_CheckboxInfo] = [_get_color_info(color) for color in self.colors]
         self.colors_grid.set_grid(colors_grid_info, color_i, offset_y)
 
         if dropdown_i is not None:
             self.dropdown_i = dropdown_i
-            checkbox_w, checkbox_h = self.colors_grid.checkboxes[0].rect.size
-            self._dropdown_offset_x = round(checkbox_w / 2)
-            self._dropdown_offset_y = round(checkbox_h / 2)
+            # Drop-down is in the center of the checkbox
+            self._dropdown_offset_x = round(self.colors_grid.checkboxes[0].rect.w / 2)
+            self._dropdown_offset_y = round(self.colors_grid.checkboxes[0].rect.h / 2)
             self.is_dropdown_on = True
             self._handle_dropdown_movement()
 
-        self._scrollbar.set_num_values(ceil(len(self.colors) / self.colors_grid.num_cols))
+        self._scrollbar.set_num_values(ceil(len(self.colors) / self.colors_grid._num_cols))
         self._scrollbar.set_value(self.colors_grid.offset_y)
-        self._scrollbar.set_clicked_value(self.colors_grid.clicked_i // self.colors_grid.num_cols)
+        self._scrollbar.set_clicked_value(self.colors_grid.clicked_i // self.colors_grid._num_cols)
 
     def add(self, rgb_color: RGBColor) -> bool:
         """
@@ -475,13 +471,13 @@ class PaletteManager:
             else:
                 self.colors.append(hex_color)
                 self.colors_grid.add(*_get_color_info(hex_color))
-                self._scrollbar.set_num_values(ceil(len(self.colors) / self.colors_grid.num_cols))
+                self._scrollbar.set_num_values(ceil(len(self.colors) / self.colors_grid._num_cols))
                 should_refresh_objs = True
         self.colors_grid.check(self.colors.index(hex_color))
 
         if self.is_dropdown_on:
             self._handle_dropdown_movement()
-        self._scrollbar.set_clicked_value(self.colors_grid.clicked_i // self.colors_grid.num_cols)
+        self._scrollbar.set_clicked_value(self.colors_grid.clicked_i // self.colors_grid._num_cols)
         self.is_editing_color = False
 
         return should_refresh_objs
@@ -496,7 +492,7 @@ class PaletteManager:
 
         obj_info: ObjInfo
 
-        visible_start_i: int = self.colors_grid.offset_y * self.colors_grid.num_cols
+        visible_start_i: int = self.colors_grid.offset_y * self.colors_grid._num_cols
         checkbox_i: int = visible_start_i + self.colors_grid.visible_checkboxes.index(checkbox)
         self.is_dropdown_on = not self.is_dropdown_on if self.dropdown_i == checkbox_i else True
         if not self.is_dropdown_on:
@@ -531,11 +527,9 @@ class PaletteManager:
         k: int
 
         num_shortcuts: int = min(len(self.colors_grid.checkboxes), 9)
-        keys: list[int] = KEYBOARD.pressed
-        colors_grid: CheckboxGrid = self.colors_grid
         for k in range(K_1, K_1 + num_shortcuts):
-            if k in keys:
-                colors_grid.clicked_i = k - K_1
+            if k in KEYBOARD.pressed:
+                self.colors_grid.clicked_i = k - K_1
 
     def _upt_dropdown(self) -> None:
         """Updates the drop-down menu options."""
@@ -550,7 +544,7 @@ class PaletteManager:
         if is_remove_clicked:
             self.colors.pop(self.dropdown_i)
             self.colors = self.colors or [HEX_BLACK]
-            fallback_info: CheckboxInfo = _get_color_info(HEX_BLACK)
+            fallback_info: _CheckboxInfo = _get_color_info(HEX_BLACK)
             self.colors_grid.remove(self.dropdown_i, *fallback_info)
             self.dropdown_i = min(self.dropdown_i, len(self.colors_grid.checkboxes) - 1)
             MOUSE.released[MOUSE_LEFT] = False  # Doesn't click objects below
@@ -565,7 +559,7 @@ class PaletteManager:
         if K_DELETE in KEYBOARD.timed:
             self.colors.pop(self.colors_grid.clicked_i)
             self.colors = self.colors or [HEX_BLACK]
-            fallback_info: CheckboxInfo = _get_color_info(HEX_BLACK)
+            fallback_info: _CheckboxInfo = _get_color_info(HEX_BLACK)
             self.colors_grid.remove(self.colors_grid.clicked_i, *fallback_info)
             if self.dropdown_i > self.colors_grid.clicked_i:
                 self.dropdown_i -= 1
@@ -579,13 +573,13 @@ class PaletteManager:
         """
 
         if len(self.colors) != prev_num_colors:
-            self._scrollbar.set_num_values(ceil(len(self.colors) / self.colors_grid.num_cols))
+            self._scrollbar.set_num_values(ceil(len(self.colors) / self.colors_grid._num_cols))
 
         if self.colors_grid.offset_y != self._scrollbar.value:
             self._scrollbar.set_value(self.colors_grid.offset_y)
 
         if self.colors_grid.clicked_i != prev_clicked_i:
-            clicked_row: int = self.colors_grid.clicked_i // self.colors_grid.num_cols
+            clicked_row: int = self.colors_grid.clicked_i // self.colors_grid._num_cols
             self._scrollbar.set_clicked_value(clicked_row)
 
     def upt(self) -> tuple[HexColor, bool, HexColor | None]:
@@ -598,7 +592,6 @@ class PaletteManager:
 
         color_to_edit: HexColor | None
 
-        # TODO: refactor this
         if MOUSE.released[MOUSE_RIGHT]:
             self._check_dropdown_toggle()
 
@@ -629,7 +622,6 @@ class PaletteManager:
             self._scrollbar.set_value(min(max(scrollbar_value, 0), scrollbar_max_limit))
 
         if self._scrollbar.value != prev_scrollbar_value:
-            # TODO: scroll twice
             self.colors_grid.set_offset_y(self._scrollbar.value)
 
         self.colors_grid.upt()

@@ -6,14 +6,16 @@ from dataclasses import dataclass
 from math import ceil
 from collections.abc import Callable
 from errno import *
-from typing import Protocol, Final, Any
+from typing import BinaryIO, Protocol, Final, Any
 
 import pygame as pg
 import numpy as np
 from numpy import uint8
 from numpy.typing import NDArray
 
+from src.lock_utils import FileException
 from src.type_utils import XY, WH, BlitInfo
+import src.vars as VARS
 from src.consts import (
     BLACK,
     EMPTY_TILE_ARR, TILE_W, TILE_H,
@@ -68,8 +70,11 @@ class UIElement(Protocol):
 
     hover_rects: list[pg.Rect]
     layer: int
-    blit_sequence: list[BlitInfo]
     cursor_type: int
+
+    @property
+    def blit_sequence(self) -> list[BlitInfo]:
+        """TODO"""
 
     def enter(self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -155,6 +160,7 @@ class ObjInfo:
             activate flag
         """
 
+        VARS.should_refresh_active_objs = True
         objs_info: list[ObjInfo] = [self]
         while objs_info != []:
             info: ObjInfo = objs_info.pop()
@@ -214,7 +220,9 @@ def get_brush_dim_checkbox_info(dim: int) -> tuple[pg.Surface, str]:
 
     img: pg.Surface = pg.surfarray.make_surface(img_arr)
     pg.draw.rect(img, BLACK, rect)
-    return pg.transform.scale_by(img, 4).convert(), f"{dim}px\n(CTRL+{dim})"
+    img = pg.transform.scale_by(img, 4).convert()
+    hovering_text: str = f"{dim}px\n(CTRL+{dim})"
+    return img, hovering_text
 
 
 def prettify_path_str(path_str: str) -> str:
@@ -258,6 +266,59 @@ def prettify_path_str(path_str: str) -> str:
     return path_str
 
 
+def try_read_file(f: BinaryIO) -> bytes:
+    """
+    Reads a file with retries.
+
+    Args:
+        file
+    Returns:
+        content
+    Raises:
+        FileException
+    """
+
+    content: bytes = b""
+    for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
+        try:
+            content = f.read()
+            break
+        except OSError as e:
+            if attempt_i != FILE_ATTEMPT_STOP_I:
+                pg.time.wait(2 ** attempt_i)
+                continue
+
+            raise FileException(str(e) + ".") from e
+
+    return content
+
+
+def try_write_file(f: BinaryIO, content: bytes) -> None:
+    """
+    Writes to a file with retries.
+
+    Args:
+        file, content
+    Raises:
+        FileException
+    """
+
+    for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
+        try:
+            f.truncate(0)
+            num_written_bytes: int = f.write(content)
+            if num_written_bytes == len(content):
+                break
+
+            raise FileException("Failed to write full file.")
+        except OSError as e:
+            if attempt_i != FILE_ATTEMPT_STOP_I:
+                pg.time.wait(2 ** attempt_i)
+                continue
+
+            raise FileException(str(e) + ".") from e
+
+
 def handle_file_os_error(e: OSError) -> tuple[str, bool]:
     """
     Handles an OSError from a file opening, deciding if a retry should occur or not.
@@ -277,7 +338,7 @@ def handle_file_os_error(e: OSError) -> tuple[str, bool]:
 
 def try_create_dir(dir_path: Path, should_ask_create: bool, creation_attempt_i: int) -> bool:
     """
-    Creates a directory.
+    Creates a directory with retries.
 
     Args:
         directory path, ask creation flag, attempt index
@@ -346,16 +407,15 @@ def resize_obj(
         position, size
     """
 
-    img_w_ratio: float
-    img_h_ratio: float
-
-    if should_keep_wh_ratio:
-        img_w_ratio = img_h_ratio = min(win_w_ratio, win_h_ratio)
-    else:
-        img_w_ratio, img_h_ratio = win_w_ratio, win_h_ratio
+    resized_wh: WH
 
     resized_xy: XY = (round(init_pos.x * win_w_ratio), round(init_pos.y * win_h_ratio))
-    resized_wh: WH = (ceil(init_w * img_w_ratio), ceil(init_h * img_h_ratio))
+    if should_keep_wh_ratio:
+        min_ratio: float = min(win_w_ratio, win_h_ratio)
+        resized_wh = (ceil(init_w * min_ratio  ), ceil(init_h * min_ratio  ))
+    else:
+        resized_wh = (ceil(init_w * win_w_ratio), ceil(init_h * win_h_ratio))
+
     return resized_xy, resized_wh
 
 

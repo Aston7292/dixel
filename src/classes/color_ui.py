@@ -10,12 +10,9 @@ from src.classes.ui import UI
 from src.classes.text_label import TextLabel
 from src.classes.devices import MOUSE, KEYBOARD
 
-from src.utils import Point, RectPos, ObjInfo, resize_obj
+from src.utils import UIElement, Point, RectPos, ObjInfo, resize_obj
 from src.type_utils import XY, RGBColor, HexColor, BlitInfo
 from src.consts import MOUSE_LEFT, BLACK, ELEMENT_LAYER, UI_LAYER
-
-_Selection: TypeAlias = "_ColorScrollbar | NumInputBox"
-_SelectionI: TypeAlias = Literal[None, 0, 1]
 
 _SLIDER_OFF_IMG: Final[pg.Surface] = pg.Surface((10, 32))
 _SLIDER_ON_IMG: Final[pg.Surface]  = _SLIDER_OFF_IMG.copy()
@@ -145,12 +142,11 @@ class _ColorScrollbar:
             self.input_box.set_value(color[self._channel_i])
 
         px_color: pg.Color = pg.Color(color)
-        channel_i: int = self._channel_i
         unscaled_bar_img: pg.Surface = pg.Surface((self._bar_init_w, 1))  # More accurate
 
         unscaled_bar_img.lock()
         for value in range(self._bar_init_w):
-            px_color[channel_i] = value
+            px_color[self._channel_i] = value
             unscaled_bar_img.set_at((value, 0), px_color)
         unscaled_bar_img.unlock()
 
@@ -187,22 +183,20 @@ class _ColorScrollbar:
         if K_END      in KEYBOARD.pressed:
             self.input_box.value = self.input_box.max_limit
 
-    def upt(self, selected_obj: _Selection) -> _SelectionI:
+    def upt(self, selected_obj: UIElement) -> UIElement:
         """
         Allows to choose a channel value either with a scrollbar or an input box.
 
         Args:
             selected object
         Returns:
-            clicked object index (None = nothing, 0 = scrollbar, 1 = input box)
+            selected object
         """
 
-        clicked_i: _SelectionI = None
         if not MOUSE.pressed[MOUSE_LEFT]:
             self._is_scrolling = False
         elif MOUSE.hovered_obj == self:
             self._is_scrolling = True
-            clicked_i = 0
             selected_obj = self
 
         if self._is_scrolling:
@@ -210,15 +204,12 @@ class _ColorScrollbar:
         if selected_obj == self and KEYBOARD.pressed != []:
             self._scroll_with_keys()
 
-        is_input_box_clicked: bool = self.input_box.upt(selected_obj)
-        if is_input_box_clicked:
-            clicked_i = 1
-            selected_obj = self.input_box
+        selected_obj = self.input_box.upt(selected_obj)
 
         slider_img: pg.Surface = self._slider_imgs[int(selected_obj == self)]
         self.blit_sequence[1] = (slider_img, self._slider_rect, self.layer)
 
-        return clicked_i
+        return selected_obj
 
 
 class ColorPicker(UI):
@@ -277,10 +268,10 @@ class ColorPicker(UI):
         ))
 
 
-    def leave(self) -> None:
-        """Clears the relevant data when the object state is leaved."""
+    def enter(self) -> None:
+        """Initializes all the relevant data when the object state is entered."""
 
-        super().leave()
+        super().enter()
         self._selection_i.x = self._selection_i.y = 0
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
@@ -341,7 +332,7 @@ class ColorPicker(UI):
             self._selection_i.y = min(self._selection_i.y + 1, len(self._objs) - 1)
 
         if self._selection_i.x == 1 and self._selection_i.y != prev_selection_i_y:
-            prev_input_box: NumInputBox = self._objs[prev_selection_i_y] [1]
+            prev_input_box: NumInputBox = self._objs[prev_selection_i_y ][1]
             input_box: NumInputBox      = self._objs[self._selection_i.y][1]
 
             cursor_i: int = input_box.text_label.get_closest_to(prev_input_box.cursor_rect.x)
@@ -353,18 +344,15 @@ class ColorPicker(UI):
         i: int
         channel: _ColorScrollbar
 
-        selected_obj: _Selection = self._objs[self._selection_i.y][self._selection_i.x]
+        selected_obj: UIElement = self._objs[self._selection_i.y][self._selection_i.x]
         for i, channel in enumerate((self._r_bar, self._g_bar, self._b_bar)):
-            channel_selection_i: _SelectionI = channel.upt(selected_obj)
-            did_change_selection: bool = (
-                self._selection_i.x != channel_selection_i or
-                self._selection_i.y != i
-            )
+            prev_selected_obj: UIElement = selected_obj
+            selected_obj = channel.upt(selected_obj)
 
-            if channel_selection_i is not None and did_change_selection:
-                selected_obj.leave()
-                self._selection_i.x, self._selection_i.y = channel_selection_i, i
-                selected_obj = self._objs[self._selection_i.y][self._selection_i.x]
+            if selected_obj != prev_selected_obj:
+                prev_selected_obj.leave()
+                self._selection_i.y = i
+                self._selection_i.x = self._objs[self._selection_i.y].index(selected_obj)
 
     def upt(self) -> tuple[bool, bool, RGBColor]:
         """

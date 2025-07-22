@@ -10,8 +10,8 @@ from src.classes.text_label import TextLabel
 from src.classes.devices import MOUSE
 
 from src.utils import RectPos, ObjInfo, rec_move_rect
-from src.type_utils import XY, BlitInfo
-from src.consts import MOUSE_LEFT, BG_LAYER, SPECIAL_LAYER
+from src.type_utils import BlitInfo
+from src.consts import MOUSE_LEFT, BG_LAYER
 from src.imgs import BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG
 
 class Dropdown:
@@ -47,7 +47,7 @@ class Dropdown:
             Button(
                 RectPos(self._init_x, self._init_y, pos.coord_type),
                 [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], option_text, option_hovering_text,
-                base_layer + SPECIAL_LAYER
+                base_layer
             )
             for option_text, option_hovering_text, _option_value in info
         ]
@@ -103,12 +103,16 @@ class Dropdown:
             option index
         """
 
-        i: int
+        obj_info: ObjInfo
 
         self.option_i = option_i
-        for i in range(self._options_objs_info_start_i, self._options_objs_info_end_i):
-            current_option_i: int = i - self._options_objs_info_start_i
-            self.objs_info[i].rec_set_active(current_option_i == self.option_i)
+
+        dropdown_objs_info: list[ObjInfo] = self.objs_info[
+            self._options_objs_info_start_i:self._options_objs_info_end_i
+        ]
+        selected_obj_info: ObjInfo = dropdown_objs_info[self.option_i]
+        for obj_info in dropdown_objs_info:
+            obj_info.rec_set_active(obj_info == selected_obj_info)
 
         option_obj_info_i: int = self._options_objs_info_start_i + self.option_i
         rec_move_rect(
@@ -125,7 +129,7 @@ class Dropdown:
         """
 
         option: Button
-        i: int
+        obj_info: ObjInfo
 
         self._is_fully_visible = is_fully_visible
 
@@ -147,10 +151,13 @@ class Dropdown:
                 self._win_ratio_w, self._win_ratio_h
             )
 
-        for i in range(len(self._options)):
-            if i != self.option_i:
-                option_objs_info_i: int = self._options_objs_info_start_i + i
-                self.objs_info[option_objs_info_i].rec_set_active(self._is_fully_visible)
+        dropdown_objs_info: list[ObjInfo] = self.objs_info[
+            self._options_objs_info_start_i:self._options_objs_info_end_i
+        ]
+        selected_obj_info: ObjInfo = dropdown_objs_info[self.option_i]
+        for obj_info in dropdown_objs_info:
+            if obj_info != selected_obj_info:
+                obj_info.rec_set_active(self._is_fully_visible)
 
     def _upt_all(self) -> None:
         """Updates all options, if one is clicked it selects it and hides all others."""

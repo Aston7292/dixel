@@ -12,10 +12,9 @@ from src.classes.text_label import TextLabel
 from src.classes.devices import KEYBOARD
 
 from src.utils import RectPos, ObjInfo, prettify_path_str
+from src.consts import SPECIAL_LAYER
 from src.imgs import BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG, CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG
 
-
-SETTINGS_EVENTS: list[int] = []
 FPS_TOGGLE: Final[int]            = 0
 CRASH_SAVE_DIR_CHANGE: Final[int] = 1
 
@@ -26,6 +25,7 @@ class SettingsUI(UI):
     __slots__ = (
         "show_fps", "fps_dropdown",
         "crash_save_dir_str", "_crash_save_dir", "crash_save_dir_text_label",
+        "events",
     )
 
     def __init__(self) -> None:
@@ -49,7 +49,7 @@ class SettingsUI(UI):
                 ("240" , "(CTRL+C+4)", 240),
                 ("None", "(CTRL+C+5)", 0  ),
             ],
-            "FPS Cap", self.layer
+            "FPS Cap", self.layer + SPECIAL_LAYER
         )
         self.fps_dropdown.set_option_i(2)  # Offset by 1 because of placeholder option
 
@@ -64,6 +64,8 @@ class SettingsUI(UI):
             prettify_path_str(self.crash_save_dir_str), self.layer
         )
 
+        self.events: list[int] = []
+
         self.objs_info.extend((
             ObjInfo(self.show_fps), ObjInfo(self.fps_dropdown),
             ObjInfo(self._crash_save_dir), ObjInfo(self.crash_save_dir_text_label),
@@ -75,9 +77,8 @@ class SettingsUI(UI):
         k: int
 
         num_shortcuts: int = min(len(self.fps_dropdown.values), 9)
-        keys: list[int] = KEYBOARD.pressed
         for k in range(K_1, K_1 + num_shortcuts):
-            if k in keys:
+            if k in KEYBOARD.pressed:
                 self.fps_dropdown.set_option_i(k - K_1 + 1)  # Offset by 1 because of placeholder option
 
     def upt(self) -> tuple[bool, bool, Any]:
@@ -94,7 +95,7 @@ class SettingsUI(UI):
         is_ctrl_f_pressed: bool = KEYBOARD.is_ctrl_on and K_f in KEYBOARD.timed
         did_toggle_show_fps: bool = self.show_fps.upt(is_ctrl_f_pressed)
         if did_toggle_show_fps:
-            SETTINGS_EVENTS.append(FPS_TOGGLE)
+            self.events.append(FPS_TOGGLE)
 
         if KEYBOARD.is_ctrl_on and K_c in KEYBOARD.pressed:
             self._handle_fps_dropdown_shortcuts()
@@ -102,7 +103,7 @@ class SettingsUI(UI):
 
         is_crash_save_dir_clicked: bool = self._crash_save_dir.upt()
         if is_crash_save_dir_clicked:
-            SETTINGS_EVENTS.append(CRASH_SAVE_DIR_CHANGE)
+            self.events.append(CRASH_SAVE_DIR_CHANGE)
 
         is_exiting, is_confirming = self._base_upt()
-        return is_exiting, is_confirming
+        return is_exiting, is_confirming, None

@@ -16,15 +16,13 @@ from src.classes.clickable import Checkbox, Button, SpammableButton
 from src.classes.text_label import TextLabel
 from src.classes.devices import KEYBOARD
 
-from src.utils import RectPos, Size, ObjInfo, resize_obj
+from src.utils import UIElement, RectPos, Size, ObjInfo, resize_obj
 from src.type_utils import XY
 from src.consts import EMPTY_TILE_ARR, TILE_H, TILE_W
 from src.imgs import (
     CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG, BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG,
     ROTATE_LEFT_OFF_IMG, ROTATE_LEFT_ON_IMG, ROTATE_RIGHT_OFF_IMG, ROTATE_RIGHT_ON_IMG,
 )
-
-_Selection: TypeAlias = NumInputBox
 
 _GRID_PREVIEW_DIM_CAP: Final[int] = 300
 
@@ -108,10 +106,10 @@ class GridUI(UI):
             ObjInfo(self._rotate_left), ObjInfo(self._rotate_right), ObjInfo(self._crop),
         ))
 
-    def leave(self) -> None:
-        """Clears the relevant data when the object state is leaved."""
+    def enter(self) -> None:
+        """Initializes all the relevant data when the object state is entered."""
 
-        super().leave()
+        super().enter()
         self._selection_i = 0
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
@@ -221,16 +219,16 @@ class GridUI(UI):
     def _upt_sliders(self) -> None:
         """Updates sliders and selection."""
 
-        obj: _Selection
+        obj: UIElement
 
-        selected_obj: _Selection = (self._w_box, self._h_box)[self._selection_i]
+        selected_obj: UIElement = (self._w_box, self._h_box)[self._selection_i]
         for i, obj in enumerate((self._w_box, self._h_box)):
-            is_clicked: bool = obj.upt(selected_obj)
+            prev_selected_obj: UIElement = selected_obj
+            selected_obj = obj.upt(selected_obj)
 
-            if is_clicked and self._selection_i != i:
-                selected_obj.leave()
+            if selected_obj != prev_selected_obj:
+                prev_selected_obj.leave()
                 self._selection_i = i
-                selected_obj = obj
 
     def _adjust_opp_slider(self, did_grid_w_change: bool) -> None:
         """

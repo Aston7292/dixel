@@ -6,10 +6,8 @@ import pygame as pg
 from pygame.locals import *
 
 from src.utils import UIElement
-from src.type_utils import XY
-from src.consts import BG_LAYER, TIME
+import src.vars as VARS
 
-UNICODE_LIMIT: Final[int] = 0x10ffff
 _NUMPAD_FIRST_K: Final[int] = K_KP_1
 _NUMPAD_LAST_K: Final[int]  = K_KP_PERIOD
 _NUMPAD_MAP: Final[list[int]] = [
@@ -69,19 +67,18 @@ class _Mouse:
             state active objects
         """
 
-        obj: UIElement
-        rect: pg.Rect
+        hovered_objs: list[UIElement] = [
+            obj
+            for obj in state_active_objs
+            for rect in obj.hover_rects
+            if rect.x <= self.x < (rect.x + rect.w) and rect.y <= self.y < (rect.y + rect.h)
+        ]
 
-        self.hovered_obj = None
-        xy: XY = (MOUSE.x, MOUSE.y)
-        max_layer: int = BG_LAYER
-        for obj in state_active_objs:
-            if obj.layer >= max_layer:
-                for rect in obj.hover_rects:
-                    if rect.collidepoint(xy):
-                        self.hovered_obj = obj
-                        max_layer = obj.layer
-                        break
+        if hovered_objs == []:
+            self.hovered_obj = None
+        else:
+            hovered_objs.sort(key=lambda obj: obj.layer)
+            self.hovered_obj = hovered_objs[-1]
 
     def refresh_type(self) -> None:
         """Refreshes the cursor type using the cursor_type attribute of the hovered object."""
@@ -124,12 +121,12 @@ class _Keyboard:
     def refresh_timed(self) -> None:
         """Fills the timed keys once every 150ms + acceleration and adds the alt_k if needed."""
 
-        if self.pressed == [] or (TIME.ticks - self._prev_timed_refresh < self._timed_interval):
+        if self.pressed == [] or (VARS.ticks - self._prev_timed_refresh < self._timed_interval):
             self.timed = []
         else:
             self.timed = self.pressed.copy()
             self._timed_interval = max(self._timed_interval - 8, 50)
-            self._prev_timed_refresh = TIME.ticks
+            self._prev_timed_refresh = VARS.ticks
 
         if self._alt_k != "" and not self.is_alt_on:
             self.timed.append(int(self._alt_k))
@@ -156,7 +153,7 @@ class _Keyboard:
 
         if self.is_alt_on and K_0 <= converted_k <= K_9:
             self._alt_k += chr(converted_k)
-            if int(self._alt_k) > UNICODE_LIMIT:
+            if int(self._alt_k) > 1_114_111:
                 self._alt_k = self._alt_k[-1]
 
             self._alt_k = self._alt_k.lstrip("0")
@@ -165,7 +162,6 @@ class _Keyboard:
             self.pressed = [
                 _NUMPAD_MAP[((k - _NUMPAD_FIRST_K) * 2) + numpad_offset]
                 if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else k
-
                 for k in self._raws
             ]
             self._alt_k = ""
@@ -195,7 +191,6 @@ class _Keyboard:
             self.pressed = [
                 _NUMPAD_MAP[((k - _NUMPAD_FIRST_K) * 2) + numpad_offset]
                 if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else k
-
                 for k in self._raws
             ]
 

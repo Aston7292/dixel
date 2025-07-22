@@ -120,8 +120,8 @@ class UI(ABC):
             exiting flag, confirming flag
         """
 
-        is_exit_pressed: bool    = self._exit.upt()
-        is_exiting: bool    = is_exit_pressed    or K_ESCAPE in KEYBOARD.released
+        is_exit_pressed: bool = self._exit.upt()
+        is_exiting: bool = is_exit_pressed or K_ESCAPE in KEYBOARD.released
 
         is_confirming: bool = False
         if self._confirm is not None:

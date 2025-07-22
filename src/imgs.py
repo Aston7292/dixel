@@ -2,11 +2,12 @@
 
 from tkinter import messagebox
 from pathlib import Path
+from io import BytesIO
 from typing import Final
 
 import pygame as pg
 
-from src.utils import add_border, handle_file_os_error
+from src.utils import add_border, try_read_file, handle_file_os_error
 from src.lock_utils import LockException, FileException, try_lock_file
 from src.type_utils import WH
 from src.consts import BLACK, WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I
@@ -20,7 +21,7 @@ pg.draw.rect(_MISSING_IMG, WHITE, _MISSING_IMG.get_rect(), 4)
 
 def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
     """
-    Loads an image.
+    Loads an image with retries.
 
     Args:
         file string, missing image size
@@ -38,7 +39,8 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
         try:
             with file_path.open("rb") as f:
                 try_lock_file(f, True)
-                img = pg.image.load(f, file_path.name)
+                img_bytes: BytesIO = BytesIO(try_read_file(f))
+                img = pg.image.load(img_bytes, file_path.suffix)
             break
         except FileNotFoundError:
             _ERRORS_LIST.append(f"{file_path.name}: File missing.")
@@ -66,7 +68,7 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
 
     if img is None:
         img = pg.transform.scale(_MISSING_IMG, missing_img_wh)
-    img.set_colorkey(BLACK)
+    img.set_colorkey((0, 0, 1))
     return img.convert()
 
 
@@ -87,18 +89,16 @@ X_MIRROR_ON_IMG: Final[pg.Surface] = add_border(X_MIRROR_OFF_IMG, WHITE)
 Y_MIRROR_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(X_MIRROR_OFF_IMG, -90)
 Y_MIRROR_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(X_MIRROR_ON_IMG, -90)
 
-ARROW_UP_OFF_IMG: Final[pg.Surface] = _try_get_img("arrow.png", (11, 6))
-ARROW_UP_ON_IMG: Final[pg.Surface] = pg.transform.hsl(ARROW_UP_OFF_IMG, lightness=-0.5).convert()
+ARROW_UP_OFF_IMG: Final[pg.Surface] = _try_get_img("arrow_off.png", (11, 6))
+ARROW_UP_ON_IMG: Final[pg.Surface]  = _try_get_img("arrow_on.png" , (11, 6))
 ARROW_DOWN_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_OFF_IMG, 180).convert()
 ARROW_DOWN_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(ARROW_UP_ON_IMG , 180).convert()
 
-CLOSE_OFF_IMG: Final[pg.Surface] = _try_get_img("close.png", (48, 48))
-CLOSE_ON_IMG: Final[pg.Surface] = pg.transform.hsl(CLOSE_OFF_IMG, lightness=-0.5).convert()
+CLOSE_OFF_IMG: Final[pg.Surface] = _try_get_img("close_off.png", (48, 48))
+CLOSE_ON_IMG: Final[pg.Surface]  = _try_get_img("close_on.png" , (48, 48))
 
-ROTATE_LEFT_OFF_IMG: Final[pg.Surface] = _try_get_img("rotate.png", (23, 34))
-ROTATE_LEFT_ON_IMG: Final[pg.Surface] = pg.transform.hsl(
-    ROTATE_LEFT_OFF_IMG, lightness=-0.5
-).convert()
+ROTATE_LEFT_OFF_IMG: Final[pg.Surface] = _try_get_img("rotate_off.png", (23, 34))
+ROTATE_LEFT_ON_IMG: Final[pg.Surface]  = _try_get_img("rotate_on.png" , (23, 34))
 ROTATE_RIGHT_OFF_IMG: Final[pg.Surface] = pg.transform.flip(
     ROTATE_LEFT_OFF_IMG, True, False
 ).convert()
@@ -110,8 +110,8 @@ PENCIL_IMG: Final[pg.Surface]      = _try_get_img("pencil.png"     , (64, 64))
 BUCKET_IMG: Final[pg.Surface]      = _try_get_img("bucket.png"     , (64, 64))
 EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper.png", (64, 64))
 
-SETTINGS_OFF_IMG: Final[pg.Surface] = _try_get_img("settings.png", (32, 32))
-SETTINGS_ON_IMG: Final[pg.Surface] = pg.transform.hsl(SETTINGS_OFF_IMG, lightness=-0.5).convert()
+SETTINGS_OFF_IMG: Final[pg.Surface] = _try_get_img("settings_off.png", (32, 32))
+SETTINGS_ON_IMG: Final[pg.Surface]  = _try_get_img("settings_on.png" , (32, 32))
 
 if _ERRORS_LIST != []:
     full_error_str: str = "\n".join(_ERRORS_LIST)

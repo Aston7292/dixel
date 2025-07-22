@@ -8,7 +8,7 @@ from typing import Final
 import pygame as pg
 from pygame import SYSTEM_CURSOR_ARROW
 
-from src.utils import RectPos, ObjInfo, resize_obj, handle_file_os_error
+from src.utils import RectPos, ObjInfo, resize_obj, try_read_file, handle_file_os_error
 from src.lock_utils import LockException, FileException, try_lock_file
 from src.type_utils import XY, WH, BlitInfo
 from src.consts import WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I, BG_LAYER, TEXT_LAYER
@@ -19,7 +19,7 @@ _is_first_font_load_error: bool = True
 
 def _try_add_renderer(h: int) -> None:
     """
-    Adds a render to the cache.
+    Adds a render to the cache with retries.
 
     Args:
         height
@@ -35,7 +35,7 @@ def _try_add_renderer(h: int) -> None:
         try:
             with font_path.open("rb") as f:
                 try_lock_file(f, True)
-                font_bytes: BytesIO = BytesIO(f.read())
+                font_bytes: BytesIO = BytesIO(try_read_file(f))
                 renderer = pg.font.Font(font_bytes, h)
             break
         except FileNotFoundError:
@@ -257,13 +257,13 @@ class TextLabel:
         i: int
         char: str
 
-        prev_x: int = self.rect.x
+        prev_right: int = self.rect.x
         renderer: pg.Font = self._renderer
         for i, char in enumerate(self.text):
-            current_x: int = prev_x + renderer.size(char)[0]
-            if x < current_x:
-                return i if abs(x - prev_x) < abs(x - current_x) else i + 1
+            current_right: int = prev_right + renderer.size(char)[0]
+            if x < current_right:
+                break
 
-            prev_x = current_x
+            prev_right = current_right
 
-        return len(self.text)
+        return i if abs(x - prev_right) < abs(x - current_right) else i + 1

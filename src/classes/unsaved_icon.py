@@ -5,7 +5,8 @@ from pygame import SYSTEM_CURSOR_ARROW
 
 from src.utils import RectPos, ObjInfo, resize_obj
 from src.type_utils import XY, BlitInfo
-from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, TIME, ANIMATION_I_GROW, ANIMATION_I_SHRINK
+import src.vars as VARS
+from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, ANIMATION_I_GROW, ANIMATION_I_SHRINK
 
 
 class UnsavedIcon:
@@ -124,14 +125,14 @@ class UnsavedIcon:
         # The animation is fast at the start and slow at the end
         if self._animation_i == ANIMATION_I_GROW:
             progress = (self._max_radius - self._radius    ) / self._max_radius
-            self._radius += (0.25 + progress) * TIME.delta
+            self._radius += (0.25 + progress) * VARS.dt
 
             if self._radius >= self._max_radius:
                 self._radius = self._max_radius
                 self._animation_i = ANIMATION_I_SHRINK
         elif self._animation_i == ANIMATION_I_SHRINK:
             progress = (self._radius     - self._min_radius) / self._max_radius
-            self._radius -= (0.25 + progress) * TIME.delta
+            self._radius -= (0.25 + progress) * VARS.dt
 
             if self._radius <= self._min_radius:
                 self._radius = self._min_radius

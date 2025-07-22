@@ -9,6 +9,7 @@ from pathlib import Path
 from zlib import compress, decompress
 from collections import deque
 from itertools import islice
+from io import BytesIO
 from typing import Literal, TypeAlias, Final, Any
 
 import pygame as pg
@@ -24,17 +25,17 @@ from src.classes.devices import MOUSE, KEYBOARD
 
 from src.utils import (
     UIElement, Point, RectPos, Size, ObjInfo,
-    get_pixels, handle_file_os_error, try_create_dir, resize_obj, rec_move_rect,
+    get_pixels, try_write_file, handle_file_os_error, try_create_dir, resize_obj, rec_move_rect,
 )
 from src.lock_utils import LockException, FileException, try_lock_file
-from src.type_utils import XY, WH, RGBColor, RGBAColor, HexColor, BlitInfo
+from src.type_utils import XY, WH, RGBColor, HexColor, BlitInfo
+import src.vars as VARS
 from src.consts import (
     MOUSE_LEFT, MOUSE_WHEEL, MOUSE_RIGHT,
     BLACK,
     EMPTY_TILE_ARR, TILE_H, TILE_W,
     FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I,
     BG_LAYER, TOP_LAYER,
-    TIME,
 )
 
 
@@ -87,7 +88,8 @@ def _inc_mouse_tile(
     rel_mouse_coord += step
     did_exit_visible_area: bool = rel_mouse_coord > visible_side - 1
     if did_exit_visible_area:
-        offset = min(offset + rel_mouse_coord - visible_side + 1, side - visible_side)
+        extra_offset: int = rel_mouse_coord - (visible_side - 1)
+        offset = min(offset + extra_offset, side - visible_side)
         rel_mouse_coord = visible_side - 1
 
     return rel_mouse_coord, offset
@@ -113,7 +115,7 @@ def _get_tiles_in_line(x_1: int, y_1: int, x_2: int, y_2: int) -> list[XY]:
     while True:
         tiles.append((x_1, y_1))
         if x_1 == x_2 and y_1 == y_2:
-            return tiles
+            break
 
         err_2: int = err * 2
         if err_2 > -delta_y:
@@ -122,6 +124,8 @@ def _get_tiles_in_line(x_1: int, y_1: int, x_2: int, y_2: int) -> list[XY]:
         if err_2 <  delta_x:
             err += delta_x
             y_1 += step_y
+
+    return tiles
 
 
 class Grid:
@@ -146,9 +150,6 @@ class Grid:
             grid position, minimap position
         """
 
-        self.history: deque[tuple[int, int, bytes]]
-        self._unscaled_minimap_img: pg.Surface
-
         # Tiles dimensions are floats to represent the full size more accurately when resizing
 
         self._grid_init_pos: RectPos = grid_pos
@@ -165,7 +166,9 @@ class Grid:
         self.tiles: NDArray[uint8] = np.zeros((self.area.w, self.area.h, 4), uint8)
         self.brush_dim: int = 1
         compressed_tiles: bytes = compress(self.tiles.tobytes())
-        self.history = deque([(self.area.w, self.area.h, compressed_tiles)], 512)
+        self.history: deque[tuple[int, int, bytes]] = deque(
+            [(self.area.w, self.area.h, compressed_tiles)], 512
+        )
         self.history_i: int = 0
 
         self._minimap_init_pos: RectPos = minimap_pos
@@ -176,7 +179,8 @@ class Grid:
         setattr(self.minimap_rect, self._minimap_init_pos.coord_type, minimap_init_xy)
 
         # Better for scaling
-        self._unscaled_minimap_img = pg.Surface((self.tiles.shape[0], self.tiles.shape[1]))
+        unscaled_wh: WH = (self.tiles.shape[0], self.tiles.shape[1])
+        self._unscaled_minimap_img: pg.Surface = pg.Surface(unscaled_wh)
         self.offset: Point = Point(0, 0)
         self.selected_tiles: NDArray[bool_] = np.zeros((self.area.w, self.area.h), bool_)
 
@@ -414,6 +418,7 @@ class Grid:
         self._refresh_minimap_rect()
         self.refresh_minimap_img()
 
+    # TODO: reset history on image load
     def set_tiles(self, img: pg.Surface | None) -> None:
         """
         Sets the grid tiles using an image pixels.
@@ -601,10 +606,10 @@ class Grid:
             mouse_col: int = int((MOUSE.x - self.grid_rect.x) / self.grid_tile_dim)
             mouse_row: int = int((MOUSE.y - self.grid_rect.y) / self.grid_tile_dim)
 
-            uncapped_offset_x: int = self.offset.x + prev_mouse_col - mouse_col
-            self.offset.x = min(max(uncapped_offset_x, 0), self.area.w - self.visible_area.w)
-            uncapped_offset_y: int = self.offset.y + prev_mouse_row - mouse_row
-            self.offset.y = min(max(uncapped_offset_y, 0), self.area.h - self.visible_area.h)
+            self.offset.x += prev_mouse_col - mouse_col
+            self.offset.x = min(max(self.offset.x, 0), self.area.w - self.visible_area.w)
+            self.offset.y += prev_mouse_row - mouse_row
+            self.offset.y = min(max(self.offset.y, 0), self.area.h - self.visible_area.h)
 
     def add_to_history(self) -> None:
         """Adds the current info to the history if different from the last snapshot."""
@@ -617,17 +622,17 @@ class Grid:
             self.history.append(snapshot)
             self.history_i += 1
 
-    def upt_section(self, is_coloring: bool, hex_color: str) -> bool:
+    def upt_section(self, is_coloring: bool, hex_color: HexColor) -> bool:
         """
         Updates the changed tiles and refreshes the small minimap.
 
         Args:
-            coloring flag, hex color
+            coloring flag, hexadecimal color
         Returns:
             drawed flag
         """
 
-        rgba_color: RGBAColor
+        rgba_color: tuple[int, int, int, int]
         selected_tiles_xs: NDArray[intp]
         selected_tiles_ys: NDArray[intp]
         target_xs: NDArray[intp]
@@ -666,7 +671,7 @@ class Grid:
 
     def try_save_to_file(self, file_str: str, should_ask_create_dir: bool) -> pg.Surface | None:
         """
-        Saves the image to a file.
+        Saves the image to a file with retries.
 
         Args:
             file string, ask dir creation flag
@@ -686,6 +691,11 @@ class Grid:
 
         file_path: Path = Path(file_str)
         did_succeed: bool = False
+
+        dummy_file: BytesIO = BytesIO()
+        pg.image.save(img, dummy_file, file_path.name)
+        img_bytes: bytes = dummy_file.getvalue()
+
         dir_creation_attempt_i: int = FILE_ATTEMPT_START_I
         system_attempt_i: int       = FILE_ATTEMPT_START_I
         while (
@@ -696,8 +706,7 @@ class Grid:
                 # If you open in write mode it will empty the file even if it's locked
                 with file_path.open("ab") as f:
                     try_lock_file(f, False)
-                    f.truncate(0)
-                    pg.image.save(img, f, file_path.name)
+                    try_write_file(f, img_bytes)
                 did_succeed = True
                 break
             except FileNotFoundError:
@@ -715,9 +724,6 @@ class Grid:
                 break
             except FileException as e:
                 messagebox.showerror("Image Save Failed", f"{file_path.name}\n{e.error_str}")
-                break
-            except pg.error as e:
-                messagebox.showerror("Image Save Failed", f"{file_path.name}\n{e}")
                 break
             except OSError as e:
                 system_attempt_i += 1
@@ -788,7 +794,7 @@ class GridManager:
         self._hovering_text_label.layer = TOP_LAYER
         self._hovering_text_label_obj_info: ObjInfo = ObjInfo(self._hovering_text_label)
         self._hovering_text_alpha: int = 0
-        self._last_mouse_move_time: int = TIME.ticks
+        self._last_mouse_move_time: int = VARS.ticks
 
         for img in self._hovering_text_label.imgs:
             img.set_alpha(self._hovering_text_alpha)
@@ -802,7 +808,7 @@ class GridManager:
     def enter(self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
-        self._last_mouse_move_time = TIME.ticks
+        self._last_mouse_move_time = VARS.ticks
 
     def leave(self) -> None:
         """Clears the relevant data when the object state is leaved."""
@@ -853,17 +859,15 @@ class GridManager:
             tiles_traveled = int(self._traveled_x / self.grid.grid_tile_dim)
             self._traveled_x -= tiles_traveled * self.grid.grid_tile_dim
 
-            uncapped_offset_x: int = self.grid.offset.x + int(tiles_traveled)
             max_offset_x: int = self.grid.area.w - self.grid.visible_area.w
-            self.grid.offset.x = min(max(uncapped_offset_x, 0), max_offset_x)
+            self.grid.offset.x = min(max(self.grid.offset.x + tiles_traveled, 0), max_offset_x)
 
         if abs(self._traveled_y) >= self.grid.grid_tile_dim:
             tiles_traveled = int(self._traveled_y / self.grid.grid_tile_dim)
             self._traveled_y -= tiles_traveled * self.grid.grid_tile_dim
 
-            uncapped_offset_y: int = self.grid.offset.y + tiles_traveled
             max_offset_y: int = self.grid.area.h - self.grid.visible_area.h
-            self.grid.offset.y = min(max(uncapped_offset_y, 0), max_offset_y)
+            self.grid.offset.y = min(max(self.grid.offset.y + tiles_traveled, 0), max_offset_y)
 
     def _move_history_i(self) -> bool:
         """
@@ -872,10 +876,6 @@ class GridManager:
         Returns:
             changed flag
         """
-
-        grid_w: int
-        grid_h: int
-        compressed_tiles: bytes
 
         prev_history_i: int = self.grid.history_i
 
@@ -887,10 +887,11 @@ class GridManager:
             self.grid.history_i = min(self.grid.history_i + 1                , max_history_i)
 
         if self.grid.history_i != prev_history_i:
-            grid_w, grid_h, compressed_tiles = self.grid.history[self.grid.history_i]
+            grid_w: int             = self.grid.history[self.grid.history_i][0]
+            grid_h: int             = self.grid.history[self.grid.history_i][1]
+            compressed_tiles: bytes = self.grid.history[self.grid.history_i][2]
             # copy makes it writable
             tiles_1d: NDArray[uint8] = np.frombuffer(decompress(compressed_tiles), uint8).copy()
-
             self.grid.set_info(
                 tiles_1d.reshape((grid_w, grid_h, 4)),
                 self.grid.visible_area.w, self.grid.visible_area.h,
@@ -1072,18 +1073,17 @@ class GridManager:
             drawed flag, selected tiles changed flag
         """
 
-        tool_name: str
-        extra_tool_info: dict[str, Any]
         did_draw: bool
 
         self._handle_tile_info()
 
         prev_selected_tiles_bytes: bytes = np.packbits(self.grid.selected_tiles).tobytes()
         self.grid.selected_tiles.fill(False)
-
         self._is_coloring = MOUSE.pressed[MOUSE_LEFT]  or K_RETURN    in KEYBOARD.pressed
         self._is_erasing  = MOUSE.pressed[MOUSE_RIGHT] or K_BACKSPACE in KEYBOARD.pressed
-        tool_name, extra_tool_info = tool_info
+
+        tool_name: str                  = tool_info[0]
+        extra_tool_info: dict[str, Any] = tool_info[1]
         if   tool_name == "pencil":
             self._pencil()
         elif tool_name == "bucket":
@@ -1105,11 +1105,11 @@ class GridManager:
 
         img: pg.Surface
 
-        if self._is_hovering and (TIME.ticks - self._last_mouse_move_time >= 750):
+        if self._is_hovering and (VARS.ticks - self._last_mouse_move_time >= 750):
             if self._hovering_text_alpha == 0:
                 self._hovering_text_label_obj_info.rec_set_active(True)
             if self._hovering_text_alpha != 255:
-                self._hovering_text_alpha = round(self._hovering_text_alpha + (16 * TIME.delta))
+                self._hovering_text_alpha = round(self._hovering_text_alpha + (16 * VARS.dt))
                 self._hovering_text_alpha = min(self._hovering_text_alpha, 255)
                 for img in self._hovering_text_label.imgs:
                     img.set_alpha(self._hovering_text_alpha)
@@ -1178,7 +1178,7 @@ class GridManager:
             self._can_add_to_history = False
 
         if MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y:
-            self._last_mouse_move_time = TIME.ticks
+            self._last_mouse_move_time = VARS.ticks
         self._upt_hovering_text_label()
 
         did_visible_area_change: bool = (

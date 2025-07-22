@@ -11,13 +11,6 @@ from numpy.typing import NDArray
 from src.type_utils import RGBColor, HexColor
 
 
-@dataclass(slots=True)
-class _Time:
-    """Dataclass for sharing ticks and delta time."""
-
-    ticks: int = 0
-    delta: float = 0
-
 MOUSE_LEFT: Final[int]  = 0
 MOUSE_WHEEL: Final[int] = 1
 MOUSE_RIGHT: Final[int] = 2
@@ -53,6 +46,5 @@ TOP_LAYER: Final[int]     = 3
 SPECIAL_LAYER: Final[int] = 4  # Base for the special layers
 UI_LAYER: Final[int]      = SPECIAL_LAYER * 2  # Base for the UI layers
 
-TIME: Final[_Time] = _Time()
 ANIMATION_I_GROW: Final[int]   = 0
 ANIMATION_I_SHRINK: Final[int] = 1

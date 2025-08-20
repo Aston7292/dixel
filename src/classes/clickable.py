@@ -12,9 +12,9 @@ from src.classes.devices import MOUSE
 from src.utils import RectPos, ObjInfo, resize_obj, rec_move_rect
 from src.type_utils import XY, WH, BlitInfo
 import src.vars as VARS
-from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TOP_LAYER
+from src.consts import MOUSE_LEFT, BLACK, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 
-_INIT_CLICK_INTERVAL: Final[int] = 100
+_INIT_CLICK_INTERVAL: Final[int] = 128
 
 
 class _Clickable(ABC):
@@ -71,9 +71,8 @@ class _Clickable(ABC):
         # Better if it's not in objs_info, activating a drop-down menu will activate it too
         self.hovering_text_label: TextLabel = TextLabel(
             RectPos(MOUSE.x, MOUSE.y, "topleft"),
-            hovering_text, BG_LAYER, 12, BLACK
+            hovering_text, base_layer + TOP_LAYER - TEXT_LAYER, 12, BLACK
         )
-        self.hovering_text_label.layer = base_layer + TOP_LAYER
         self.hovering_text_alpha: int = 0
         self._last_mouse_move_time: int = VARS.ticks
 
@@ -204,7 +203,7 @@ class Checkbox(_Clickable):
 
         if text is not None:
             text_label: TextLabel = TextLabel(
-                RectPos(self.rect.centerx, self.rect.y - 5, "midbottom"),
+                RectPos(self.rect.centerx, self.rect.y - 4, "midbottom"),
                 text, base_layer, 16
             )
 
@@ -284,25 +283,28 @@ class Button(_Clickable):
     )
 
     def __init__(
-            self, pos: RectPos, imgs: list[pg.Surface], text: str, hovering_text: str,
+            self, pos: RectPos, imgs: list[pg.Surface], text: str | None, hovering_text: str,
             base_layer: int = BG_LAYER, text_h: int = 25
     ) -> None:
         """
         Creates the button and text.
 
         Args:
-            position, two images, text, hovering text,
+            position, two images, text (can be None), hovering text,
             base layer (default = BG_LAYER), text height (default = 25)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
 
-        self.text_label: TextLabel = TextLabel(
-            RectPos(self.rect.centerx, self.rect.centery, "center"),
-            text, base_layer, text_h
-        )
+        self.text_label: TextLabel | None
 
-        self.objs_info.append(ObjInfo(self.text_label))
+        if text is not None:
+            self.text_label = TextLabel(
+                RectPos(self.rect.centerx, self.rect.centery, "center"),
+                text, base_layer, text_h
+            )
+
+            self.objs_info.append(ObjInfo(self.text_label))
 
     def leave(self) -> None:
         """Clears the relevant data when the object state is leaved."""
@@ -390,6 +392,7 @@ class SpammableButton(_Clickable):
 
         prev_x: int = self.rect.x
         prev_y: int = self.rect.y
+
         super().move_rect(init_x, init_y, win_w_ratio, win_h_ratio)
 
         self._hover_rect.x += self.rect.x - prev_x
@@ -419,11 +422,11 @@ class SpammableButton(_Clickable):
         is_clicked: bool = False
         if self._is_first_click:
             self._click_interval = _INIT_CLICK_INTERVAL
-            self._last_click_time = VARS.ticks + 150  # Takes longer for second click
+            self._last_click_time = VARS.ticks + 128  # Takes longer for second click
             self._is_first_click = False
             is_clicked = True
         elif VARS.ticks - self._last_click_time >= self._click_interval:
-            self._click_interval = max(self._click_interval - 10, 10)
+            self._click_interval = max(self._click_interval - 10, 16)
             self._last_click_time = VARS.ticks
             is_clicked = True
 

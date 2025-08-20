@@ -1,6 +1,6 @@
 """Interface to choose a color, scrollbars and preview are refreshed automatically."""
 
-from typing import Literal, TypeAlias, Final
+from typing import Literal, Final
 
 import pygame as pg
 from pygame.locals import *
@@ -10,7 +10,7 @@ from src.classes.ui import UI
 from src.classes.text_label import TextLabel
 from src.classes.devices import MOUSE, KEYBOARD
 
-from src.utils import UIElement, Point, RectPos, ObjInfo, resize_obj
+from src.utils import UIElement, RectPos, ObjInfo, resize_obj
 from src.type_utils import XY, RGBColor, HexColor, BlitInfo
 from src.consts import MOUSE_LEFT, BLACK, ELEMENT_LAYER, UI_LAYER
 
@@ -18,6 +18,8 @@ _SLIDER_OFF_IMG: Final[pg.Surface] = pg.Surface((10, 32))
 _SLIDER_ON_IMG: Final[pg.Surface]  = _SLIDER_OFF_IMG.copy()
 _SLIDER_OFF_IMG.fill((25, 25, 25))
 _SLIDER_ON_IMG. fill(BLACK)
+
+INPUT_BOXES_COL: Final[Literal[1]] = 1
 
 
 class _ColorScrollbar:
@@ -65,7 +67,7 @@ class _ColorScrollbar:
         self._channel_i: Literal[0, 1, 2] = channel_i
 
         channel_text_label: TextLabel = TextLabel(
-            RectPos(self.bar_rect.x - 5, self.bar_rect.centery, "midright"),
+            RectPos(self.bar_rect.x - 4, self.bar_rect.centery, "midright"),
             ("R", "G", "B")[self._channel_i], base_layer
         )
         self.input_box: NumInputBox = NumInputBox(
@@ -183,6 +185,17 @@ class _ColorScrollbar:
         if K_END      in KEYBOARD.pressed:
             self.input_box.value = self.input_box.max_limit
 
+        if K_MINUS in KEYBOARD.timed:
+            self.input_box.value = (
+                self.input_box.min_limit if KEYBOARD.is_ctrl_on else
+                max(self.input_box.value - 1, self.input_box.min_limit)
+            )
+        if K_PLUS in KEYBOARD.timed:
+            self.input_box.value = (
+                self.input_box.max_limit if KEYBOARD.is_ctrl_on else
+                min(self.input_box.value + 1, self.input_box.max_limit)
+            )
+
     def upt(self, selected_obj: UIElement) -> UIElement:
         """
         Allows to choose a channel value either with a scrollbar or an input box.
@@ -218,7 +231,7 @@ class ColorPicker(UI):
     __slots__ = (
         "_preview_init_pos", "_preview_img", "_preview_rect", "_preview_init_w", "_preview_init_h",
         "_hex_text_label",
-        "_b_bar", "_g_bar", "_r_bar", "_objs", "_selection_i",
+        "_b_bar", "_g_bar", "_r_bar", "_objs", "_selection_x", "_selection_y",
     )
 
     def __init__(self) -> None:
@@ -237,8 +250,8 @@ class ColorPicker(UI):
         self._preview_init_h: int = self._preview_rect.h
 
         self._hex_text_label: TextLabel = TextLabel(
-            RectPos(self._preview_rect.centerx, self._preview_rect.y - 25, "midbottom"),
-            "#000000", self.layer
+            RectPos(self._preview_rect.centerx, self._preview_rect.y - 32, "midbottom"),
+            "", self.layer
         )
 
         self._b_bar: _ColorScrollbar = _ColorScrollbar(
@@ -259,7 +272,8 @@ class ColorPicker(UI):
             (self._g_bar, self._g_bar.input_box),
             (self._b_bar, self._b_bar.input_box),
         )
-        self._selection_i: Point = Point(0, 0)
+        self._selection_x: int = 0
+        self._selection_y: int = 0
 
         self.blit_sequence.append((self._preview_img, self._preview_rect, self.layer))
         self.objs_info.extend((
@@ -272,7 +286,7 @@ class ColorPicker(UI):
         """Initializes all the relevant data when the object state is entered."""
 
         super().enter()
-        self._selection_i.x = self._selection_i.y = 0
+        self._selection_x = self._selection_y = 0
 
     def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -320,23 +334,21 @@ class ColorPicker(UI):
 
         if K_TAB in KEYBOARD.timed:
             if KEYBOARD.is_shift_on:
-                self._selection_i.x = max(self._selection_i.x - 1, 0)
+                self._selection_x = max(self._selection_x - 1, 0)
             else:
                 last_col_i: int = len(self._objs[0]) - 1
-                self._selection_i.x = min(self._selection_i.x + 1, last_col_i)
+                self._selection_x = min(self._selection_x + 1, last_col_i)
 
-        prev_selection_i_y: int = self._selection_i.y
+        prev_selection_i_y: int = self._selection_y
         if K_UP   in KEYBOARD.timed:
-            self._selection_i.y = max(self._selection_i.y - 1, 0)
+            self._selection_y = max(self._selection_y - 1, 0)
         if K_DOWN in KEYBOARD.timed:
-            self._selection_i.y = min(self._selection_i.y + 1, len(self._objs) - 1)
+            self._selection_y = min(self._selection_y + 1, len(self._objs) - 1)
 
-        if self._selection_i.x == 1 and self._selection_i.y != prev_selection_i_y:
-            prev_input_box: NumInputBox = self._objs[prev_selection_i_y ][1]
-            input_box: NumInputBox      = self._objs[self._selection_i.y][1]
-
-            cursor_i: int = input_box.text_label.get_closest_to(prev_input_box.cursor_rect.x)
-            input_box.set_cursor_i(cursor_i)
+        if self._selection_x == INPUT_BOXES_COL and self._selection_y != prev_selection_i_y:
+            prev_input_box: NumInputBox = self._objs[prev_selection_i_y][INPUT_BOXES_COL]
+            input_box: NumInputBox      = self._objs[self._selection_y ][INPUT_BOXES_COL]
+            input_box.cursor_i = input_box.text_label.get_closest_to(prev_input_box.cursor_rect.x)
 
     def _upt_scrollbars(self) -> None:
         """Updates scrollbars and selection."""
@@ -344,15 +356,15 @@ class ColorPicker(UI):
         i: int
         channel: _ColorScrollbar
 
-        selected_obj: UIElement = self._objs[self._selection_i.y][self._selection_i.x]
+        selected_obj: UIElement = self._objs[self._selection_y][self._selection_x]
         for i, channel in enumerate((self._r_bar, self._g_bar, self._b_bar)):
             prev_selected_obj: UIElement = selected_obj
             selected_obj = channel.upt(selected_obj)
 
             if selected_obj != prev_selected_obj:
                 prev_selected_obj.leave()
-                self._selection_i.y = i
-                self._selection_i.x = self._objs[self._selection_i.y].index(selected_obj)
+                self._selection_y = i
+                self._selection_x = self._objs[self._selection_y].index(selected_obj)
 
     def upt(self) -> tuple[bool, bool, RGBColor]:
         """

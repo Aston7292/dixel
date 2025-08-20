@@ -1,5 +1,7 @@
 """Functions and dataclasses shared between files."""
 
+import shutil
+
 from tkinter import messagebox
 from pathlib import Path
 from dataclasses import dataclass
@@ -98,32 +100,6 @@ class UIElement(Protocol):
         Returns:
             objects info
         """
-
-
-@dataclass(slots=True)
-class Point:
-    """
-    Dataclass for representing a point.
-
-    Args:
-        x coordinate, y coordinate
-    """
-
-    x: int
-    y: int
-
-
-@dataclass(slots=True)
-class Size:
-    """
-    Dataclass for representing a size.
-
-    Args:
-        width, height
-    """
-
-    w: int
-    h: int
 
 
 @dataclass(slots=True)
@@ -257,9 +233,9 @@ def prettify_path_str(path_str: str) -> str:
         if num_extra_parts >= 3:  # There's something between root and parent so add dots
             path_str += "/..."
         if num_extra_parts >= 2:  # There's something between root and element so add parent
-            path_str += "/" + (f"{parent[:5]}...{parent[-5:]}" if len(parent) > 16 else parent)
+            path_str += "/" + (f"{parent[:4]}...{parent[-4:]}" if len(parent) > 16 else parent)
         if num_extra_parts >= 1:  # Root and element are different so add element
-            path_str += "/" + (f"{name[:5]}...{name[-5:]}" if len(name) > 16 else name)
+            path_str += "/" + (f"{name[:4]}...{name[-4:]}" if len(name) > 16 else name)
 
         path_str = str(Path(path_str))  # Replaces / with the right linker
 
@@ -336,12 +312,42 @@ def handle_file_os_error(e: OSError) -> tuple[str, bool]:
     return error_str, e in _FILE_TRANSIENT_ERROR_CODES
 
 
+def try_clear_dir(dir_path: Path) -> None:
+    """
+    Tries to clear a directory with retries.
+
+    Args:
+        path
+    """
+
+    element: Path
+    _error_str: str
+    should_retry: bool
+
+    for element in dir_path.iterdir():
+        for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
+            try:
+                if element.is_file():
+                    element.unlink()
+                else:
+                    shutil.rmtree(element)
+                break
+            except (FileNotFoundError, PermissionError):
+                break
+            except OSError as e:
+                _error_str, should_retry = handle_file_os_error(e)
+                if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
+                    pg.time.wait(2 ** attempt_i)
+                    continue
+
+                break
+
 def try_create_dir(dir_path: Path, should_ask_create: bool, creation_attempt_i: int) -> bool:
     """
     Creates a directory with retries.
 
     Args:
-        directory path, ask creation flag, attempt index
+        path, ask creation flag, attempt index
     Returns:
         failed flag
     """

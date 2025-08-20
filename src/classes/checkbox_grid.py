@@ -1,15 +1,12 @@
 """Class to create a grid of connected checkboxes."""
 
-from math import ceil
-from typing import TypeAlias, Final
-
 import pygame as pg
 from pygame.locals import *
 
 from src.classes.clickable import LockedCheckbox
 from src.classes.devices import MOUSE, KEYBOARD
 
-from src.utils import UIElement, Point, RectPos, ObjInfo, add_border, rec_move_rect
+from src.utils import RectPos, ObjInfo, add_border
 from src.type_utils import BlitInfo
 from src.consts import WHITE, BG_LAYER
 
@@ -83,8 +80,6 @@ class CheckboxGrid:
             (max(rects_xs) + rects[0].w) - self.rect.x,
             (max(rects_ys) + rects[0].h) - self.rect.y,
         )
-
-        self.check(0)
 
     def enter(self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -187,7 +182,7 @@ class CheckboxGrid:
             elif can_add_cols:
                 self.clicked_i += self._num_cols
 
-    def upt_checkboxes(self) -> None:
+    def _upt_checkboxes(self) -> None:
         """Leaves the previous hovered checkbox and updates the current one."""
 
         prev_hovered_checkbox: LockedCheckbox | None = self._hovered_checkbox
@@ -205,20 +200,6 @@ class CheckboxGrid:
             if did_check:
                 self.clicked_i = self.checkboxes.index(self._hovered_checkbox)
 
-    def refresh(self) -> bool:
-        """
-        Refreshes the previous and current clicked checkboxes.
-
-        Returns:
-            clicked index changed flag
-        """
-
-        did_change: bool = self.clicked_i != self.prev_clicked_i
-        if did_change:
-            self.check(self.clicked_i)
-
-        return did_change
-
     def upt(self) -> None:
         """
         Allows checking only one checkbox at a time.
@@ -226,7 +207,7 @@ class CheckboxGrid:
         Refresh should be called when everything is updated.
         """
 
-        self.upt_checkboxes()
+        self._upt_checkboxes()
 
         is_hovering: bool = MOUSE.hovered_obj == self or self._hovered_checkbox is not None
         if is_hovering and KEYBOARD.pressed != []:

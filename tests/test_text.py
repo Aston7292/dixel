@@ -37,11 +37,11 @@ class TestTextLabel(TestCase):
         line: str
 
         text_label: TextLabel = TextLabel(RectPos(1, 2, "center"), "hello\n!", 1, 20, WHITE)
-        expected_renderer: pg.Font = _RENDERERS_CACHE[text_label._init_h]
+        expected_renderer: pg.Font = _RENDERERS_CACHE[text_label.init_h]
 
         self.assertEqual(text_label.init_pos, RectPos(1, 2, "center"))
 
-        self.assertEqual(text_label._init_h, 20)
+        self.assertEqual(text_label.init_h, 20)
         self.assertIs(expected_renderer, text_label._renderer)
 
         self.assertEqual(text_label.text, "hello\n!")
@@ -91,7 +91,7 @@ class TestTextLabel(TestCase):
         text_label.resize(2, 3)
 
         expected_xy, (_expected_w, expected_h) = resize_obj(
-            text_label.init_pos, 0, text_label._init_h,
+            text_label.init_pos, 0, text_label.init_h,
             2, 3, True
         )
 

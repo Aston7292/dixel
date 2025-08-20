@@ -51,16 +51,15 @@ class SettingsUI(UI):
             ],
             "FPS Cap", self.layer + SPECIAL_LAYER
         )
-        self.fps_dropdown.set_option_i(2)  # Offset by 1 because of placeholder option
 
         self.crash_save_dir_str: str = str(Path().resolve())
         self._crash_save_dir: Button = Button(
-            RectPos(self._rect.centerx, self._rect.bottom - 100, "midbottom"),
+            RectPos(self._rect.centerx, self._rect.bottom - 128, "midbottom"),
             [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Crash Save\nDirectory", "(CTRL+S)",
             self.layer, 20
         )
         self.crash_save_dir_text_label: TextLabel = TextLabel(
-            RectPos(self._crash_save_dir.rect.centerx, self._crash_save_dir.rect.y - 5, "midbottom"),
+            RectPos(self._crash_save_dir.rect.centerx, self._crash_save_dir.rect.y - 4, "midbottom"),
             prettify_path_str(self.crash_save_dir_str), self.layer
         )
 
@@ -71,8 +70,20 @@ class SettingsUI(UI):
             ObjInfo(self._crash_save_dir), ObjInfo(self.crash_save_dir_text_label),
         ))
 
+    def set_info(self, data: dict[str, Any], is_fps_counter_active: bool) -> None:
+        self.show_fps.img_i = int(data["is_fps_counter_active"])
+        self.show_fps.is_checked = data["is_fps_counter_active"]
+        if data["is_fps_counter_active"] != is_fps_counter_active:
+            self.events.append(FPS_TOGGLE)
+
+        self.fps_dropdown.set_option_i(data["selected_fps_cap"])
+
+        self.crash_save_dir_str = data["crash_save_dir"]
+        pretty_path_str: str = prettify_path_str(self.crash_save_dir_str)
+        self.crash_save_dir_text_label.set_text(pretty_path_str)
+
     def _handle_fps_dropdown_shortcuts(self) -> None:
-        """Selects a fps cap if the user presses ctrl+f+option_number."""
+        """Selects a fps cap if the user presses ctrl+f+1-9."""
 
         k: int
 
@@ -102,7 +113,8 @@ class SettingsUI(UI):
         self.fps_dropdown.upt()
 
         is_crash_save_dir_clicked: bool = self._crash_save_dir.upt()
-        if is_crash_save_dir_clicked:
+        is_ctrl_s_pressed: bool = KEYBOARD.is_ctrl_on and K_s in KEYBOARD.timed
+        if is_crash_save_dir_clicked or is_ctrl_s_pressed:
             self.events.append(CRASH_SAVE_DIR_CHANGE)
 
         is_exiting, is_confirming = self._base_upt()

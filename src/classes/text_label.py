@@ -27,6 +27,7 @@ def _try_add_renderer(h: int) -> None:
 
     attempt_i: int
     should_retry: bool
+    global _is_first_font_load_error
 
     font_path: Path = Path("assets", "fonts", "fredoka.ttf")
     renderer: pg.Font | None = None
@@ -54,6 +55,9 @@ def _try_add_renderer(h: int) -> None:
             error_str = str(e)
             break
         except OSError as e:
+            if not _is_first_font_load_error:
+                break
+
             error_str, should_retry = handle_file_os_error(e)
             if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
                 pg.time.wait(2 ** attempt_i)
@@ -62,8 +66,6 @@ def _try_add_renderer(h: int) -> None:
             break
 
     if renderer is None:
-        global _is_first_font_load_error
-
         if _is_first_font_load_error:
             messagebox.showerror("Font Load Failed", f"{font_path.name}: {error_str}")
             _is_first_font_load_error = False
@@ -75,7 +77,7 @@ class TextLabel:
     """Class to simplify multi-text rendering."""
 
     __slots__ = (
-        "init_pos", "_init_h", "_renderer", "text", "_bg_color",
+        "init_pos", "init_h", "_renderer", "text", "_bg_color",
         "imgs", "rect", "_rects",
         "hover_rects", "layer", "blit_sequence"
     )
@@ -96,11 +98,11 @@ class TextLabel:
         """
 
         self.init_pos: RectPos = pos
-        self._init_h: int = h
+        self.init_h: int = h
 
-        if self._init_h not in _RENDERERS_CACHE:
-            _try_add_renderer(self._init_h)
-        self._renderer: pg.Font = _RENDERERS_CACHE[self._init_h]
+        if self.init_h not in _RENDERERS_CACHE:
+            _try_add_renderer(self.init_h)
+        self._renderer: pg.Font = _RENDERERS_CACHE[self.init_h]
 
         self.text: str = text
         self._bg_color: pg.Color | None = bg_color
@@ -141,7 +143,7 @@ class TextLabel:
         _w: int
         h: int
 
-        xy, (_w, h) = resize_obj(self.init_pos, 0, self._init_h, win_w_ratio, win_h_ratio, True)
+        xy, (_w, h) = resize_obj(self.init_pos, 0, self.init_h, win_w_ratio, win_h_ratio, True)
         if h not in _RENDERERS_CACHE:
             _try_add_renderer(h)
         self._renderer = _RENDERERS_CACHE[h]
@@ -198,20 +200,19 @@ class TextLabel:
             initial x, initial y, window width ratio, window height ratio
         """
 
-        line_init_pos: RectPos
         xy: XY
         _wh: WH
         rect: pg.Rect
 
+        change_x: int = init_x - self.init_pos.x
+        change_y: int = init_y - self.init_pos.y
         self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
-        line_init_pos = RectPos(self.init_pos.x, self.init_pos.y, self.init_pos.coord_type)
 
-        xy, _wh = resize_obj(line_init_pos, 0, 0, win_w_ratio, win_h_ratio)
-        setattr(self.rect, line_init_pos.coord_type, xy)
+        xy, _wh = resize_obj(self.init_pos, 0, 0, win_w_ratio, win_h_ratio)
+        setattr(self.rect, self.init_pos.coord_type, xy)
         for rect in self._rects:
-            xy, _wh = resize_obj(line_init_pos, 0, 0, win_w_ratio, win_h_ratio)
-            setattr(rect, line_init_pos.coord_type, xy)
-            line_init_pos.y += rect.h
+            rect.x += change_x
+            rect.y += change_y
 
     def set_text(self, text: str) -> None:
         """

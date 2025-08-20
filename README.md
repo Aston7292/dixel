@@ -32,17 +32,19 @@ Check with ```python3 --version```.
 **View Navigation**: Move the view for large images.\
 **Edit Pixels**: Color and erase pixels.\
 **Brush Size**: Select the brush size using checkboxes.\
-**Palette Options**: Edit or delete a color from the palette with a drop-down menu.\
+**Palette Options**: Edit or delete a color from a palette with a drop-down menu.\
 **Zooming**: Zoom in/out towards the mouse.\
 **Minimap**: See the current position on the grid with a minimap.\
 **Color Picker**: Select colors with a colorful and intuitive UI.\
-**Resizable Grid**: Change the grid size and have a preview of how it will look.\
+**Resizable Grid**: Modify the grid and have a preview of how it will look.\
 **Auto Save**: If you're editing an existing image it will be saved on close,
 if the program crashes the image will always be saved.
 
 ### Tools
 
-**Pencil**: Change individual pixels (x/y mirror)
+**Pencil**: Change individual pixels\
+**Bucket**: Fill a section or change the color of all matching pixels\
+**Eyedropper**: Pick a color from the image
 
 ## Keyboard functionality
 
@@ -55,16 +57,19 @@ if the program crashes the image will always be saved.
 ### Home
 
 **ESC**: Close window\
-**CTRL A**: Go to add color UI\
-**CTRL G**: Go to edit grid UI\
 **CTRL S**: Save file\
 **CTRL SHIFT S**: Save file with name\
 **CTRL O**: Open file\
 **CTRL W**: Close file\
 **SHIFT H**: Mirror tool horizontally\
 **SHIFT V**: Mirror tool vertically\
+**CTRL SHIFT P**: Add palette\n
+**CTRL P 1-9**: Change palette\
+**CTRL A**: Go to add color UI\
+**CTRL G**: Go to edit grid UI\
 **CTRL ,**: Open settings\
-**arrows/page down/page up/home/end**: move in scrollbars
+**arrows/page down/page up/home/end/+/-**: Move in scrollbars\
+**CTRL +/-** Move to the limit of the scrollbar
 
 ### Checkbox grids
 
@@ -73,22 +78,23 @@ if the program crashes the image will always be saved.
 
 **CTRL B 1-5**: Change brush size\
 
-**CTRL C Number**: Change color\
+**CTRL C 1-9**: Change color\
 **CTRL E**: Edit selected color\
 **CTRL Del**: delete selected color\
 
-**CTRL P**: Select pencil tool\
-**CTRL B**: Select bucket tool\
-**CTRL E**: Select eyedropper tool\
-**ALT**: Temporarily select eyedropper tool
+**SHIFT P**: Select pencil tool\
+**SHIFT B**: Select bucket tool\
+**SHIFT E**: Select eye dropper tool\
+**SHIFT L**: Select line tool\
+**ALT**: Temporarily select eye dropper tool
 
 ### Grid
 
 **arrows**: Move\
 **Enter**: Draw\
 **Backspace**: Erase\
-**SHIFT arrows**: Move selected pixel by visible area\
 **TAB arrows**: Move selected pixel by brush size\
+**SHIFT arrows**: Move selected pixel by visible area\
 **CTRL arrows**: Move selected pixel to the limit of the grid\
 **CTRL +/-**: Zoom in/out\
 **CTRL SHIFT +/-**: Zoom in/out until limit\
@@ -102,7 +108,7 @@ if the program crashes the image will always be saved.
 **Enter**: Confirm\
 **arrows/tab/SHIFT tab**: Move selection\
 **CTRL left/right**: Go to end of text in input box\
-**+/-**: Increment/decrement numerical input box\
+**+/-**: Increment/decrement in numerical input box\
 **CTRL +/-**: Reach limit in numerical input box\
 
 **CTRL K**: Toggle keep ratio in grid UI\
@@ -113,7 +119,8 @@ if the program crashes the image will always be saved.
 ### Settings
 
 **CTRL F**: Show/hide fps counter in settings\
-**CTRL C 1-5**: Change fps cap
+**CTRL C 1-5**: Change fps cap\
+**CTRL S**: Choose crash save directory
 
 ## Screenshots
 

@@ -1,7 +1,6 @@
 """Constants shared between files."""
 
-from dataclasses import dataclass
-from typing import Final
+from typing import Literal, Final
 
 import pygame as pg
 import numpy as np
@@ -11,9 +10,9 @@ from numpy.typing import NDArray
 from src.type_utils import RGBColor, HexColor
 
 
-MOUSE_LEFT: Final[int]  = 0
-MOUSE_WHEEL: Final[int] = 1
-MOUSE_RIGHT: Final[int] = 2
+MOUSE_LEFT: Final[Literal[0]]  = 0
+MOUSE_WHEEL: Final[Literal[1]] = 1
+MOUSE_RIGHT: Final[Literal[2]] = 2
 
 BLACK: Final[pg.Color]       = pg.Color(0  , 0  , 0)
 WHITE: Final[pg.Color]       = pg.Color(255, 255, 255)

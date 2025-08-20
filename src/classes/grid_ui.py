@@ -16,7 +16,7 @@ from src.classes.clickable import Checkbox, Button, SpammableButton
 from src.classes.text_label import TextLabel
 from src.classes.devices import KEYBOARD
 
-from src.utils import UIElement, RectPos, Size, ObjInfo, resize_obj
+from src.utils import UIElement, RectPos, ObjInfo, resize_obj
 from src.type_utils import XY
 from src.consts import EMPTY_TILE_ARR, TILE_H, TILE_W
 from src.imgs import (
@@ -43,10 +43,10 @@ class GridUI(UI):
 
 
         super().__init__("EDIT GRID", True)
-        assert self._confirm is not None, "Grid UI requires a confirm button."
+        assert self._confirm is not None
 
         self._preview_init_pos: RectPos = RectPos(
-            self._rect.centerx, self._rect.centery + 20, "center"
+            self._rect.centerx, self._rect.centery + 16, "center"
         )
 
         preview_img: pg.Surface = pg.Surface((_GRID_PREVIEW_DIM_CAP, _GRID_PREVIEW_DIM_CAP))
@@ -81,7 +81,7 @@ class GridUI(UI):
 
         self.checkbox: Checkbox = Checkbox(
             RectPos(self._preview_rect.right    - 16, self._confirm.rect.y - 16, "bottomright"),
-            [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG], "Keep Ratio", "CTRL+K", self.layer
+            [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG], "Keep Ratio", "(CTRL+K)", self.layer
         )
 
         self._rotate_left: SpammableButton = SpammableButton(
@@ -125,17 +125,17 @@ class GridUI(UI):
         self._win_w_ratio, self._win_h_ratio = win_w_ratio, win_h_ratio
         self._refresh_preview()
 
-    def set_info(self, area: Size, tiles: NDArray[uint8]) -> None:
+    def set_info(self, cols: int, rows: int, tiles: NDArray[uint8]) -> None:
         """
         Sets the area and tiles.
 
         Args:
-            area, tiles
+            columns, rows, tiles
         """
 
         self._original_tiles = self._tiles = tiles
-        self._w_box.set_value(area.w)
-        self._h_box.set_value(area.h)
+        self._w_box.set_value(cols)
+        self._h_box.set_value(rows)
 
         self._refresh_preview()
 
@@ -209,12 +209,10 @@ class GridUI(UI):
 
         if K_UP   in KEYBOARD.timed:
             self._selection_i = 0
-            w_box_cursor_i: int = self._w_box.text_label.get_closest_to(self._h_box.cursor_rect.x)
-            self._w_box.set_cursor_i(w_box_cursor_i)
+            self._w_box.cursor_i = self._w_box.text_label.get_closest_to(self._h_box.cursor_rect.x)
         if K_DOWN in KEYBOARD.timed:
             self._selection_i = 1
-            h_box_cursor_i: int = self._h_box.text_label.get_closest_to(self._w_box.cursor_rect.x)
-            self._h_box.set_cursor_i(h_box_cursor_i)
+            self._h_box.cursor_i = self._h_box.text_label.get_closest_to(self._w_box.cursor_rect.x)
 
     def _upt_sliders(self) -> None:
         """Updates sliders and selection."""

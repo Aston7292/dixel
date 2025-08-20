@@ -77,18 +77,18 @@ class _Mouse:
         if hovered_objs == []:
             self.hovered_obj = None
         else:
-            hovered_objs.sort(key=lambda obj: obj.layer)
-            self.hovered_obj = hovered_objs[-1]
+            hovered_objs.sort(key=lambda obj: -obj.layer)
+            self.hovered_obj = hovered_objs[0]
 
     def refresh_type(self) -> None:
         """Refreshes the cursor type using the cursor_type attribute of the hovered object."""
 
-        new_cursor_type: int = (
+        prev_cursor_type: int = self._cursor_type
+        self._cursor_type = (
             SYSTEM_CURSOR_ARROW if self.hovered_obj is None else self.hovered_obj.cursor_type
         )
 
-        if self._cursor_type != new_cursor_type:
-            self._cursor_type = new_cursor_type
+        if self._cursor_type != prev_cursor_type:
             pg.mouse.set_cursor(self._cursor_type)
 
 
@@ -114,18 +114,18 @@ class _Keyboard:
         self.is_alt_on: bool    = False
         self.is_numpad_on: bool = False
 
-        self._timed_interval: int = 150
+        self._timed_interval: int = 128
         self._prev_timed_refresh: int = -self._timed_interval
         self._alt_k: str = ""
 
     def refresh_timed(self) -> None:
-        """Fills the timed keys once every 150ms + acceleration and adds the alt_k if needed."""
+        """Fills the timed keys once every 128ms + acceleration and adds the alt_k if needed."""
 
         if self.pressed == [] or (VARS.ticks - self._prev_timed_refresh < self._timed_interval):
             self.timed = []
         else:
             self.timed = self.pressed.copy()
-            self._timed_interval = max(self._timed_interval - 8, 50)
+            self._timed_interval = max(self._timed_interval - 8, 64)
             self._prev_timed_refresh = VARS.ticks
 
         if self._alt_k != "" and not self.is_alt_on:
@@ -166,7 +166,7 @@ class _Keyboard:
             ]
             self._alt_k = ""
 
-        self._timed_interval = 150
+        self._timed_interval = 128
         self._prev_timed_refresh = -self._timed_interval
 
     def remove(self, k: int) -> None:
@@ -200,7 +200,7 @@ class _Keyboard:
             else:
                 self.released.append(k)
 
-        self._timed_interval = 150
+        self._timed_interval = 128
 
     def clear(self) -> None:
         """Clears the keyboard data."""

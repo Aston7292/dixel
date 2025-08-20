@@ -13,7 +13,7 @@ Mouse info:
 Keyboard input:
     The KEYBOARD object contains 3 lists and the flags for control, shift, alt and numpad.
     There's a list for every currently pressed and released key and
-    a temporary list that holds the pressed keys for one frame every 150ms,
+    a temporary list that holds the pressed keys for one frame every 128ms,
     used for key repeat, has acceleration.
 
 Objects info:
@@ -132,7 +132,8 @@ from src.classes.devices import MOUSE, KEYBOARD
 from src.utils import (
     UIElement, RectPos, ObjInfo,
     get_pixels, get_brush_dim_checkbox_info,
-    prettify_path_str, try_read_file, try_write_file, handle_file_os_error, try_create_dir,
+    prettify_path_str, try_read_file, try_write_file, handle_file_os_error,
+    try_clear_dir, try_create_dir,
     rec_move_rect, print_funcs_profiles,
 )
 from src.lock_utils import LockException, FileException, try_lock_file
@@ -156,7 +157,7 @@ _WIN: Final[pg.Window] = pg.Window(
     hidden=True, resizable=True, allow_high_dpi=True
 )
 _WIN_SURF: Final[pg.Surface] = _WIN.get_surface()
-_WIN.minimum_size = (900, 550)
+_WIN.minimum_size = (950, 600)
 
 # These files load images at the start which requires a window
 from src.imgs import (
@@ -170,7 +171,7 @@ from src.classes.color_ui import ColorPicker
 from src.classes.grid_manager import GridManager
 from src.classes.settings_ui import SettingsUI, FPS_TOGGLE, CRASH_SAVE_DIR_CHANGE
 from src.classes.tools_manager import ToolsManager, ToolInfo
-from src.classes.renameMe import PaletteManager
+from src.classes.palette_manager import PaletteManager
 
 _StatesObjInfo: TypeAlias = tuple[list[ObjInfo], ...]
 _AskedFilesQueue: TypeAlias = SimpleQueue[tuple[str, int]]
@@ -180,19 +181,19 @@ _WIN.set_icon(ICON_IMG)
 
 _SAVE: Final[Button] = Button(
     RectPos(0                  , 0              , "topleft"),
-    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Save"   , "CTRL+S"      , text_h=16
+    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Save"   , "(CTRL+S)"      , text_h=16
 )
 _SAVE_AS: Final[Button] = Button(
     RectPos(_SAVE.rect.right   , _SAVE.rect.y   , "topleft"),
-    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Save As", "CTRL+SHIFT+S", text_h=16
+    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Save As", "(CTRL+SHIFT+S)", text_h=16
 )
 _OPEN: Final[Button] = Button(
     RectPos(_SAVE_AS.rect.right, _SAVE_AS.rect.y, "topleft"),
-    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Open"   , "CTRL+O"      , text_h=16
+    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Open"   , "(CTRL+O)"      , text_h=16
 )
 _CLOSE: Final[Button] = Button(
     RectPos(_OPEN.rect.right   , _OPEN.rect.y   , "topleft"),
-    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Close"  , "CTRL+W"      , text_h=16
+    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Close"  , "(CTRL+W)"      , text_h=16
 )
 
 _GRID_MANAGER: Final[GridManager] = GridManager(
@@ -202,8 +203,8 @@ _GRID_MANAGER: Final[GridManager] = GridManager(
 
 _BRUSH_DIMS: Final[CheckboxGrid] = CheckboxGrid(
     RectPos(10, _SAVE_AS.rect.bottom + 10, "topleft"),
-    [get_brush_dim_checkbox_info(i) for i in range(1, 6)],
-    5, False, False
+    [get_brush_dim_checkbox_info(dim) for dim in range(1, 6)],
+    num_cols=5, should_invert_cols=False, should_invert_rows=False
 )
 _X_MIRROR: Final[Checkbox] = Checkbox(
     RectPos(_BRUSH_DIMS.rect.x       , _BRUSH_DIMS.rect.bottom + 10, "topleft"),
@@ -216,16 +217,16 @@ _Y_MIRROR: Final[Checkbox] = Checkbox(
 
 _ADD_COLOR: Final[Button] = Button(
     RectPos(WIN_INIT_W       - 10 , WIN_INIT_H - 10, "bottomright"),
-    [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Add Color", "CTRL+A"
+    [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Add\nColor", "(CTRL+A)"
 )
 _EDIT_GRID: Final[Button] = Button(
     RectPos(_ADD_COLOR.rect.x - 10, WIN_INIT_H - 10, "bottomright"),
-    [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Edit Grid", "CTRL+G"
+    [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Edit Grid", "(CTRL+G)"
 )
 # TODO: fix imgs resize
 _OPEN_SETTINGS: Final[Button] = Button(
     RectPos(_GRID_MANAGER.grid.minimap_rect.x - 16, _GRID_MANAGER.grid.minimap_rect.y, "topright"),
-    [SETTINGS_OFF_IMG, SETTINGS_ON_IMG], "", "(CTRL+COMMA)"
+    [SETTINGS_OFF_IMG, SETTINGS_ON_IMG], None, "(CTRL+COMMA)"
 )
 
 _PALETTE_MANAGER: Final[PaletteManager] = PaletteManager(
@@ -236,7 +237,7 @@ _TOOLS_MANAGER: Final[ToolsManager] = ToolsManager(
 )
 
 _FPS_TEXT_LABEL: Final[TextLabel] = TextLabel(
-    RectPos(round(WIN_INIT_W / 2), 0                          , "midtop"),
+    RectPos(round(WIN_INIT_W / 2), 0 , "midtop"),
     "FPS: 0"
 )
 _FPS_TEXT_LABEL_OBJ_INFO: Final[ObjInfo] = ObjInfo(_FPS_TEXT_LABEL)
@@ -404,7 +405,6 @@ def _ask_crash_save_dir() -> None:
 
     _ASKED_FILES_QUEUE.put((dir_str, _FILE_DIALOG_CRASH_SAVE_DIR))
 
-
 class _Dixel:
     """Drawing program for pixel art."""
 
@@ -438,6 +438,7 @@ class _Dixel:
         self._is_asking_crash_save_dir: bool = False
 
         self._load_data_from_file()
+        self._load_palettes_from_files()
 
         grid_img: pg.Surface | None = None
         if len(argv) > 1:
@@ -445,13 +446,14 @@ class _Dixel:
         elif self._file_str != "":
             grid_img = _try_get_grid_img(self._file_str, [FileNotFoundError])
 
-        if grid_img is None:
-            self._file_str = ""
-            _GRID_MANAGER.grid.refresh_full()
-        else:
+        self._is_saved = grid_img is not None
+        if self._is_saved:
             _GRID_MANAGER.grid.set_tiles(grid_img)
             _UNSAVED_ICON.set_radius(0)
-            self._is_saved = True
+        else:
+            self._file_str = ""
+            _GRID_MANAGER.grid.refresh_full()
+            _UNSAVED_ICON.set_radius(_UNSAVED_ICON.init_radius)
         self._set_file_text_label()
 
         self._refresh_objs(False)
@@ -471,20 +473,48 @@ class _Dixel:
 
         pg.time.set_timer(_TIMEDUPDATE1000, 1_000)
 
-    def _try_get_data(self) -> dict[str, Any] | None:
+    def _try_get_data(self) -> dict[str, Any]:
         """
         Gets the data from the data file with retries.
 
         Returns:
-            data (can be None)
+            data (if it fails returns the default data)
         """
 
         attempt_i: int
         error_str: str
         should_retry: bool
 
+        data: dict[str, Any] = {
+            "file": "",
+
+            "grid_cols"        : 64,
+            "grid_rows"        : 64,
+            "grid_visible_cols": 32,
+            "grid_visible_rows": 32,
+            "grid_offset_x"    : 0,
+            "grid_offset_y"    : 0,
+
+            "is_x_mirror_on": False,
+            "is_y_mirror_on": False,
+
+            "brush_dim_i": 0,
+            "tool_i"     : 0,
+            "selected_palette"  : 1,
+
+            "grid_ratio": None,
+
+            "win_xy": self._win_xy,
+            "win_wh": self._win_wh,
+            "is_maximized":  False,
+            "is_fullscreen": False,
+
+            "is_fps_counter_active": True,
+            "selected_fps_cap": 2,  # 60
+            "crash_save_dir": str(Path().resolve()),
+        }
+
         data_path: Path = Path("assets", "data", "data.json")
-        data: dict[str, Any] | None = None
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
             try:
                 with data_path.open("rb") as f:
@@ -517,10 +547,53 @@ class _Dixel:
 
         return data
 
-    def _try_get_palette_data(self) -> dict[str, Any] | None:
-        """
-        Gets the palette data from the palette data file with retries.
+    def _load_data_from_file(self) -> None:
+        """Loads the data from the data file."""
 
+        data: dict[str, Any] = self._try_get_data()
+        if data["file"] != "":
+            self._file_str = _ensure_valid_img_format(data["file"])
+
+        _BRUSH_DIMS.check(data["brush_dim_i"])
+        _TOOLS_MANAGER.check(data["tool_i"])
+        _PALETTE_MANAGER.palette_dropdown.option_i = data["selected_palette"]
+        _GRID_MANAGER.grid.brush_dim = _BRUSH_DIMS.clicked_i + 1
+
+        # refresh_full is called later
+        _GRID_MANAGER.grid.set_info(
+            np.zeros((data["grid_cols"], data["grid_rows"], 4), uint8),
+            data["grid_visible_cols"], data["grid_visible_rows"],
+            data["grid_offset_x"], data["grid_offset_y"],
+            True,
+        )
+
+        if data["is_x_mirror_on"]:
+            _X_MIRROR.img_i, _X_MIRROR.is_checked = 1, True
+            _GRID_MANAGER.is_x_mirror_on = True
+        if data["is_y_mirror_on"]:
+            _Y_MIRROR.img_i, _Y_MIRROR.is_checked = 1, True
+            _GRID_MANAGER.is_y_mirror_on = True
+
+        if data["grid_ratio"] is not None:
+            _GRID_UI.checkbox.img_i, _GRID_UI.checkbox.is_checked = 1, True
+            _GRID_UI.w_ratio, _GRID_UI.h_ratio = data["grid_ratio"]
+
+        if data["win_xy"] != self._win_xy:
+            _WIN.position = self._win_xy = data["win_xy"]
+        # Triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
+        if data["win_wh"] != self._win_wh:
+            _WIN.size = self._win_wh = data["win_wh"]
+        self._is_maximized  = data["is_maximized"]
+        self._is_fullscreen = data["is_fullscreen"]
+
+        _SETTINGS_UI.set_info(data, _FPS_TEXT_LABEL_OBJ_INFO.is_active)
+
+    def _try_get_palette_data(self, data_path: Path, errors_list: list[str]) -> dict[str, Any] | None:
+        """
+        Gets the palette data from a file with retries.
+
+        Args:
+            palette path, errors list
         Returns:
             data (can be None)
         """
@@ -529,7 +602,6 @@ class _Dixel:
         error_str: str
         should_retry: bool
 
-        data_path: Path = Path("assets", "data", "palette.json")
         data: dict[str, Any] | None = None
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
             try:
@@ -541,16 +613,16 @@ class _Dixel:
             except FileNotFoundError:
                 break
             except PermissionError:
-                messagebox.showerror("Palette Data Load Failed", "Permission denied.")
+                errors_list.append(f"{data_path}: File missing.")
                 break
             except JSONDecodeError:
-                messagebox.showerror("Palette Data Load Failed", "Invalid json.")
+                errors_list.append(f"{data_path}: Invalid json.")
                 break
             except LockException:
-                messagebox.showerror("Palette Data Load Failed", "File locked.")
+                errors_list.append(f"{data_path}: File locked.")
                 break
             except FileException as e:
-                messagebox.showerror("Palette Data Load Failed", e.error_str)
+                errors_list.append(f"{data_path}: {e.error_str}")
                 break
             except OSError as e:
                 error_str, should_retry = handle_file_os_error(e)
@@ -558,68 +630,80 @@ class _Dixel:
                     pg.time.wait(2 ** attempt_i)
                     continue
 
-                messagebox.showerror("Palette Data Load Failed", error_str)
+                errors_list.append(f"{data_path}: {error_str}")
                 break
 
         return data
 
-    def _load_data_from_file(self) -> None:
-        """Loads the data from the data file."""
+    def _try_get_palettes_paths(self) -> list[Path]:
+        """
+        Gets all the palettes data files with retries.
 
-        data: dict[str, Any] | None = self._try_get_data()
-        if data is not None:
-            if data["file"] != "":
-                self._file_str = _ensure_valid_img_format(data["file"])
+        Returns:
+            palettes files
+        """
 
-            if data["brush_dim_i"] != _BRUSH_DIMS.clicked_i:
-                _BRUSH_DIMS.check(data["brush_dim_i"])
-            if data["tool_i"] != _TOOLS_MANAGER.tools_grid.clicked_i:
-                _TOOLS_MANAGER.tools_grid.check(data["tool_i"])
-                _TOOLS_MANAGER.refresh_tools(0)
+        attempt_i: int
+        error_str: str
+        should_retry: bool
 
-            # refresh_full is called later
-            _GRID_MANAGER.grid.set_info(
-                np.zeros((data["grid_cols"], data["grid_rows"], 4), uint8),
-                data["grid_visible_cols"], data["grid_visible_rows"],
-                data["grid_offset_x"], data["grid_offset_y"],
-                True,
+        palettes_paths: list[Path] = []
+        for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
+            try:
+                palettes_paths = list(Path("assets", "data", "palettes").iterdir())
+                break
+            except FileNotFoundError:
+                break
+            except PermissionError:
+                messagebox.showerror("Palettes Folder Load Failed", "Permission denied.")
+                break
+            except OSError as e:
+                error_str, should_retry = handle_file_os_error(e)
+                if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
+                    pg.time.wait(2 ** attempt_i)
+                    continue
+
+                messagebox.showerror("Palettes Folder Load Failed", error_str)
+                break
+
+        return palettes_paths
+
+    def _load_palettes_from_files(self) -> None:
+        """Loads the palettes from the palettes files."""
+
+        data: dict[str, Any]
+
+        errors_list: list[str] = []
+        all_data: list[dict[str, Any] | None] = [
+            self._try_get_palette_data(palette_path, errors_list)
+            for palette_path in self._try_get_palettes_paths()
+        ]
+        if errors_list != []:
+            full_error_str: str = "\n".join(errors_list)
+            messagebox.showerror("Palette Data Load Failed", full_error_str)
+
+        valid_data: list[dict[str, Any]] = [data for data in all_data if all_data is not None]
+        if valid_data == []:
+            valid_data = [{
+                "color_i": 0,
+                "offset_y": 0,
+                "drop-down_i": None,
+                "colors": ["000000"],
+            }]
+            _PALETTE_MANAGER.palette_dropdown.option_i = 1
+        elif all_data[_PALETTE_MANAGER.palette_dropdown.option_i - 1] is None:
+            _PALETTE_MANAGER.palette_dropdown.option_i = 1
+        else:
+            palette_i: int = _PALETTE_MANAGER.palette_dropdown.option_i
+            palette_i_offset: int = all_data[:palette_i].count(None)
+            _PALETTE_MANAGER.palette_dropdown.option_i -= palette_i_offset
+
+        for data in valid_data:
+            _PALETTE_MANAGER.add_palette(
+                data["colors"], data["color_i"], data["offset_y"], data["drop-down_i"]
             )
-            _GRID_MANAGER.grid.brush_dim = _BRUSH_DIMS.clicked_i + 1
-
-            if data["is_x_mirror_on"]:
-                _X_MIRROR.img_i, _X_MIRROR.is_checked = 1, True
-                _GRID_MANAGER.is_x_mirror_on = True
-            if data["is_y_mirror_on"]:
-                _Y_MIRROR.img_i, _Y_MIRROR.is_checked = 1, True
-                _GRID_MANAGER.is_y_mirror_on = True
-
-            if data["grid_ratio"] is not None:
-                _GRID_UI.checkbox.img_i, _GRID_UI.checkbox.is_checked = 1, True
-                _GRID_UI.w_ratio, _GRID_UI.h_ratio = data["grid_ratio"]
-
-            # Resizing triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
-            _WIN.position = self._win_xy = data["win_xy"]
-            _WIN.size     = self._win_wh = data["win_wh"]
-            self._is_maximized           = data["is_maximized"]
-            self._is_fullscreen          = data["is_fullscreen"]
-
-            if data["is_fps_counter_active"] != _FPS_TEXT_LABEL_OBJ_INFO.is_active:
-                _SETTINGS_UI.show_fps.img_i = int(data["is_fps_counter_active"])
-                _SETTINGS_UI.show_fps.is_checked = data["is_fps_counter_active"]
-                _SETTINGS_UI.events.append(FPS_TOGGLE)
-            if data["fps_cap_drop-down_i"] != _SETTINGS_UI.fps_dropdown.option_i:
-                _SETTINGS_UI.fps_dropdown.set_option_i(data["fps_cap_drop-down_i"])
-            if data["crash_save_dir"] != _SETTINGS_UI.crash_save_dir_str:
-                _SETTINGS_UI.crash_save_dir_str = data["crash_save_dir"]
-                pretty_path_str: str = prettify_path_str(_SETTINGS_UI.crash_save_dir_str)
-                _SETTINGS_UI.crash_save_dir_text_label.set_text(pretty_path_str)
-
-        palette_data: dict[str, Any] | None = self._try_get_palette_data()
-        if palette_data is not None:
-            _PALETTE_MANAGER.set_info(
-                palette_data["colors"], palette_data["color_i"], palette_data["offset_y"],
-                palette_data["drop-down_i"],
-            )
+        _PALETTE_MANAGER.refresh_palette()
+        _PALETTE_MANAGER.refresh_dropdown()
 
     def _parse_argv(self) -> list[str]:
         """
@@ -740,14 +824,14 @@ class _Dixel:
         return grid_img
 
     def _set_file_text_label(self) -> None:
-        """Sets the file text label with the first 25 chars of the path or with New File."""
+        """Sets the file text label with the shortened path or with New File."""
 
         if self._file_str == "":
             _FILE_TEXT_LABEL.set_text("New File")
         else:
             _FILE_TEXT_LABEL.set_text(prettify_path_str(self._file_str))
 
-        _UNSAVED_ICON.rect.x       = _FILE_TEXT_LABEL.rect.right + 5
+        _UNSAVED_ICON.rect.x       = _FILE_TEXT_LABEL.rect.right + 4
         _UNSAVED_ICON.rect.centery = _FILE_TEXT_LABEL.rect.centery
         _UNSAVED_ICON.frame_rect.center = _UNSAVED_ICON.rect.center
 
@@ -818,7 +902,6 @@ class _Dixel:
 
         state_objs_info: list[ObjInfo] = self._states_objs_info[self._state_i]
         self._state_active_objs = [info.obj for info in state_objs_info if info.is_active]
-        VARS.should_refresh_active_objs = False
 
         for obj in self._state_active_objs:
             obj.enter()
@@ -844,7 +927,7 @@ class _Dixel:
         for obj in resizable_objs:
             obj.resize(win_w / WIN_INIT_W, win_h / WIN_INIT_H)
 
-        _UNSAVED_ICON.rect.x       = _FILE_TEXT_LABEL.rect.right + 5
+        _UNSAVED_ICON.rect.x       = _FILE_TEXT_LABEL.rect.right + 4
         _UNSAVED_ICON.rect.centery = _FILE_TEXT_LABEL.rect.centery
         _UNSAVED_ICON.frame_rect.center = _UNSAVED_ICON.rect.center
 
@@ -865,7 +948,7 @@ class _Dixel:
         if k == K_ESCAPE and self._state_i == _STATE_I_MAIN:
             raise KeyboardInterrupt
 
-        # Resizing triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
+        # Triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
         if   k == K_F1:
             if self._is_fullscreen:
                 _WIN.set_windowed()
@@ -971,23 +1054,28 @@ class _Dixel:
             win_h += 1
 
         if win_w != self._win_wh[0] or win_h != self._win_wh[1]:
-            # Resizing triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
+            # Triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
             _WIN.size = (win_w, win_h)
 
-    def _save_palette(self) -> None:
-        """Saves the palette to a separate file with retries."""
+    def _save_palette(self, i: int) -> None:
+        """
+        Saves a palette to a separate file with retries.
+
+        Args:
+            index
+        """
 
         error_str: str
         should_retry: bool
 
         data: dict[str, Any] = {
-            "color_i"    : _PALETTE_MANAGER.colors_grid.clicked_i,
-            "offset_y"   : _PALETTE_MANAGER.colors_grid.offset_y,
-            "drop-down_i": _PALETTE_MANAGER.dropdown_i,
-            "colors"     : _PALETTE_MANAGER.colors_grid.colors,
+            "color_i"    : _PALETTE_MANAGER.clicked_indexes[i],
+            "offset_y"   : _PALETTE_MANAGER.offsets_y[i],
+            "drop-down_i": _PALETTE_MANAGER.dropdown_indexes[i],
+            "colors"     : _PALETTE_MANAGER.palettes[i],
         }
 
-        palette_path: Path = Path("assets", "data", "palette.json")
+        palette_path: Path = Path("assets", "data", "palettes", f"palette_{i}.json")
         palette_bytes: bytes = json.dumps(
             data, ensure_ascii=False, indent=4
         ).encode("utf-8", "ignore")
@@ -1030,7 +1118,7 @@ class _Dixel:
 
     def _save_to_file(self, should_ask_create_img_dir: bool) -> None:
         """
-        Saves the data file, palette and image with retries.
+        Saves the data, palettes and image with retries.
 
         Args:
             ask create image directory flag
@@ -1038,6 +1126,7 @@ class _Dixel:
 
         error_str: str
         should_retry: bool
+        palette_i: int
 
         tool_i: int = (
             _TOOLS_MANAGER.tools_grid.clicked_i if _TOOLS_MANAGER.saved_clicked_i is None else
@@ -1050,18 +1139,19 @@ class _Dixel:
         data: dict[str, Any] = {
             "file": self._file_str,
 
-            "grid_cols"        : _GRID_MANAGER.grid.area.w,
-            "grid_rows"        : _GRID_MANAGER.grid.area.h,
-            "grid_visible_cols": _GRID_MANAGER.grid.visible_area.w,
-            "grid_visible_rows": _GRID_MANAGER.grid.visible_area.h,
-            "grid_offset_x"    : _GRID_MANAGER.grid.offset.x,
-            "grid_offset_y"    : _GRID_MANAGER.grid.offset.y,
+            "grid_cols"        : _GRID_MANAGER.grid.cols,
+            "grid_rows"        : _GRID_MANAGER.grid.rows,
+            "grid_visible_cols": _GRID_MANAGER.grid.visible_cols,
+            "grid_visible_rows": _GRID_MANAGER.grid.visible_rows,
+            "grid_offset_x"    : _GRID_MANAGER.grid.offset_x,
+            "grid_offset_y"    : _GRID_MANAGER.grid.offset_y,
 
             "is_x_mirror_on": _GRID_MANAGER.is_x_mirror_on,
             "is_y_mirror_on": _GRID_MANAGER.is_y_mirror_on,
 
             "brush_dim_i": _BRUSH_DIMS.clicked_i,
             "tool_i"     : tool_i,
+            "selected_palette"  : _PALETTE_MANAGER.palette_dropdown.option_i,
 
             "grid_ratio": grid_ratio,
 
@@ -1071,7 +1161,7 @@ class _Dixel:
             "is_fullscreen": self._is_fullscreen,
 
             "is_fps_counter_active": _FPS_TEXT_LABEL_OBJ_INFO.is_active,
-            "fps_cap_drop-down_i": _SETTINGS_UI.fps_dropdown.option_i,
+            "selected_fps_cap": _SETTINGS_UI.fps_dropdown.option_i,
             "crash_save_dir": _SETTINGS_UI.crash_save_dir_str,
         }
 
@@ -1116,7 +1206,13 @@ class _Dixel:
                 messagebox.showerror("Data Save Failed", error_str)
                 break
 
-        self._save_palette()
+        current_palette_i: int = _PALETTE_MANAGER.palette_dropdown.option_i - 1
+        _PALETTE_MANAGER.clicked_indexes[current_palette_i] = _PALETTE_MANAGER.colors_grid.clicked_i
+        _PALETTE_MANAGER.offsets_y[current_palette_i] = _PALETTE_MANAGER.colors_grid.offset_y
+        _PALETTE_MANAGER.dropdown_indexes[current_palette_i] = _PALETTE_MANAGER._dropdown_i
+        try_clear_dir(Path("assets", "data", "palettes"))
+        for palette_i in range(len(_PALETTE_MANAGER.palettes)):
+            self._save_palette(palette_i)
 
         grid_img: pg.Surface | None = _GRID_MANAGER.grid.try_save_to_file(
             self._file_str, should_ask_create_img_dir
@@ -1195,7 +1291,9 @@ class _Dixel:
         is_ctrl_g_pressed: bool = KEYBOARD.is_ctrl_on and K_g in KEYBOARD.pressed
         if is_edit_grid_clicked or is_ctrl_g_pressed:
             self._state_i = _STATE_I_GRID
-            _GRID_UI.set_info(_GRID_MANAGER.grid.area, _GRID_MANAGER.grid.tiles)
+            _GRID_UI.set_info(
+                _GRID_MANAGER.grid.cols, _GRID_MANAGER.grid.rows, _GRID_MANAGER.grid.tiles
+            )
 
         is_open_settings_clicked: bool = _OPEN_SETTINGS.upt()
         is_ctrl_comma_pressed: bool = KEYBOARD.is_ctrl_on and K_COMMA in KEYBOARD.pressed
@@ -1213,8 +1311,8 @@ class _Dixel:
             self._handle_brush_dim_shortcuts()
 
         _BRUSH_DIMS.upt()
-        did_brush_i_change: bool = _BRUSH_DIMS.refresh()
-        if did_brush_i_change:
+        if _BRUSH_DIMS.clicked_i != _BRUSH_DIMS.prev_clicked_i:
+            _BRUSH_DIMS.check(_BRUSH_DIMS.clicked_i)
             _GRID_MANAGER.grid.brush_dim = _BRUSH_DIMS.clicked_i + 1
 
         is_shift_h_pressed: bool = KEYBOARD.is_shift_on and K_h in KEYBOARD.timed
@@ -1233,12 +1331,7 @@ class _Dixel:
             self._state_active_objs = [info.obj for info in state_objs_info if info.is_active]
             VARS.should_refresh_active_objs = False
             MOUSE.refresh_hovered_obj(self._state_active_objs)
-
-            # Hovered checkbox won't be clicked immediately if the drop-down menu moves
-            prev_mouse_released: list[bool] = MOUSE.released
-            MOUSE.released = [False, False, False, False, False]
             _PALETTE_MANAGER.colors_grid.upt_checkboxes()
-            MOUSE.released = prev_mouse_released
 
         tool_info: ToolInfo = _TOOLS_MANAGER.upt()
 
@@ -1246,7 +1339,7 @@ class _Dixel:
         if did_grid_change and self._file_str != "":
             self._refresh_unsaved_icon(WHITE)
         if _GRID_MANAGER.eye_dropped_color is not None:
-            did_palette_change = _PALETTE_MANAGER.add(_GRID_MANAGER.eye_dropped_color)
+            did_palette_change = _PALETTE_MANAGER.add_color(_GRID_MANAGER.eye_dropped_color)
             if did_palette_change:
                 # Refreshing state_active_objects and hovered object is unnecessary
                 self._refresh_objs(True)
@@ -1269,12 +1362,11 @@ class _Dixel:
 
         did_exit, did_confirm, rgb_color = _COLOR_PICKER.upt()
         if did_exit:
-            _PALETTE_MANAGER.edit_i = None
             self._state_i = _STATE_I_MAIN
         elif did_confirm:
             self._state_i = _STATE_I_MAIN
 
-            did_palette_change: bool = _PALETTE_MANAGER.add(rgb_color)
+            did_palette_change: bool = _PALETTE_MANAGER.add_color(rgb_color)
             if did_palette_change:
                 # Refreshing state_active_objects and hovered object is unnecessary
                 self._refresh_objs(True)
@@ -1291,21 +1383,21 @@ class _Dixel:
             self._state_i = _STATE_I_MAIN
             self._new_file_str = ""
         elif did_confirm:
-            if self._new_file_str != "":  # Save before setting info
+            is_opening_new_img: bool = self._new_file_str != ""
+            if is_opening_new_img:  # Save before setting info
                 _GRID_MANAGER.grid.try_save_to_file(self._file_str, True)
                 self._file_str = self._new_file_str
                 self._new_file_str = ""
                 self._set_file_text_label()
 
-            should_reset_grid_history: bool = self._new_file_str != ""
             _GRID_MANAGER.grid.set_info(
                 tiles,
-                _GRID_MANAGER.grid.visible_area.w, _GRID_MANAGER.grid.visible_area.h,
-                _GRID_MANAGER.grid.offset.x, _GRID_MANAGER.grid.offset.y,
-                should_reset_grid_history,
+                _GRID_MANAGER.grid.visible_cols, _GRID_MANAGER.grid.visible_rows,
+                _GRID_MANAGER.grid.offset_x, _GRID_MANAGER.grid.offset_y,
+                is_opening_new_img,
             )
             _GRID_MANAGER.grid.refresh_full()
-            if not should_reset_grid_history:
+            if not is_opening_new_img:
                 _GRID_MANAGER.grid.add_to_history()
 
             if self._file_str != "":
@@ -1376,7 +1468,9 @@ class _Dixel:
 
             self._new_file_str = file_str
             self._state_i = _STATE_I_GRID
-            _GRID_UI.set_info(_GRID_MANAGER.grid.area, get_pixels(new_file_img))
+            _GRID_UI.set_info(
+                _GRID_MANAGER.grid.cols, _GRID_MANAGER.grid.rows, get_pixels(new_file_img)
+            )
 
     def _handle_asked_files_queue(self) -> None:
         """Processes every item in the asked files queue."""

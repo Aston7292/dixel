@@ -84,7 +84,7 @@ BUTTON_S_ON_IMG  = pg.transform.scale(BUTTON_M_ON_IMG , (96, 48)).convert()
 BUTTON_XS_OFF_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF_IMG, (64, 32)).convert()
 BUTTON_XS_ON_IMG: Final[pg.Surface]  = pg.transform.scale(BUTTON_M_ON_IMG , (64, 32)).convert()
 
-X_MIRROR_OFF_IMG: Final[pg.Surface] = _try_get_img("mirror.png", (63, 64))
+X_MIRROR_OFF_IMG: Final[pg.Surface] = _try_get_img("mirror.png", (72, 70))
 X_MIRROR_ON_IMG: Final[pg.Surface] = add_border(X_MIRROR_OFF_IMG, WHITE)
 Y_MIRROR_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(X_MIRROR_OFF_IMG, -90)
 Y_MIRROR_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(X_MIRROR_ON_IMG, -90)
@@ -93,6 +93,17 @@ ARROW_UP_OFF_IMG: Final[pg.Surface] = _try_get_img("arrow_off.png", (11, 6))
 ARROW_UP_ON_IMG: Final[pg.Surface]  = _try_get_img("arrow_on.png" , (11, 6))
 ARROW_DOWN_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_OFF_IMG, 180).convert()
 ARROW_DOWN_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(ARROW_UP_ON_IMG , 180).convert()
+
+ADD_OFF_IMG: Final[pg.Surface] = _try_get_img("add_off.png", (48, 48))
+ADD_ON_IMG: Final[pg.Surface]  = _try_get_img("add_on.png" , (48, 48))
+
+PENCIL_IMG: Final[pg.Surface]      = _try_get_img("pencil.png"     , (64, 64))
+BUCKET_IMG: Final[pg.Surface]      = _try_get_img("bucket.png"     , (64, 64))
+EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper.png", (64, 64))
+LINE_IMG: Final[pg.Surface]        = _try_get_img("eye_dropper.png", (64, 64))
+
+SETTINGS_OFF_IMG: Final[pg.Surface] = _try_get_img("settings_off.png", (32, 32))
+SETTINGS_ON_IMG: Final[pg.Surface]  = _try_get_img("settings_on.png" , (32, 32))
 
 CLOSE_OFF_IMG: Final[pg.Surface] = _try_get_img("close_off.png", (48, 48))
 CLOSE_ON_IMG: Final[pg.Surface]  = _try_get_img("close_on.png" , (48, 48))
@@ -105,13 +116,6 @@ ROTATE_RIGHT_OFF_IMG: Final[pg.Surface] = pg.transform.flip(
 ROTATE_RIGHT_ON_IMG: Final[pg.Surface]  = pg.transform.flip(
     ROTATE_LEFT_ON_IMG , True, False
 ).convert()
-
-PENCIL_IMG: Final[pg.Surface]      = _try_get_img("pencil.png"     , (64, 64))
-BUCKET_IMG: Final[pg.Surface]      = _try_get_img("bucket.png"     , (64, 64))
-EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper.png", (64, 64))
-
-SETTINGS_OFF_IMG: Final[pg.Surface] = _try_get_img("settings_off.png", (32, 32))
-SETTINGS_ON_IMG: Final[pg.Surface]  = _try_get_img("settings_on.png" , (32, 32))
 
 if _ERRORS_LIST != []:
     full_error_str: str = "\n".join(_ERRORS_LIST)

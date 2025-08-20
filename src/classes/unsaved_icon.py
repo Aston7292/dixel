@@ -13,7 +13,7 @@ class UnsavedIcon:
     """Class to indicate an unsaved file."""
 
     __slots__ = (
-        "_init_radius", "_normal_radius", "_radius", "_min_radius", "_max_radius",
+        "init_radius", "_normal_radius", "_radius", "_min_radius", "_max_radius",
         "rect", "frame_rect",
         "_color", "_animation_i",
         "hover_rects", "layer", "blit_sequence", "_min_win_ratio",
@@ -25,9 +25,9 @@ class UnsavedIcon:
     def __init__(self) -> None:
         """Creates image and rect."""
 
-        self._init_radius: int = 8
-        self._normal_radius: float = self._init_radius
-        self._radius: float = self._normal_radius
+        self.init_radius: int = 8
+        self._normal_radius: float = self.init_radius
+        self._radius: float = 0
         self._min_radius: float = self._normal_radius
         self._max_radius: float = self._normal_radius * 1.5
 
@@ -47,8 +47,6 @@ class UnsavedIcon:
         self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = [(img, self.frame_rect, ELEMENT_LAYER)]
         self._min_win_ratio: float = 1
-
-        self.set_radius(self._radius)
 
     def enter(self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -72,7 +70,7 @@ class UnsavedIcon:
         min_radius_ratio: float = self._min_radius / self._normal_radius
         max_radius_ratio: float = self._max_radius / self._normal_radius
         _xy, (self._normal_radius, self._normal_radius) = resize_obj(
-            RectPos(0, 0, ""), self._init_radius, self._init_radius,
+            RectPos(0, 0, ""), self.init_radius, self.init_radius,
             win_w_ratio, win_h_ratio, True
         )
 

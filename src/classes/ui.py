@@ -66,13 +66,13 @@ class UI(ABC):
         self.objs_info: list[ObjInfo] = []
 
         title_text_label: TextLabel = TextLabel(
-            RectPos(self._rect.centerx, self._rect.y + 20, "midtop"),
+            RectPos(self._rect.centerx, self._rect.y + 16, "midtop"),
             title, self.layer, 35
         )
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10, self._rect.y      + 10, "topright"),
-            [CLOSE_OFF_IMG, CLOSE_ON_IMG], "", "Escape", self.layer
+            [CLOSE_OFF_IMG, CLOSE_ON_IMG], None, "Escape", self.layer
         )
 
         self._confirm: Button | None = None

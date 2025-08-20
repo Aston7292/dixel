@@ -10,7 +10,7 @@ from src.classes.devices import MOUSE, KEYBOARD
 
 from src.utils import UIElement, RectPos, ObjInfo, add_border, rec_move_rect
 from src.type_utils import HexColor, BlitInfo
-from src.consts import WHITE, HEX_BLACK, DARKER_GRAY, BG_LAYER
+from src.consts import WHITE, DARKER_GRAY, HEX_BLACK, BG_LAYER
 
 
 _COLOR_IMG: Final[pg.Surface] = pg.Surface((32, 32))
@@ -44,7 +44,7 @@ class ColorsGrid:
     __slots__ = (
         "_init_pos",
         "colors", "visible_checkboxes", "_hovered_checkbox",
-        "clicked_i", "offset_y","_prev_clicked_i", "rect",
+        "clicked_i", "offset_y", "_prev_clicked_i", "prev_offset_y", "rect",
         "hover_rects", "layer", "blit_sequence", "_win_w_ratio", "_win_h_ratio",
     )
 
@@ -60,22 +60,21 @@ class ColorsGrid:
 
         self._init_pos: RectPos = pos
 
-        self.colors: list[HexColor] = [HEX_BLACK]
+        self.colors: list[HexColor] = []
         self.visible_checkboxes: list[LockedCheckbox] = []
         self._hovered_checkbox: LockedCheckbox | None = None
 
         self.clicked_i: int = 0
         self.offset_y: int = 0
         self._prev_clicked_i: int = self.clicked_i
-        self.rect: pg.Rect = pg.Rect(0, 0, 0, 0)
+        self.prev_offset_y: int = self.offset_y
+        self.rect: pg.Rect = pg.Rect(self._init_pos.x, self._init_pos.y, 0, 0)
 
         self.hover_rects: list[pg.Rect] = [self.rect]
         self.layer: int = base_layer
         self.blit_sequence: list[BlitInfo] = []
         self._win_w_ratio: float = 1
         self._win_h_ratio: float = 1
-
-        self.set_grid(self.colors, 0, 0)
 
     def enter(self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -163,7 +162,7 @@ class ColorsGrid:
             y offset
         """
 
-        self.offset_y = offset_y
+        self.offset_y = self.prev_offset_y = offset_y
 
         visible_start_i: int =  self.offset_y * NUM_COLS
         visible_end_i: int   = (self.offset_y + NUM_VISIBLE_ROWS) * NUM_COLS
@@ -177,12 +176,12 @@ class ColorsGrid:
 
         visible_end_i = visible_start_i + len(self.visible_checkboxes)
         if visible_start_i <= self.clicked_i < visible_end_i:
-            visible_clicked_i: int = self.clicked_i - visible_start_i
-            self.visible_checkboxes[visible_clicked_i].img_i = 1
-            self.visible_checkboxes[visible_clicked_i].is_checked = True
+            rel_clicked_i: int = self.clicked_i - visible_start_i
+            self.visible_checkboxes[rel_clicked_i].img_i = 1
+            self.visible_checkboxes[rel_clicked_i].is_checked = True
         self._move_section_to_last(0)
 
-    def set_grid(self, hex_colors: list[HexColor], clicked_i: int, offset_y: int) -> None:
+    def set_info(self, hex_colors: list[HexColor], clicked_i: int, offset_y: int) -> None:
         """
         Modifies the grid, sets clicked checkbox index and row offset.
 
@@ -191,7 +190,7 @@ class ColorsGrid:
         """
 
         self.colors = hex_colors
-        self.clicked_i = self._prev_clicked_i = clicked_i
+        self.clicked_i = clicked_i
         self.set_offset_y(offset_y)  # Also refreshes visible checkboxes
 
         rects: list[pg.Rect] = [checkbox.rect for checkbox in self.visible_checkboxes]
@@ -226,13 +225,13 @@ class ColorsGrid:
             self.set_offset_y(clicked_row - NUM_VISIBLE_ROWS + 1)
         elif visible_start_i <= self.clicked_i < visible_end_i:
             if visible_start_i <= self._prev_clicked_i < visible_end_i:
-                visible_prev_clicked_i: int = self._prev_clicked_i - visible_start_i
-                self.visible_checkboxes[visible_prev_clicked_i].img_i = 0
-                self.visible_checkboxes[visible_prev_clicked_i].is_checked = False
+                rel_prev_clicked_i: int = self._prev_clicked_i - visible_start_i
+                self.visible_checkboxes[rel_prev_clicked_i].img_i = 0
+                self.visible_checkboxes[rel_prev_clicked_i].is_checked = False
 
-            visible_clicked_i: int = self.clicked_i - visible_start_i
-            self.visible_checkboxes[visible_clicked_i].img_i = 1
-            self.visible_checkboxes[visible_clicked_i].is_checked = True
+            rel_clicked_i: int = self.clicked_i - visible_start_i
+            self.visible_checkboxes[rel_clicked_i].img_i = 1
+            self.visible_checkboxes[rel_clicked_i].is_checked = True
 
         self._prev_clicked_i = self.clicked_i
 
@@ -257,7 +256,7 @@ class ColorsGrid:
             checkbox: LockedCheckbox = self.visible_checkboxes[edit_i - visible_start_i]
             checkbox.init_imgs = checkbox.imgs = imgs
             checkbox.hovering_text_label.set_text(hovering_text)
-            self._rec_resize(edit_i)
+            self._rec_resize(edit_i - visible_start_i)
 
     def add(self, hex_color: HexColor) -> bool:
         """
@@ -274,7 +273,7 @@ class ColorsGrid:
 
         self.colors.append(hex_color)
 
-        visible_start_i: int =  self.offset_y                                   * NUM_COLS
+        visible_start_i: int =  self.offset_y * NUM_COLS
         visible_end_i: int   = (self.offset_y + NUM_VISIBLE_ROWS) * NUM_COLS
         if visible_start_i <= (len(self.colors) - 1) < visible_end_i:
             self.visible_checkboxes.append(
@@ -313,7 +312,6 @@ class ColorsGrid:
             return
 
         self.colors.pop(remove_i)
-        self.colors = self.colors or [HEX_BLACK]
         if self.clicked_i > remove_i:
             self.check(self.clicked_i - 1)
         elif self.clicked_i == remove_i:

@@ -11,15 +11,15 @@ from src.classes.devices import MOUSE
 
 from src.utils import RectPos, ObjInfo, rec_move_rect
 from src.type_utils import BlitInfo
-from src.consts import MOUSE_LEFT, BG_LAYER
+from src.consts import MOUSE_LEFT, BG_LAYER, ELEMENT_LAYER, TEXT_LAYER, TOP_LAYER
 from src.imgs import BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG
 
 class Dropdown:
     """Class to crate a drop-down menu with various options."""
 
     __slots__ = (
-        "_init_x", "_init_y",
-        "_options", "values", "option_i", "_is_fully_visible",
+        "init_pos",
+        "_option_base_layer", "_options", "values", "option_i", "_is_fully_visible",
         "hover_rects", "layer", "blit_sequence", "_win_ratio_w", "_win_ratio_h", "objs_info",
         "_options_objs_info_start_i", "_options_objs_info_end_i",
     )
@@ -28,43 +28,41 @@ class Dropdown:
 
     def __init__(
             self, pos: RectPos, info: list[tuple[str, str, Any]], text: str,
-            base_layer: int = BG_LAYER
+            base_layer: int = BG_LAYER, text_h: int = 25
     ) -> None:
         """
         Creates all the buttons.
 
         Args:
             position, options texts hovering texts and values, text,
-            base layer (default = BG_LAYER)
+            base layer (default = BG_LAYER), text height (default = 25)
         """
 
-        self._init_x: int = pos.x
-        self._init_y: int = pos.y
+        self.init_pos: RectPos = pos
 
         info = [("", "", None)] + info  # For placeholder button
+        self._option_base_layer: int = base_layer + TOP_LAYER - ELEMENT_LAYER
         self._options: list[Button] = [
             # Changed to copy selected option when fully visible
             Button(
-                RectPos(self._init_x, self._init_y, pos.coord_type),
-                [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], option_text, option_hovering_text,
-                base_layer
+                RectPos(self.init_pos.x, self.init_pos.y, self.init_pos.coord_type),
+                [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], text, hovering_text,
+                self._option_base_layer, text_h
             )
-            for option_text, option_hovering_text, _option_value in info
+            for text, hovering_text, _value in info
         ]
 
-        self.values: list[Any] = [
-            option_value for _option_text, _option_hovering_text, option_value in info
-        ]
-        self.option_i: int = 1
+        self.values: list[Any] = [value for _text, _hovering_text, value in info]
+        self.option_i: int = 0
         self._is_fully_visible: bool = False
 
         text_label: TextLabel = TextLabel(
-            RectPos(self._options[0].rect.centerx, self._options[0].rect.y - 8, "midbottom"),
-            text, base_layer
+            RectPos(self._options[0].rect.centerx, self._options[0].rect.y - 4, "midbottom"),
+            text, base_layer + TOP_LAYER - TEXT_LAYER
         )
 
         self.hover_rects: list[pg.Rect] = []
-        self.layer: int = base_layer
+        self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = []
         self._win_ratio_w: float = 1
         self._win_ratio_h: float = 1
@@ -73,9 +71,6 @@ class Dropdown:
         self._options_objs_info_start_i: int = len(self.objs_info)
         self.objs_info.extend([ObjInfo(option) for option in self._options])
         self._options_objs_info_end_i: int   = len(self.objs_info)
-
-        self.set_option_i(self.option_i)
-
 
     def enter(self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -94,6 +89,16 @@ class Dropdown:
         """
 
         self._win_ratio_w, self._win_ratio_h = win_w_ratio, win_h_ratio
+
+    def move_rect(self, init_x: int, init_y: int, _win_w_ratio: float, _win_h_ratio: float) -> None:
+        """
+        Moves the rect to a specific coordinate.
+
+        Args:
+            initial x, initial y, window width ratio, window height ratio
+        """
+
+        self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
 
     def set_option_i(self, option_i: int) -> None:
         """
@@ -116,9 +121,29 @@ class Dropdown:
 
         option_obj_info_i: int = self._options_objs_info_start_i + self.option_i
         rec_move_rect(
-            self.objs_info[option_obj_info_i].obj, self._init_x, self._init_y,
+            self.objs_info[option_obj_info_i].obj, self.init_pos.x, self.init_pos.y,
             self._win_ratio_w, self._win_ratio_h
         )
+
+    def add(self, text: str, hovering_text: str, value: Any) -> None:
+
+        option: Button = Button(
+            RectPos(self.init_pos.x, self.init_pos.y, self.init_pos.coord_type),
+            [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], text, hovering_text,
+            self._option_base_layer, self._options[0].text_label.init_h
+        )
+
+        self._options.append(option)
+        self.values.append(value)
+        self.objs_info.insert(self._options_objs_info_end_i, ObjInfo(option))
+        self._options_objs_info_end_i += 1
+
+        if self._is_fully_visible:
+            init_y: int = option.init_imgs[0].get_height() * (len(self._options) - 1)
+            rec_move_rect(option, self.init_pos.x, init_y, self._win_ratio_w, self._win_ratio_h)
+        else:
+            self.objs_info[-1].rec_set_active(False)
+
 
     def _set_full_visibility(self, is_fully_visible: bool) -> None:
         """
@@ -134,29 +159,28 @@ class Dropdown:
         self._is_fully_visible = is_fully_visible
 
         if self._is_fully_visible:
+            assert self._options[0].text_label is not None
             self._options[0].text_label.set_text(  self._options[self.option_i].text_label.text)
             self._options[0].hovering_text_label = self._options[self.option_i].hovering_text_label
 
-            init_y: int = self._init_y
+            init_y: int = self.init_pos.y
             for option in self._options:
                 rec_move_rect(
-                    option, self._init_x, init_y,
+                    option, self.init_pos.x, init_y,
                     self._win_ratio_w, self._win_ratio_h
                 )
                 init_y += option.init_imgs[0].get_height()
         else:
-            option_obj_info_i: int = self._options_objs_info_start_i + self.option_i
             rec_move_rect(
-                self.objs_info[option_obj_info_i].obj, self._init_x, self._init_y,
+                self._options[self.option_i], self.init_pos.x, self.init_pos.y,
                 self._win_ratio_w, self._win_ratio_h
             )
 
         dropdown_objs_info: list[ObjInfo] = self.objs_info[
             self._options_objs_info_start_i:self._options_objs_info_end_i
         ]
-        selected_obj_info: ObjInfo = dropdown_objs_info[self.option_i]
         for obj_info in dropdown_objs_info:
-            if obj_info != selected_obj_info:
+            if obj_info != dropdown_objs_info[self.option_i]:
                 obj_info.rec_set_active(self._is_fully_visible)
 
     def _upt_all(self) -> None:
@@ -177,13 +201,14 @@ class Dropdown:
                 break
 
         if clicked_option == self._options[0]:
-            # Placeholder option was clicked, the selected one is now in its place and hovered
+            # Placeholder option was clicked, the selected one is now hovered
             MOUSE.hovered_obj = self._options[self.option_i]
             self._options[self.option_i].img_i = 1
             self._options[self.option_i]._is_hovering = True
         elif clicked_option is not None:
             # An option was clicked and it moved to the top, MOUSE is no longer hovering it
             MOUSE.hovered_obj = None
+            MOUSE.released[MOUSE_LEFT] = False  # Doesn't click objects below
             clicked_option.img_i = 0
             clicked_option._is_hovering = False
 

@@ -8,9 +8,9 @@ from typing import Final
 import pygame as pg
 
 from src.utils import add_border, try_read_file, handle_file_os_error
-from src.lock_utils import LockException, FileException, try_lock_file
+from src.lock_utils import LockError, FileError, try_lock_file
 from src.type_utils import WH
-from src.consts import BLACK, WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I
+from src.consts import WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I
 
 
 _ERRORS_LIST: Final[list[str]] = []
@@ -38,24 +38,21 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
     for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             with file_path.open("rb") as f:
-                try_lock_file(f, True)
+                try_lock_file(f, is_shared=True)
                 img_bytes: BytesIO = BytesIO(try_read_file(f))
-                img = pg.image.load(img_bytes, file_path.suffix)
+                img = pg.image.load(img_bytes, namehint=file_path.suffix)
             break
-        except FileNotFoundError:
-            _ERRORS_LIST.append(f"{file_path.name}: File missing.")
-            break
-        except PermissionError:
-            _ERRORS_LIST.append(f"{file_path.name}: Permission denied.")
-            break
-        except LockException:
-            _ERRORS_LIST.append(f"{file_path.name}: File locked.")
-            break
-        except FileException as e:
-            _ERRORS_LIST.append(f"{file_path.name}: {e.error_str}")
-            break
-        except pg.error as e:
-            _ERRORS_LIST.append(f"{file_path.name}: {e}")
+        except (FileNotFoundError, PermissionError, LockError, FileError, pg.error) as e:
+            errors_str: dict[type[Exception], str] = {
+                FileNotFoundError: "File missing.",
+                PermissionError: "Permission denied.",
+                LockError: "File locked.",
+                FileError: e.error_str if isinstance(e, FileError) else "",
+                pg.error: str(e),
+            }
+
+            error_str = errors_str[type(e)]
+            _ERRORS_LIST.append(f"{file_path.name}: {error_str}")
             break
         except OSError as e:
             error_str, should_retry = handle_file_os_error(e)
@@ -87,7 +84,7 @@ BUTTON_XS_ON_IMG: Final[pg.Surface]  = pg.transform.scale(BUTTON_M_ON_IMG , (64,
 X_MIRROR_OFF_IMG: Final[pg.Surface] = _try_get_img("mirror.png", (72, 70))
 X_MIRROR_ON_IMG: Final[pg.Surface] = add_border(X_MIRROR_OFF_IMG, WHITE)
 Y_MIRROR_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(X_MIRROR_OFF_IMG, -90)
-Y_MIRROR_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(X_MIRROR_ON_IMG, -90)
+Y_MIRROR_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(X_MIRROR_ON_IMG , -90)
 
 ARROW_UP_OFF_IMG: Final[pg.Surface] = _try_get_img("arrow_off.png", (11, 6))
 ARROW_UP_ON_IMG: Final[pg.Surface]  = _try_get_img("arrow_on.png" , (11, 6))
@@ -100,7 +97,7 @@ ADD_ON_IMG: Final[pg.Surface]  = _try_get_img("add_on.png" , (48, 48))
 PENCIL_IMG: Final[pg.Surface]      = _try_get_img("pencil.png"     , (64, 64))
 BUCKET_IMG: Final[pg.Surface]      = _try_get_img("bucket.png"     , (64, 64))
 EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper.png", (64, 64))
-LINE_IMG: Final[pg.Surface]        = _try_get_img("eye_dropper.png", (64, 64))
+LINE_IMG: Final[pg.Surface]        = _try_get_img("line.png"       , (64, 64))
 
 SETTINGS_OFF_IMG: Final[pg.Surface] = _try_get_img("settings_off.png", (32, 32))
 SETTINGS_ON_IMG: Final[pg.Surface]  = _try_get_img("settings_on.png" , (32, 32))
@@ -108,15 +105,14 @@ SETTINGS_ON_IMG: Final[pg.Surface]  = _try_get_img("settings_on.png" , (32, 32))
 CLOSE_OFF_IMG: Final[pg.Surface] = _try_get_img("close_off.png", (48, 48))
 CLOSE_ON_IMG: Final[pg.Surface]  = _try_get_img("close_on.png" , (48, 48))
 
-ROTATE_LEFT_OFF_IMG: Final[pg.Surface] = _try_get_img("rotate_off.png", (23, 34))
-ROTATE_LEFT_ON_IMG: Final[pg.Surface]  = _try_get_img("rotate_on.png" , (23, 34))
+ROTATE_LEFT_OFF_IMG: Final[pg.Surface] = _try_get_img("rotate_off.png", (38, 44))
+ROTATE_LEFT_ON_IMG: Final[pg.Surface]  = _try_get_img("rotate_on.png" , (38, 44))
 ROTATE_RIGHT_OFF_IMG: Final[pg.Surface] = pg.transform.flip(
     ROTATE_LEFT_OFF_IMG, True, False
 ).convert()
-ROTATE_RIGHT_ON_IMG: Final[pg.Surface]  = pg.transform.flip(
+ROTATE_RIGHT_ON_IMG: Final[pg.Surface] = pg.transform.flip(
     ROTATE_LEFT_ON_IMG , True, False
 ).convert()
 
 if _ERRORS_LIST != []:
-    full_error_str: str = "\n".join(_ERRORS_LIST)
-    messagebox.showerror("Image Load Failed", full_error_str)
+    messagebox.showerror("Images Load Failed", "\n".join(_ERRORS_LIST))

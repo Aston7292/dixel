@@ -1,23 +1,18 @@
-"""Functions and dataclasses shared between files."""
+"""Functions and shared between files."""
 
 import shutil
 
-from tkinter import messagebox
 from pathlib import Path
-from dataclasses import dataclass
-from math import ceil
 from collections.abc import Callable
 from errno import *
-from typing import BinaryIO, Protocol, Final, Any
+from typing import BinaryIO, Final, Any
 
 import pygame as pg
 import numpy as np
 from numpy import uint8
 from numpy.typing import NDArray
 
-from src.lock_utils import FileException
-from src.type_utils import XY, WH, BlitInfo
-import src.vars as VARS
+from src.lock_utils import FileError
 from src.consts import (
     BLACK,
     EMPTY_TILE_ARR, TILE_W, TILE_H,
@@ -67,88 +62,6 @@ def print_funcs_profiles() -> None:
         print(f"{name}: {avg_time:.4f}ms | calls: {num_calls}")
 
 
-class UIElement(Protocol):
-    """Class to reinforce type hinting."""
-
-    hover_rects: list[pg.Rect]
-    layer: int
-    cursor_type: int
-
-    @property
-    def blit_sequence(self) -> list[BlitInfo]:
-        """TODO"""
-
-    def enter(self) -> None:
-        """Initializes all the relevant data when the object state is entered."""
-
-    def leave(self) -> None:
-        """Clears the relevant data when the object state is leaved."""
-
-    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
-        """
-        Resizes the object.
-
-        Args:
-            window width ratio, window height ratio
-        """
-
-    @property
-    def objs_info(self) -> list["ObjInfo"]:
-        """
-        Gets the sub objects info.
-
-        Returns:
-            objects info
-        """
-
-
-@dataclass(slots=True)
-class RectPos:
-    """
-    Dataclass for representing a rect position.
-
-    Args:
-        x coordinate, y coordinate, coordinate type (topleft, midtop, etc.)
-    """
-
-    x: int
-    y: int
-    coord_type: str
-
-
-@dataclass(slots=True)
-class ObjInfo:
-    """
-    Dataclass for storing an object and its active flag.
-
-    Args:
-        object
-    """
-
-    obj: UIElement
-    is_active: bool = True
-
-    def rec_set_active(self, should_activate: bool) -> None:
-        """
-        Sets the active flag for the object and sub objects, calls the leave method if inactive.
-
-        Args:
-            activate flag
-        """
-
-        VARS.should_refresh_active_objs = True
-        objs_info: list[ObjInfo] = [self]
-        while objs_info != []:
-            info: ObjInfo = objs_info.pop()
-            info.is_active = should_activate
-
-            if should_activate:
-                info.obj.enter()
-            else:
-                info.obj.leave()
-            objs_info.extend(info.obj.objs_info)
-
-
 def get_pixels(img: pg.Surface) -> NDArray[uint8]:
     """
     Gets the rgba values of the pixels in an image.
@@ -159,9 +72,10 @@ def get_pixels(img: pg.Surface) -> NDArray[uint8]:
         pixels
     """
 
-    pixels_rgb: NDArray[uint8] = pg.surfarray.pixels3d(img)
-    alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(img)
-    return np.dstack((pixels_rgb, alpha_values))
+    return np.dstack((
+        pg.surfarray.pixels3d(img),
+        pg.surfarray.pixels_alpha(img)
+    ))
 
 
 def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
@@ -175,8 +89,8 @@ def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
     """
 
     new_img: pg.Surface = img.copy()
-    side_w: int = round(min(new_img.get_size()) / 10)
-    pg.draw.rect(new_img, border_color, new_img.get_rect(), side_w)
+    smallest_dim: int = min(new_img.get_size())
+    pg.draw.rect(new_img, border_color, new_img.get_rect(), width=round(smallest_dim / 10))
     return new_img
 
 
@@ -192,16 +106,17 @@ def get_brush_dim_checkbox_info(dim: int) -> tuple[pg.Surface, str]:
 
     img_arr: NDArray[uint8] = np.tile(EMPTY_TILE_ARR, (8, 8, 1))
     rect: pg.Rect = pg.Rect(0, 0, dim * TILE_W, dim * TILE_H)
-    rect.center = (round(img_arr.shape[0] / 2), round(img_arr.shape[1] / 2))
+    rect.center = (
+        round(img_arr.shape[0] / 2),
+        round(img_arr.shape[1] / 2),
+    )
 
     img: pg.Surface = pg.surfarray.make_surface(img_arr)
     pg.draw.rect(img, BLACK, rect)
-    img = pg.transform.scale_by(img, 4).convert()
-    hovering_text: str = f"{dim}px\n(CTRL+{dim})"
-    return img, hovering_text
+    return pg.transform.scale_by(img, 4).convert(), f"{dim}px\n(CTRL+{dim})"
 
 
-def prettify_path_str(path_str: str) -> str:
+def prettify_path(path_str: str) -> str:
     """
     If a path string is longer than 32 chars it transform into the form root/.../parent/element.
 
@@ -220,8 +135,6 @@ def prettify_path_str(path_str: str) -> str:
         num_extra_parts: int = len(parts) - 1  # Drive is always present
 
         start: str = path_obj.drive
-        parent: str = path_obj.parent.name
-        name: str = path_obj.name
         if start == "":
             # Represent start as /home or similar if there's something between root and element
             start = parts[0]
@@ -229,14 +142,28 @@ def prettify_path_str(path_str: str) -> str:
                 start += "/" + parts[1]
                 num_extra_parts -= 1
 
-        path_str = f"{start[:3]}...{start[-3:]}" if len(start) > 10 else start
+        def _shorten_str(string: str, max_len: int) -> str:
+            """
+            Shortens a string by replacing the middle with ...
+
+            Args:
+                string, max length
+            Returns:
+                string
+            """
+
+            section_len: int = max_len // 4
+            return (
+                f"{string[:section_len]}...{string[-section_len:]}" if len(string) > max_len else
+                string
+            )
+        path_str = _shorten_str(start, 10)
         if num_extra_parts >= 3:  # There's something between root and parent so add dots
             path_str += "/..."
         if num_extra_parts >= 2:  # There's something between root and element so add parent
-            path_str += "/" + (f"{parent[:4]}...{parent[-4:]}" if len(parent) > 16 else parent)
+            path_str += "/" + _shorten_str(path_obj.parent.name, 16)
         if num_extra_parts >= 1:  # Root and element are different so add element
-            path_str += "/" + (f"{name[:4]}...{name[-4:]}" if len(name) > 16 else name)
-
+            path_str += "/" + _shorten_str(path_obj.name       , 16)
         path_str = str(Path(path_str))  # Replaces / with the right linker
 
     return path_str
@@ -251,7 +178,7 @@ def try_read_file(f: BinaryIO) -> bytes:
     Returns:
         content
     Raises:
-        FileException
+        FileError: on failure
     """
 
     content: bytes = b""
@@ -264,7 +191,7 @@ def try_read_file(f: BinaryIO) -> bytes:
                 pg.time.wait(2 ** attempt_i)
                 continue
 
-            raise FileException(str(e) + ".") from e
+            raise FileError(str(e) + ".") from e
 
     return content
 
@@ -276,7 +203,7 @@ def try_write_file(f: BinaryIO, content: bytes) -> None:
     Args:
         file, content
     Raises:
-        FileException
+        FileError: on failure
     """
 
     for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
@@ -286,13 +213,13 @@ def try_write_file(f: BinaryIO, content: bytes) -> None:
             if num_written_bytes == len(content):
                 break
 
-            raise FileException("Failed to write full file.")
+            raise FileError("Failed to write full file.")
         except OSError as e:
             if attempt_i != FILE_ATTEMPT_STOP_I:
                 pg.time.wait(2 ** attempt_i)
                 continue
 
-            raise FileException(str(e) + ".") from e
+            raise FileError(str(e) + ".") from e
 
 
 def handle_file_os_error(e: OSError) -> tuple[str, bool]:
@@ -312,146 +239,107 @@ def handle_file_os_error(e: OSError) -> tuple[str, bool]:
     return error_str, e in _FILE_TRANSIENT_ERROR_CODES
 
 
-def try_clear_dir(dir_path: Path) -> None:
+def try_get_paths(dir_path: Path) -> tuple[tuple[Path, ...], str | None]:
     """
-    Tries to clear a directory with retries.
+    Gets all the palettes data files with retries.
+
+    Args:
+        directory path
+    Returns:
+        files, error string (can be None)
+    """
+
+    attempt_i: int
+    should_retry: bool
+
+    paths: tuple[Path, ...] = ()
+    error_str: str | None = None
+    for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
+        try:
+            paths = tuple(dir_path.iterdir())
+            break
+        except (FileNotFoundError, PermissionError) as e:
+            if isinstance(e, PermissionError):
+                error_str = "Permission denied."
+            break
+        except OSError as e:
+            error_str, should_retry = handle_file_os_error(e)
+            if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
+                pg.time.wait(2 ** attempt_i)
+                continue
+
+            break
+
+    return paths, error_str
+
+
+def try_remove_element(element_path: Path) -> None:
+    """
+    Tries to remove a file or directory with retries.
 
     Args:
         path
     """
 
-    element: Path
+    attempt_i: int
     _error_str: str
     should_retry: bool
 
-    for element in dir_path.iterdir():
-        for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
-            try:
-                if element.is_file():
-                    element.unlink()
-                else:
-                    shutil.rmtree(element)
-                break
-            except (FileNotFoundError, PermissionError):
-                break
-            except OSError as e:
-                _error_str, should_retry = handle_file_os_error(e)
-                if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
-                    pg.time.wait(2 ** attempt_i)
-                    continue
+    for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
+        try:
+            if element_path.is_file():
+                element_path.unlink()
+            else:
+                shutil.rmtree(element_path)
+            break
+        except (FileNotFoundError, PermissionError):
+            break
+        except OSError as e:
+            _error_str, should_retry = handle_file_os_error(e)
+            if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
+                pg.time.wait(2 ** attempt_i)
+                continue
 
-                break
+            break
 
-def try_create_dir(dir_path: Path, should_ask_create: bool, creation_attempt_i: int) -> bool:
+
+def try_create_dir(dir_path: Path, creation_attempt_i: int) -> str | None:
     """
     Creates a directory with retries.
 
     Args:
-        path, ask creation flag, attempt index
+        path, attempt index
     Returns:
-        failed flag
+        error string (can be None)
     """
 
     system_attempt_i: int
-    error_str: str
     should_retry: bool
 
-    if creation_attempt_i == 1 and should_ask_create:
-        should_create: bool = messagebox.askyesno(
-            "Image Save Failed",
-            f"Directory missing: {dir_path.name}\nDo you wanna create it?",
-            icon="warning"
-        )
+    if creation_attempt_i == FILE_ATTEMPT_STOP_I:
+        return f"{dir_path.name}: repeated failure in creation."
 
-        if not should_create:
-            return True
-    elif creation_attempt_i == FILE_ATTEMPT_STOP_I:
-        messagebox.showerror("Directory Creation Failed", "Repeated failure in creation.")
-        return True
-
-    did_fail: bool = True
+    base_error_str: str
+    error_str: str | None = None
     for system_attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             dir_path.mkdir(parents=True, exist_ok=True)
-            did_fail = False
             break
-        except PermissionError:
-            messagebox.showerror(
-                "Directory Creation Failed", f"{dir_path.name}: permission denied."
+        except (PermissionError, FileExistsError) as e:
+            base_error_str = (
+                "permission denied." if isinstance(e, PermissionError) else
+                "file with the same name exists."
             )
-            break
-        except FileExistsError:
-            messagebox.showerror(
-                "Directory Creation Failed", f"{dir_path.name}: file with the same name exists."
-            )
+
+            error_str = f"{dir_path.name}: {base_error_str}"
             break
         except OSError as e:
-            error_str, should_retry = handle_file_os_error(e)
+            base_error_str, should_retry = handle_file_os_error(e)
             if should_retry and system_attempt_i != FILE_ATTEMPT_STOP_I:
                 pg.time.wait(2 ** system_attempt_i)
                 continue
 
-            messagebox.showerror(
-                "Directory Creation Failed", f"{dir_path.name}: {error_str}"
-            )
+            error_str = f"{dir_path.name}: {base_error_str}"
             break
 
-    return did_fail
-
-
-def resize_obj(
-        init_pos: RectPos, init_w: float, init_h: float, win_w_ratio: float, win_h_ratio: float,
-        should_keep_wh_ratio: bool = False
-) -> tuple[XY, WH]:
-    """
-    Scales position and size of an object without creating gaps between attached objects.
-
-    Args:
-        initial position, initial width, initial height, window width ratio, window height ratio
-        keep size ratio flag (default = False)
-    Returns:
-        position, size
-    """
-
-    resized_wh: WH
-
-    resized_xy: XY = (round(init_pos.x * win_w_ratio), round(init_pos.y * win_h_ratio))
-    if should_keep_wh_ratio:
-        min_ratio: float = min(win_w_ratio, win_h_ratio)
-        resized_wh = (ceil(init_w * min_ratio  ), ceil(init_h * min_ratio  ))
-    else:
-        resized_wh = (ceil(init_w * win_w_ratio), ceil(init_h * win_h_ratio))
-
-    return resized_xy, resized_wh
-
-
-def rec_move_rect(
-        main_obj: UIElement, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float
-) -> None:
-    """
-    Moves an object and it's sub objects to a specific coordinate.
-
-    Args:
-        object, initial x, initial y, window width ratio, window height ratio
-    """
-
-    objs_hierarchy: list[UIElement] = [main_obj]
-    change_x: int = 0
-    change_y: int = 0
-    while objs_hierarchy != []:
-        obj: UIElement = objs_hierarchy.pop()
-        if hasattr(obj, "move_rect"):
-            class_name: str = obj.__class__.__name__
-            assert                              callable(  obj.move_rect        ), class_name
-            assert hasattr(obj, "init_pos") and isinstance(obj.init_pos, RectPos), class_name
-
-            if obj != main_obj:
-                obj.move_rect(
-                    obj.init_pos.x + change_x, obj.init_pos.y + change_y,
-                    win_w_ratio, win_h_ratio
-                )
-            else:
-                change_x, change_y = init_x - obj.init_pos.x, init_y - obj.init_pos.y
-                obj.move_rect(init_x, init_y, win_w_ratio, win_h_ratio)
-
-        objs_hierarchy.extend([info.obj for info in obj.objs_info])
+    return error_str

@@ -120,7 +120,10 @@ if the program crashes the image will always be saved.
 
 **CTRL F**: Show/hide fps counter in settings\
 **CTRL C 1-5**: Change fps cap\
-**CTRL S**: Choose crash save directory
+**CTRL A 1-4**: change autosave behavior\
+**CTRL S**: Choose crash save directory\
+**CTRL Z**: Invert zoom direction\
+**CTRL H 1-7**: Change grid history max size
 
 ## Screenshots
 

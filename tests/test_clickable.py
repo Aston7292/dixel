@@ -52,7 +52,7 @@ class TestCheckbox(TestCase):
         self.assertEqual(checkbox.init_pos, pos)
         self.assertListEqual(checkbox.init_imgs, [_OFF_IMG, _ON_IMG])
 
-        self.assertListEqual(checkbox.imgs, [_OFF_IMG, _ON_IMG])
+        self.assertListEqual(checkbox._imgs, [_OFF_IMG, _ON_IMG])
         self.assertEqual(checkbox.rect, _OFF_IMG.get_rect(center=(1, 2)))
 
         self.assertEqual(checkbox.img_i, 0)
@@ -98,12 +98,12 @@ class TestCheckbox(TestCase):
         checkbox: Checkbox = self._make_checkbox()
 
         expected_sequence_0: list[BlitInfo] = [
-            (checkbox.imgs[0], checkbox.rect, checkbox.layer)
+            (checkbox._imgs[0], checkbox.rect, checkbox.layer)
         ]
         self.assertListEqual(checkbox.blit_sequence, expected_sequence_0)
 
         expected_sequence_1: list[BlitInfo] = [
-            (checkbox.imgs[1], checkbox.rect, checkbox.layer)
+            (checkbox._imgs[1], checkbox.rect, checkbox.layer)
         ]
         if checkbox.hovering_text_label is not None:
             mouse_x, mouse_y = pg.mouse.get_pos()
@@ -118,7 +118,7 @@ class TestCheckbox(TestCase):
 
         checkbox.hovering_text_label = None
         expected_sequence_1 = [
-            (checkbox.imgs[1], checkbox.rect, checkbox.layer)
+            (checkbox._imgs[1], checkbox.rect, checkbox.layer)
         ]
         self.assertListEqual(checkbox.get_blit_sequence(), expected_sequence_1)
 
@@ -171,7 +171,7 @@ class TestCheckbox(TestCase):
         ]
         expected_rect: pg.Rect = expected_imgs[0].get_rect(center=expected_xy)
 
-        for img, expected_img in zip(checkbox.imgs, expected_imgs, strict=True):
+        for img, expected_img in zip(checkbox._imgs, expected_imgs, strict=True):
             self.assertTrue(cmp_imgs(img, expected_img))
         self.assertEqual(checkbox.rect, expected_rect)
 

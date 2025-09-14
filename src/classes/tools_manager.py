@@ -18,7 +18,7 @@ Extra UI elements need:
     - a rect attribute
 """
 
-from typing import TypeAlias, Final, Any
+from typing import Self, TypeAlias, Final, Any
 
 import pygame as pg
 from pygame.locals import *
@@ -27,19 +27,18 @@ from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox
 from src.classes.devices import KEYBOARD
 
-from src.utils import RectPos, ObjInfo
-from src.type_utils import BlitInfo
+from src.obj_utils import UIElement, ObjInfo
+from src.type_utils import BlitInfo, RectPos
 from src.consts import BG_LAYER, SPECIAL_LAYER
 from src.imgs import (
     CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG,
-    PENCIL_IMG, BUCKET_IMG, EYE_DROPPER_IMG, LINE_IMG
+    PENCIL_IMG, BUCKET_IMG, EYE_DROPPER_IMG, LINE_IMG,
 )
 
 
 ToolInfo: TypeAlias = tuple[str, dict[str, Any]]
 _ToolsInfo: TypeAlias = dict[str, dict[str, Any]]
 _ToolExtraInfo: TypeAlias = list[dict[str, Any]]
-_ToolsExtraInfo: TypeAlias = list[tuple[dict[str, Any], ...]]
 
 _CHECKBOX_IMGS: Final[list[pg.Surface]] = [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG]
 _TOOLS_INFO: Final[_ToolsInfo] = {
@@ -55,8 +54,8 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
         "extra_info": (
             {
                 "type": Checkbox,
-                "init_args": [_CHECKBOX_IMGS, "Color Fill", "Fill pixels with\nthe same color"],
-                "upt_args": [],
+                "init_args": (_CHECKBOX_IMGS, "Color Fill", "Fill pixels with\nthe same color"),
+                "upt_args": (),
                 "out_format": {"color_fill": "is_checked"},
             },
         ),
@@ -77,6 +76,7 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
 
 _EYE_DROPPER_I: Final[int] = 2
 
+
 class ToolsManager:
     """Class to manage drawing tools."""
 
@@ -89,7 +89,7 @@ class ToolsManager:
 
     cursor_type: int = SYSTEM_CURSOR_ARROW
 
-    def __init__(self, pos: RectPos) -> None:
+    def __init__(self: Self, pos: RectPos) -> None:
         """
         Creates the grid of tools and sub options.
 
@@ -101,21 +101,49 @@ class ToolsManager:
 
         self.tools_grid: CheckboxGrid = CheckboxGrid(
             pos,
-            [info["info"] for info in _TOOLS_INFO.values()], 5, False, True
+            [info["info"] for info in _TOOLS_INFO.values()],
+            num_cols=5, should_invert_cols=False, should_invert_rows=True
         )
         self._tool_name: str = tuple(_TOOLS_INFO.keys())[0]
 
-        tools_raw_extra_info: _ToolsExtraInfo = [
-            info["extra_info"] for info in _TOOLS_INFO.values()
-        ]
+        def _refine_extra_info(raw_extra_info: tuple[dict[str, Any], ...]) -> _ToolExtraInfo:
+            """
+            Creates the sub options of a tool from its extra info.
+
+            Args:
+                raw extra info
+            Returns:
+                extra info
+            """
+
+            raw_sub_tool_extra_info: dict[str, Any]
+
+            obj_x: int = self.tools_grid.rect.x + 16
+            extra_info: _ToolExtraInfo = []
+            for raw_sub_tool_extra_info in raw_extra_info:
+                obj: UIElement = raw_sub_tool_extra_info["type"](
+                    RectPos(obj_x, self.tools_grid.rect.y - 16, "bottomleft"),
+                    *raw_sub_tool_extra_info["init_args"], base_layer=SPECIAL_LAYER
+                )
+                assert hasattr(obj, "rect"), obj.__class__.__name__
+
+                rect: pg.Rect = obj.rect
+                obj_x += rect.w + 16
+
+                raw_sub_tool_extra_info["obj"] = obj
+                del raw_sub_tool_extra_info["type"], raw_sub_tool_extra_info["init_args"]
+                extra_info.append(raw_sub_tool_extra_info)
+
+            return extra_info
         # Added keys: obj | removed keys: type, init_args
         self._tools_extra_info: list[_ToolExtraInfo] = [
-            self._get_extra_info(raw_extra_info) for raw_extra_info in tools_raw_extra_info
+            _refine_extra_info(info["extra_info"])
+            for info in _TOOLS_INFO.values()
         ]
 
         self.saved_clicked_i: int | None = None
 
-        self.hover_rects: list[pg.Rect] = []
+        self.hover_rects: tuple[pg.Rect, ...] = ()
         self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = []
         self.objs_info: list[ObjInfo] = [ObjInfo(self.tools_grid)]
@@ -132,17 +160,17 @@ class ToolsManager:
             range_end: int = len(self.objs_info)
             self._sub_tools_ranges.append((range_start, range_end))
 
-    def enter(self) -> None:
+    def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
-    def leave(self) -> None:
+    def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
         if self.saved_clicked_i is not None:
             self.check(self.saved_clicked_i)
             self.saved_clicked_i = None
 
-    def resize(self, _win_w_ratio: float, _win_h_ratio: float) -> None:
+    def resize(self: Self, _win_w_ratio: float, _win_h_ratio: float) -> None:
         """
         Resizes the object.
 
@@ -150,37 +178,7 @@ class ToolsManager:
             window width ratio, window height ratio
         """
 
-    def _get_extra_info(self, raw_extra_info: tuple[dict[str, Any], ...]) -> _ToolExtraInfo:
-        """
-        Creates the sub options of a tool.
-
-        Args:
-            raw extra info
-        Returns:
-            extra info
-        """
-
-        raw_sub_tool_extra_info: dict[str, Any]
-
-        obj_x: int = self.tools_grid.rect.x + 16
-        extra_info: _ToolExtraInfo = []
-        for raw_sub_tool_extra_info in raw_extra_info:
-            obj: Any = raw_sub_tool_extra_info["type"](
-                RectPos(obj_x, self.tools_grid.rect.y - 16, "bottomleft"),
-                *raw_sub_tool_extra_info["init_args"], base_layer=SPECIAL_LAYER
-            )
-            obj_x += obj.rect.w + 16
-
-            assert hasattr(obj, "rect") and isinstance(obj.rect, pg.Rect), obj.__class__.__name__
-            assert hasattr(obj, "upt" ) and callable(  obj.upt          ), obj.__class__.__name__
-
-            raw_sub_tool_extra_info["obj"] = obj
-            del raw_sub_tool_extra_info["type"], raw_sub_tool_extra_info["init_args"]
-            extra_info.append(raw_sub_tool_extra_info)
-
-        return extra_info
-
-    def check(self, tool_i: int) -> None:
+    def check(self: Self, tool_i: int) -> None:
         """
         Sets the previous tool inactive and activates the new one.
 
@@ -190,8 +188,9 @@ class ToolsManager:
 
         obj_info: ObjInfo
 
-        prev_sub_tools_range_start_i: int = self._sub_tools_ranges[self.tools_grid.prev_clicked_i][0]
-        prev_sub_tools_range_end_i: int   = self._sub_tools_ranges[self.tools_grid.prev_clicked_i][1]
+        prev_clicked_i: int = self.tools_grid.prev_clicked_i
+        prev_sub_tools_range_start_i: int = self._sub_tools_ranges[prev_clicked_i]           [0]
+        prev_sub_tools_range_end_i: int   = self._sub_tools_ranges[prev_clicked_i]           [1]
         for obj_info in self.objs_info[prev_sub_tools_range_start_i:prev_sub_tools_range_end_i]:
             obj_info.rec_set_active(False)
 
@@ -200,10 +199,10 @@ class ToolsManager:
 
         sub_tools_range_start_i: int      = self._sub_tools_ranges[self.tools_grid.clicked_i][0]
         sub_tools_range_end_i: int        = self._sub_tools_ranges[self.tools_grid.clicked_i][1]
-        for obj_info in self.objs_info[     sub_tools_range_start_i:     sub_tools_range_end_i]:
-            obj_info.rec_set_active(True )
+        for obj_info in self.objs_info[sub_tools_range_start_i:sub_tools_range_end_i]:
+            obj_info.rec_set_active(True)
 
-    def _handle_shortcuts(self) -> None:
+    def _handle_shortcuts(self: Self) -> None:
         """Handles changing the selection with the keyboard if shift is on."""
 
         i: int
@@ -213,7 +212,7 @@ class ToolsManager:
             if info["shortcut_k"] in KEYBOARD.pressed:
                 self.tools_grid.clicked_i = i
 
-    def _upt_sub_objs(self, local_vars: dict[str, Any]) -> dict[str, Any]:
+    def _upt_sub_objs(self: Self, local_vars: dict[str, Any]) -> dict[str, Any]:
         """
         Updates the sub options and returns the needed attribute as a dictionary.
 
@@ -229,15 +228,19 @@ class ToolsManager:
 
         out_dict: dict[str, Any] = {}
         for extra_info in self._tools_extra_info[self.tools_grid.clicked_i]:
-            upt_vars: list[Any] = [local_vars.get(arg, arg) for arg in extra_info["upt_args"]]
-            extra_info["obj"].upt(*upt_vars)
+            upt_args: list[str] = extra_info["upt_args"]
+            extra_info["obj"].upt(*[
+                local_vars.get(arg, arg)  # If it doesn't exist use it as a string
+                for arg in upt_args
+            ])
 
-            for key, value in extra_info["out_format"].items():
+            out_format: dict[str, str] = extra_info["out_format"]
+            for key, value in out_format.items():
                 out_dict[key] = getattr(extra_info["obj"], value)
 
         return out_dict
 
-    def upt(self) -> ToolInfo:
+    def upt(self: Self) -> ToolInfo:
         """
         Allows selecting a tool and its extra options.
 
@@ -254,8 +257,8 @@ class ToolsManager:
                 self.saved_clicked_i = self.tools_grid.clicked_i
                 self.tools_grid.clicked_i = _EYE_DROPPER_I
         elif self.saved_clicked_i is not None:
-                self.tools_grid.clicked_i = self.saved_clicked_i
-                self.saved_clicked_i = None
+            self.tools_grid.clicked_i = self.saved_clicked_i
+            self.saved_clicked_i = None
 
         if self.tools_grid.clicked_i != self.tools_grid.prev_clicked_i:
             self.check(self.tools_grid.clicked_i)

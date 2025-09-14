@@ -1,7 +1,7 @@
 """Abstract class to create a default UI with a title, confirm and exit buttons."""
 
 from abc import ABC, abstractmethod
-from typing import Final, Any
+from typing import Self, Final, Any
 
 import pygame as pg
 from pygame import K_ESCAPE, K_RETURN, SYSTEM_CURSOR_ARROW
@@ -10,8 +10,8 @@ from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 from src.classes.devices import KEYBOARD
 
-from src.utils import RectPos, ObjInfo, resize_obj
-from src.type_utils import XY, BlitInfo
+from src.obj_utils import ObjInfo, resize_obj
+from src.type_utils import XY, BlitInfo, RectPos
 from src.consts import DARKER_GRAY, WIN_INIT_W, WIN_INIT_H, UI_LAYER
 from src.imgs import CLOSE_OFF_IMG, CLOSE_ON_IMG, BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 
@@ -47,12 +47,12 @@ class UI(ABC):
 
     cursor_type: int = SYSTEM_CURSOR_ARROW
 
-    def __init__(self, title: str, has_confirm: bool) -> None:
+    def __init__(self: Self, title: str, should_have_confirm: bool) -> None:
         """
         Creates the title, exit and confirm buttons.
 
         Args:
-            title, has confirm flag
+            title, have confirm flag
         """
 
         self._init_pos: RectPos = RectPos(round(WIN_INIT_W / 2), round(WIN_INIT_H / 2), "center")
@@ -60,23 +60,23 @@ class UI(ABC):
         self._rect: pg.Rect = pg.Rect(0, 0, *_INTERFACE_IMG.get_size())
         setattr(self._rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
-        self.hover_rects: list[pg.Rect] = []
+        self.hover_rects: tuple[pg.Rect, ...] = ()
         self.layer: int = UI_LAYER
         self.blit_sequence: list[BlitInfo] = [(_INTERFACE_IMG, self._rect, self.layer)]
         self.objs_info: list[ObjInfo] = []
 
         title_text_label: TextLabel = TextLabel(
             RectPos(self._rect.centerx, self._rect.y + 16, "midtop"),
-            title, self.layer, 35
+            title, self.layer, h=35
         )
 
         self._exit: Button = Button(
-            RectPos(self._rect.right - 10, self._rect.y      + 10, "topright"),
+            RectPos(self._rect.right - 10, self._rect.y + 10, "topright"),
             [CLOSE_OFF_IMG, CLOSE_ON_IMG], None, "Escape", self.layer
         )
 
         self._confirm: Button | None = None
-        if has_confirm:
+        if should_have_confirm:
             self._confirm = Button(
                 RectPos(self._rect.right - 10, self._rect.bottom - 10, "bottomright"),
                 [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Confirm", "Enter", self.layer
@@ -86,13 +86,17 @@ class UI(ABC):
         if self._confirm is not None:
             self.objs_info.append(ObjInfo(self._confirm))
 
-    def enter(self) -> None:
+    def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
-    def leave(self) -> None:
+        return
+
+    def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
+        return
+
+    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Resizes the object.
 
@@ -112,7 +116,7 @@ class UI(ABC):
 
         self.blit_sequence[0] = (img, self._rect, self.layer)
 
-    def _base_upt(self) -> tuple[bool, bool]:
+    def _base_upt(self: Self) -> tuple[bool, bool]:
         """
         Checks if the exit or confirm button are pressed.
 
@@ -131,7 +135,7 @@ class UI(ABC):
         return is_exiting, is_confirming
 
     @abstractmethod
-    def upt(self) -> tuple[bool, bool, Any]:
+    def upt(self: Self) -> tuple[bool, bool, Any]:
         """
         Should implement a way to make the object interactable.
 

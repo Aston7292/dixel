@@ -1,16 +1,17 @@
 """Classes to store devices info."""
 
-from typing import Final
+from typing import Self, Final
 
 import pygame as pg
 from pygame.locals import *
 
-from src.utils import UIElement
-import src.vars as VARS
+from src.obj_utils import UIElement
+import src.obj_utils as objs
+import src.vars as my_vars
 
 _NUMPAD_FIRST_K: Final[int] = K_KP_1
 _NUMPAD_LAST_K: Final[int]  = K_KP_PERIOD
-_NUMPAD_MAP: Final[list[int]] = [
+_NUMPAD_MAP: Final[tuple[int, ...]] = (
     K_END     , K_1,
     K_DOWN    , K_2,
     K_PAGEDOWN, K_3,
@@ -22,7 +23,7 @@ _NUMPAD_MAP: Final[list[int]] = [
     K_PAGEUP  , K_9,
     K_INSERT  , K_0,
     K_DELETE  , K_PERIOD,
-]
+)
 
 
 class _Mouse:
@@ -34,7 +35,7 @@ class _Mouse:
         "hovered_obj", "_cursor_type",
     )
 
-    def __init__(self) -> None:
+    def __init__(self: Self) -> None:
         """Initializes the info."""
 
         self.x: int = 0
@@ -49,7 +50,7 @@ class _Mouse:
         self.hovered_obj: UIElement | None = None
         self._cursor_type: int = SYSTEM_CURSOR_ARROW
 
-    def refresh_pos(self) -> None:
+    def refresh_pos(self: Self) -> None:
         """Refreshes the position, if a coordinate is outside the window it will be -1."""
 
         self.x, self.y = pg.mouse.get_pos()
@@ -59,17 +60,12 @@ class _Mouse:
             if self.y == 0:
                 self.y = -1
 
-    def refresh_hovered_obj(self, state_active_objs: list[UIElement]) -> None:
-        """
-        Refreshes the hovered object with the get_hovering method of the active objects.
-
-        Args:
-            state active objects
-        """
+    def refresh_hovered_obj(self: Self) -> None:
+        """Refreshes the hovered object with the get_hovering method of the active objects."""
 
         hovered_objs: list[UIElement] = [
             obj
-            for obj in state_active_objs
+            for obj in objs.state_active_objs
             for rect in obj.hover_rects
             if rect.x <= self.x < (rect.x + rect.w) and rect.y <= self.y < (rect.y + rect.h)
         ]
@@ -80,12 +76,13 @@ class _Mouse:
             hovered_objs.sort(key=lambda obj: -obj.layer)
             self.hovered_obj = hovered_objs[0]
 
-    def refresh_type(self) -> None:
+    def refresh_type(self: Self) -> None:
         """Refreshes the cursor type using the cursor_type attribute of the hovered object."""
 
         prev_cursor_type: int = self._cursor_type
         self._cursor_type = (
-            SYSTEM_CURSOR_ARROW if self.hovered_obj is None else self.hovered_obj.cursor_type
+            SYSTEM_CURSOR_ARROW if self.hovered_obj is None else
+            self.hovered_obj.cursor_type
         )
 
         if self._cursor_type != prev_cursor_type:
@@ -101,7 +98,7 @@ class _Keyboard:
         "_timed_interval", "_prev_timed_refresh", "_alt_k",
     )
 
-    def __init__(self) -> None:
+    def __init__(self: Self) -> None:
         """Initializes the info."""
 
         self._raws: list[int]    = []
@@ -118,21 +115,21 @@ class _Keyboard:
         self._prev_timed_refresh: int = -self._timed_interval
         self._alt_k: str = ""
 
-    def refresh_timed(self) -> None:
+    def refresh_timed(self: Self) -> None:
         """Fills the timed keys once every 128ms + acceleration and adds the alt_k if needed."""
 
-        if self.pressed == [] or (VARS.ticks - self._prev_timed_refresh < self._timed_interval):
+        if self.pressed == [] or (my_vars.ticks - self._prev_timed_refresh < self._timed_interval):
             self.timed = []
         else:
             self.timed = self.pressed.copy()
             self._timed_interval = max(self._timed_interval - 8, 64)
-            self._prev_timed_refresh = VARS.ticks
+            self._prev_timed_refresh = my_vars.ticks
 
         if self._alt_k != "" and not self.is_alt_on:
             self.timed.append(int(self._alt_k))
             self._alt_k = ""
 
-    def add(self, k: int) -> None:
+    def add(self: Self, k: int) -> None:
         """
         Adds a converted key to the pressed keys if it's not using alt.
 
@@ -169,7 +166,7 @@ class _Keyboard:
         self._timed_interval = 128
         self._prev_timed_refresh = -self._timed_interval
 
-    def remove(self, k: int) -> None:
+    def remove(self: Self, k: int) -> None:
         """
         Removes a converted key from the pressed keys and adds it to released ones.
 
@@ -202,11 +199,12 @@ class _Keyboard:
 
         self._timed_interval = 128
 
-    def clear(self) -> None:
+    def clear(self: Self) -> None:
         """Clears the keyboard data."""
 
         self._raws = self.pressed = self.released = self.timed = []
         self.is_ctrl_on = self.is_shift_on = self.is_alt_on = self.is_numpad_on = False
+
 
 MOUSE: Final[_Mouse] = _Mouse()
 KEYBOARD: Final[_Keyboard] = _Keyboard()

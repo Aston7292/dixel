@@ -1,6 +1,6 @@
 """Class to choose a number in a range with an input box."""
 
-from typing import Final
+from typing import Self, Final
 
 import pygame as pg
 from pygame.locals import *
@@ -9,9 +9,9 @@ from src.classes.clickable import SpammableButton
 from src.classes.text_label import TextLabel
 from src.classes.devices import MOUSE, KEYBOARD
 
-from src.utils import UIElement, RectPos, ObjInfo, resize_obj
-from src.type_utils import XY, BlitInfo
-import src.vars as VARS
+from src.obj_utils import UIElement, ObjInfo, resize_obj
+from src.type_utils import XY, BlitInfo, RectPos
+import src.vars as my_vars
 from src.consts import MOUSE_LEFT, WHITE, BG_LAYER, ELEMENT_LAYER
 from src.imgs import ARROW_UP_OFF_IMG, ARROW_UP_ON_IMG, ARROW_DOWN_OFF_IMG, ARROW_DOWN_ON_IMG
 
@@ -34,7 +34,8 @@ class NumInputBox:
     cursor_type: int = SYSTEM_CURSOR_IBEAM
 
     def __init__(
-            self, pos: RectPos, min_limit: int, max_limit: int, base_layer: int = BG_LAYER
+            self: Self, pos: RectPos, min_limit: int, max_limit: int,
+            base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the input box, text and cursor.
@@ -58,7 +59,7 @@ class NumInputBox:
 
         self.cursor_i: int = 0
         self._is_selected: bool = False
-        self._last_cursor_blink_time: int = VARS.ticks
+        self._last_cursor_blink_time: int = my_vars.ticks
         self._should_show_cursor: bool = True
 
         self.text_label: TextLabel = TextLabel(
@@ -66,7 +67,7 @@ class NumInputBox:
             "", base_layer
         )
 
-        self._prev_selected_obj: UIElement = None
+        self._prev_selected_obj: UIElement | None = None
         self._prev_text: str = self.text_label.text
         self._prev_cursor_i: int = self.cursor_i
 
@@ -84,30 +85,32 @@ class NumInputBox:
         )
         self._increase: SpammableButton = SpammableButton(
             RectPos(self.rect.right + 5, self.rect.centery - 3, "bottomleft"),
-            [ARROW_UP_OFF_IMG, ARROW_UP_ON_IMG],     " + \n(CTRL +)", base_layer
+            [ARROW_UP_OFF_IMG  , ARROW_UP_ON_IMG  ], " + \n(CTRL +)", base_layer
         )
         self._decrease.set_hover_extra_size(5, 10, 3 , 10)
-        self._increase.set_hover_extra_size(5, 10, 10, 3 )
+        self._increase.set_hover_extra_size(5, 10, 10, 3)
 
-        self.hover_rects: list[pg.Rect] = [self.rect]
+        self.hover_rects: tuple[pg.Rect, ...] = (self.rect,)
         self.layer: int = base_layer + ELEMENT_LAYER
         self.blit_sequence: list[BlitInfo] = [(self._img, self.rect, self.layer)]
         self.objs_info: list[ObjInfo] = [
-            ObjInfo(self.text_label), ObjInfo(self._decrease), ObjInfo(self._increase),
+            ObjInfo(self.text_label),
+            ObjInfo(self._decrease), ObjInfo(self._increase),
         ]
 
-    def enter(self) -> None:
+    def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
-    def leave(self) -> None:
+        self._last_cursor_blink_time = my_vars.ticks
+        self._should_show_cursor = True
+
+    def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
         self._is_selected = False
         self._prev_selected_obj = None
-        if len(self.blit_sequence) == 2:
-            self.blit_sequence.pop()  # Remove cursor
 
-    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
+    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Resizes the object.
 
@@ -128,14 +131,10 @@ class NumInputBox:
         self._cursor_img = pg.transform.scale(self._cursor_img, (1, self.text_label.rect.h))
         self.cursor_rect.topleft = (
             self.text_label.get_x_at(self.cursor_i),
-            self.text_label.rect.y
+            self.text_label.rect.y,
         )
 
-        self.blit_sequence[0] = (self._img, self.rect, self.layer)
-        if len(self.blit_sequence) == 2:
-            self.blit_sequence[1] = (self._cursor_img, self.cursor_rect, self.layer)
-
-    def set_value(self, value: int) -> None:
+    def set_value(self: Self, value: int) -> None:
         """
         Sets the value and resets the cursor.
 
@@ -148,31 +147,32 @@ class NumInputBox:
         self.cursor_rect.x = self.text_label.rect.x
         self.cursor_i = 0
 
-    def _move_with_keys(self) -> None:
+    def _move_with_keys(self: Self) -> None:
         """Moves the cursor with the keyboard."""
 
         if K_LEFT  in KEYBOARD.timed:
             self.cursor_i = 0        if KEYBOARD.is_ctrl_on else max(self.cursor_i - 1, 0)
         if K_RIGHT in KEYBOARD.timed:
-            text_len: int  = len(self.text_label.text)
+            text_len: int = len(self.text_label.text)
             self.cursor_i = text_len if KEYBOARD.is_ctrl_on else min(self.cursor_i + 1, text_len)
-        if K_HOME  in KEYBOARD.pressed:
+        if K_HOME in KEYBOARD.pressed:
             self.cursor_i = 0
-        if K_END   in KEYBOARD.pressed:
+        if K_END  in KEYBOARD.pressed:
             self.cursor_i = len(self.text_label.text)
 
-    def _handle_deletion(self) -> None:
+    def _handle_deletion(self: Self) -> None:
         """Handles backspace and delete and moves the cursor."""
 
-        k: int = KEYBOARD.timed[-1]
-        if   k == K_DELETE:
-            delete_first_part: str  = self.text_label.text[:self.cursor_i]
-            delete_second_part: str = self.text_label.text[self.cursor_i + 1:]
-            self.text_label.text = delete_first_part + delete_second_part
-        elif k == K_BACKSPACE:
-            backspace_first_part: str  = self.text_label.text[:self.cursor_i - 1]
-            backspace_second_part: str = self.text_label.text[self.cursor_i:]
-            self.text_label.text = backspace_first_part + backspace_second_part
+        if   KEYBOARD.timed[-1] == K_DELETE:
+            self.text_label.text = (
+                self.text_label.text[:self.cursor_i] +
+                self.text_label.text[self.cursor_i + 1:]
+            )
+        elif KEYBOARD.timed[-1] == K_BACKSPACE:
+            self.text_label.text = (
+                self.text_label.text[:self.cursor_i - 1] +
+                self.text_label.text[self.cursor_i:]
+            )
             self.cursor_i = max(self.cursor_i - 1, 0)
 
         if self.text_label.text.startswith("0"):  # If it's empty keep it empty
@@ -183,15 +183,18 @@ class NumInputBox:
             self.value = self.min_limit
             self.text_label.text = str(self.value)
 
-    def _insert_char(self) -> None:
+    def _insert_char(self: Self) -> None:
         """Inserts a character at the cursor position and moves the cursor."""
 
         prev_text: str = self.text_label.text
 
-        first_half: str  = self.text_label.text[:self.cursor_i]
+        first_half: str = self.text_label.text[:self.cursor_i]
         second_half: str = self.text_label.text[self.cursor_i:]
-        self.text_label.text = first_half + chr(KEYBOARD.timed[-1]) + second_half
-        self.text_label.text = self.text_label.text.lstrip("0") or str(self.min_limit)
+        char: str = chr(KEYBOARD.timed[-1])
+        self.text_label.text = (
+            (first_half + char + second_half).lstrip("0") or
+            str(self.min_limit)
+        )
 
         max_len: int = len(str(self.max_limit))
         self.text_label.text = self.text_label.text[:max_len]
@@ -205,52 +208,54 @@ class NumInputBox:
         if self.text_label.text != prev_text:
             self.cursor_i = min(self.cursor_i + 1, len(self.text_label.text))
 
-    def _handle_keys(self) -> None:
+    def _handle_keys(self: Self) -> None:
         """Handles deletion, insertion, decrement and increment with timed keys."""
 
-        if KEYBOARD.timed[-1] == K_BACKSPACE or KEYBOARD.timed[-1] == K_DELETE:
+        if KEYBOARD.timed[-1] in (K_BACKSPACE, K_DELETE):
             self._handle_deletion()
         elif K_0 <= KEYBOARD.timed[-1] <= K_9:
             self._insert_char()
 
         if K_MINUS in KEYBOARD.timed:
             self.value = (
-                self.min_limit if KEYBOARD.is_ctrl_on else max(self.value - 1, self.min_limit)
+                self.min_limit if KEYBOARD.is_ctrl_on else
+                max(self.value - 1, self.min_limit)
             )
             self.text_label.text = str(self.value)
         if K_PLUS in KEYBOARD.timed:
             self.value = (
-                self.max_limit if KEYBOARD.is_ctrl_on else min(self.value + 1, self.max_limit)
+                self.max_limit if KEYBOARD.is_ctrl_on else
+                min(self.value + 1, self.max_limit)
             )
             self.text_label.text = str(self.value)
 
-    def refresh(self) -> None:
+    def refresh(self: Self) -> None:
         """Refreshes text label and cursor position."""
 
         if   self.text_label.text != self._prev_text:
             self.text_label.set_text(self.text_label.text)
             self.cursor_rect.x = self.text_label.get_x_at(self.cursor_i)
-            self._last_cursor_blink_time = VARS.ticks
+            self._last_cursor_blink_time = my_vars.ticks
             self._should_show_cursor = True
 
             self._prev_text, self._prev_cursor_i = self.text_label.text, self.cursor_i
         elif self.cursor_i != self._prev_cursor_i:
             self.cursor_rect.x = self.text_label.get_x_at(self.cursor_i)
-            self._last_cursor_blink_time = VARS.ticks
+            self._last_cursor_blink_time = my_vars.ticks
             self._should_show_cursor = True
 
             self._prev_cursor_i = self.cursor_i
 
         self.blit_sequence = [(self._img, self.rect, self.layer)]
         if self._is_selected:
-            if VARS.ticks - self._last_cursor_blink_time >= 512:
-                self._last_cursor_blink_time = VARS.ticks
+            if my_vars.ticks - self._last_cursor_blink_time >= 512:
+                self._last_cursor_blink_time = my_vars.ticks
                 self._should_show_cursor = not self._should_show_cursor
 
             if self._should_show_cursor:
                 self.blit_sequence.append((self._cursor_img, self.cursor_rect, self.layer))
 
-    def upt(self, selected_obj: UIElement) -> UIElement:
+    def upt(self: Self, selected_obj: UIElement) -> UIElement:
         """
         Allows typing numbers, moving the cursor and deleting a specific character.
 
@@ -274,7 +279,7 @@ class NumInputBox:
         self._is_selected = selected_obj == self
         if self._is_selected:
             if selected_obj != self._prev_selected_obj:
-                self._last_cursor_blink_time = VARS.ticks
+                self._last_cursor_blink_time = my_vars.ticks
                 self._should_show_cursor = True
 
             if KEYBOARD.pressed != []:

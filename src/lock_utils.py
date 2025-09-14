@@ -1,31 +1,33 @@
 """Functions to lock files on different OSes either in an exclusive or shared way."""
 
-from platform import system
-from contextlib import suppress
-from typing import BinaryIO, Final, Any
+from sys import platform, stderr
+from collections.abc import Callable
+from typing import Self, BinaryIO, Final
+from types import ModuleType
 
 import pygame as pg
 
 from src.consts import FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I
 
-
-fcntl: Any = None
-with suppress(ImportError):
+fcntl: ModuleType | None = None
+try:
     import fcntl
+except ImportError:
+    pass
 
 
-class LockException(Exception):
+class LockError(Exception):
     """Exception raised when locking a file fails."""
 
 
-class FileException(Exception):
+class FileError(Exception):
     """Exception raised when a general file operation fails, like get_osfhandle."""
 
     __slots__ = (
         "error_str",
     )
 
-    def __init__(self, error_str: str) -> None:
+    def __init__(self: Self, error_str: str) -> None:
         """
         Initializes the exception.
 
@@ -38,7 +40,7 @@ class FileException(Exception):
 
 
 # Files are unlocked when closed
-if system() == "Windows":
+if platform == "win32":
     import win32file
     import pywintypes
     from win32con import LOCKFILE_EXCLUSIVE_LOCK, LOCKFILE_FAIL_IMMEDIATELY
@@ -57,30 +59,49 @@ if system() == "Windows":
         ERROR_IO_PENDING, ERROR_NO_SYSTEM_RESOURCES,
     )
 
-    def try_lock_file(file_obj: BinaryIO, shared: bool) -> None:
+    def _try_get_file_handle(file_obj: BinaryIO) -> int:
         """
-        Locks a file either in an exclusive or shared way.
+        Gets a file handle with retries.
 
         Args:
-            file, shared flag
+            file
+        Returns:
+            handle
+        Raises:
+            FileError: on failure
         """
 
         attempt_i: int
 
-        # file_handle is closed when the file is closed
         file_handle: int = 0
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
             try:
-                file_handle = win32file._get_osfhandle(file_obj.fileno())  # type: ignore
+                assert hasattr(win32file, "_get_osfhandle")
+                get_osfhandle: Callable[[int], int] = win32file._get_osfhandle
+                file_handle = get_osfhandle(file_obj.fileno())
                 break
             except OSError as e:
                 if attempt_i != FILE_ATTEMPT_STOP_I:
                     pg.time.wait(2 ** attempt_i)
                     continue
 
-                raise FileException("Failed to get file handle.") from e
+                raise FileError("Failed to get file handle.") from e
 
-        flag: int = (0 if shared else LOCKFILE_EXCLUSIVE_LOCK) | LOCKFILE_FAIL_IMMEDIATELY
+        return file_handle
+
+    def try_lock_file(file_obj: BinaryIO, is_shared: bool) -> None:
+        """
+        Locks a file either in an exclusive or shared way.
+
+        Args:
+            file, shared flag
+        Raises:
+            FileNotFoundError, PermissionError, FileError, LockError: on failure
+        """
+
+        # file_handle is closed when the file is closed
+        file_handle: int = _try_get_file_handle(file_obj)
+        flag: int = (0 if is_shared else LOCKFILE_EXCLUSIVE_LOCK) | LOCKFILE_FAIL_IMMEDIATELY
 
         system_attempt_i: int = FILE_ATTEMPT_START_I
         lock_attempt_i: int   = FILE_ATTEMPT_START_I
@@ -97,20 +118,22 @@ if system() == "Windows":
                 if e.winerror in _WINDOWS_PERMISSION_DENIED_CODES:
                     raise PermissionError from e
 
-                if   e.winerror in _WINDOWS_SYSTEM_FAILURE_TRANSIENT_CODES:
+                if e.winerror in _WINDOWS_SYSTEM_FAILURE_TRANSIENT_CODES:
                     system_attempt_i += 1
                     if system_attempt_i == FILE_ATTEMPT_STOP_I:
-                        raise FileException(e.strerror) from e
+                        raise FileError(e.strerror) from e
 
                     pg.time.wait(2 ** system_attempt_i)
-                elif e.winerror == ERROR_SHARING_VIOLATION or e.winerror == ERROR_LOCK_VIOLATION:
+                    continue
+                if e.winerror in (ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION):
                     lock_attempt_i += 1
                     if lock_attempt_i == FILE_ATTEMPT_STOP_I:
-                        raise LockException from e
+                        raise LockError from e
 
                     pg.time.wait(2 ** lock_attempt_i)
-                else:
-                    raise FileException(e.strerror) from e
+                    continue
+
+                raise FileError(e.strerror) from e
 elif fcntl is not None:
     from errno import *
 
@@ -118,15 +141,18 @@ elif fcntl is not None:
         EIO, EBUSY, ENFILE, EMFILE,
     )
 
-    def try_lock_file(file_obj: BinaryIO, shared: bool) -> None:
+    def try_lock_file(file_obj: BinaryIO, is_shared: bool) -> None:
         """
         Locks a file either in an exclusive or shared way.
 
         Args:
             file, shared flag
+        Raises:
+            FileNotFoundError, PermissionError, FileError, LockError: on failure
         """
 
-        flag: int = (fcntl.LOCK_SH if shared else fcntl.LOCK_EX) | fcntl.LOCK_NB
+        assert fcntl is not None
+        flag: int = (fcntl.LOCK_SH if is_shared else fcntl.LOCK_EX) | fcntl.LOCK_NB
 
         system_attempt_i: int = FILE_ATTEMPT_START_I
         lock_attempt_i: int   = FILE_ATTEMPT_START_I
@@ -135,32 +161,35 @@ elif fcntl is not None:
             lock_attempt_i   <= FILE_ATTEMPT_STOP_I
         ):
             try:
-                fcntl.flock(file_obj, flag)
+                flock: Callable[[BinaryIO, int], None] = fcntl.flock
+                flock(file_obj, flag)
                 break
             except OSError as e:
                 if e.errno == ENOENT:
                     raise FileNotFoundError from e
-                if e.errno == EPERM or e.errno == EROFS:
+                if e.errno in (EPERM, EROFS):
                     raise PermissionError from e
 
-                if   e.errno in _LINUX_SYSTEM_FAILURES_TRANSIENT_CODES:
+                if e.errno in _LINUX_SYSTEM_FAILURES_TRANSIENT_CODES:
                     system_attempt_i += 1
                     if system_attempt_i == FILE_ATTEMPT_STOP_I:
-                        raise FileException(str(e) + ".") from e
+                        raise FileError(str(e) + ".") from e
 
                     pg.time.wait(2 ** system_attempt_i)
-                elif e.errno == EAGAIN or e.errno == EACCES:
+                    continue
+                if e.errno in (EAGAIN, EACCES):
                     lock_attempt_i += 1
                     if lock_attempt_i == FILE_ATTEMPT_STOP_I:
-                        raise LockException from e
+                        raise LockError from e
 
                     pg.time.wait(2 ** lock_attempt_i)
-                else:
-                    raise FileException(str(e) + ".") from e
-else:
-    print(f"File locking not implemented for this operating system: {system()}.")
+                    continue
 
-    def try_lock_file(file_obj: BinaryIO, shared: bool) -> None:
+                raise FileError(str(e) + ".") from e
+else:
+    print(f"File locking not implemented for this operating system: {platform}.", file=stderr)
+
+    def try_lock_file(file_obj: BinaryIO, is_shared: bool) -> None:
         """
         Locks a file either in an exclusive or shared way.
 

@@ -1,8 +1,10 @@
 """Interface to edit the settings."""
 
 from pathlib import Path
-from typing import Final, Any
+from typing import Self, Final, Any
 
+from pygame import event
+from pygame.event import Event
 from pygame.locals import *
 
 from src.classes.ui import UI
@@ -11,88 +13,178 @@ from src.classes.clickable import Checkbox, Button
 from src.classes.text_label import TextLabel
 from src.classes.devices import KEYBOARD
 
-from src.utils import RectPos, ObjInfo, prettify_path_str
-from src.consts import SPECIAL_LAYER
+from src.utils import prettify_path
+from src.obj_utils import ObjInfo
+from src.type_utils import DropdownOptionsInfo, RectPos
+from src.consts import (
+    SPECIAL_LAYER,
+    SETTINGS_FPS_ACTIVENESS_CHANGE, SETTINGS_CRASH_SAVE_DIR_CHOICE,
+    SETTINGS_ZOOM_DIRECTION_CHANGE, SETTINGS_HISTORY_MAX_SIZE_CHANGE
+)
 from src.imgs import BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG, CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG
 
-FPS_TOGGLE: Final[int]            = 0
-CRASH_SAVE_DIR_CHANGE: Final[int] = 1
+
+AUTOSAVE_BEHAVIOR_NEVER: Final[int]     = 0
+AUTOSAVE_BEHAVIOR_CRASH: Final[int]     = 1
+AUTOSAVE_BEHAVIOR_INTERRUPT: Final[int] = 2
+
+_FPS_DROPDOWN_OPTIONS: Final[DropdownOptionsInfo] = [
+    ("30"  , "(CTRL+C+1)", 30),
+    ("60"  , "(CTRL+C+2)", 60),
+    ("120" , "(CTRL+C+3)", 120),
+    ("240" , "(CTRL+C+4)", 240),
+    ("None", "(CTRL+C+5)", 0),
+]
+_AUTOSAVE_DROPDOWN_OPTIONS: Final[DropdownOptionsInfo] = [
+    ("Always"           , "(CTRL+A+1)", -1),  # Unused
+    ("Never"            , "(CTRL+A+2)", AUTOSAVE_BEHAVIOR_NEVER),
+    ("On Crash"         , "(CTRL+A+3)", AUTOSAVE_BEHAVIOR_CRASH),
+    ("Not on\nInterrupt", "(CTRL+A+4)", AUTOSAVE_BEHAVIOR_INTERRUPT),
+]
+_HISTORY_DROPDOWN_OPTIONS: Final[DropdownOptionsInfo] = [
+    ("32"   , "(CTRL+1)", 32),
+    ("64"   , "(CTRL+2)", 64),
+    ("128"  , "(CTRL+3)", 128),
+    ("256"  , "(CTRL+4)", 256),
+    ("512"  , "(CTRL+5)", 512),
+    ("1'024", "(CTRL+6)", 1_024),
+    ("None" , "(CTRL+7)", None),
+]
 
 
 class SettingsUI(UI):
     """Class to create an interface that allows editing the setting."""
 
     __slots__ = (
-        "show_fps", "fps_dropdown",
+        "fps_dropdown", "show_fps",
+        "autosave_dropdown",
         "crash_save_dir_str", "_crash_save_dir", "crash_save_dir_text_label",
-        "events",
+        "invert_zoom", "history_dropdown",
     )
 
-    def __init__(self) -> None:
+    def __init__(self: Self) -> None:
         """Creates the interface and the elements to edit general settings."""
 
         super().__init__("EDIT SETTING", False)
 
-        self.show_fps: Checkbox = Checkbox(
-            RectPos(self._rect.centerx + 16, self._rect.centery, "midleft"),
-            [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG], "Show fps", "(CTRL+F)", self.layer
-        )
-        self.show_fps.img_i = 1
-        self.show_fps.is_checked = True
+        first_half_centerx: int   = round(self._rect.x       + (self._rect.w / 4))
+        second_half_center_x: int = round(self._rect.centerx + (self._rect.w / 4))
 
         self.fps_dropdown: Dropdown = Dropdown(
-            RectPos(self._rect.centerx - 16, self._rect.centery, "midright"),
-            [
-                ("30"  , "(CTRL+C+1)", 30 ),
-                ("60"  , "(CTRL+C+2)", 60 ),
-                ("120" , "(CTRL+C+3)", 120),
-                ("240" , "(CTRL+C+4)", 240),
-                ("None", "(CTRL+C+5)", 0  ),
-            ],
-            "FPS Cap", self.layer + SPECIAL_LAYER
+            RectPos(first_half_centerx - 8, self._rect.y + 200, "midright"),
+            _FPS_DROPDOWN_OPTIONS, "FPS Cap", self.layer + SPECIAL_LAYER
+        )
+        self.show_fps: Checkbox = Checkbox(
+            RectPos(first_half_centerx + 8, self._rect.y + 200, "midleft"),
+            [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG], "Show fps", "(CTRL+F)", self.layer
+        )
+
+        self.autosave_dropdown: Dropdown = Dropdown(
+            RectPos(first_half_centerx + 8, self.show_fps.rect.bottom + 75, "topleft"),
+            _AUTOSAVE_DROPDOWN_OPTIONS, "Autosave:", self.layer + SPECIAL_LAYER,
+            text_h=18, is_text_above=False
         )
 
         self.crash_save_dir_str: str = str(Path().resolve())
+
+        dropdown_option_h: int = self.autosave_dropdown._options[0].rect.h
+        autosave_dropdown_rect_bottom: int = self.autosave_dropdown.init_pos.y + dropdown_option_h
         self._crash_save_dir: Button = Button(
-            RectPos(self._rect.centerx, self._rect.bottom - 128, "midbottom"),
+            RectPos(first_half_centerx, autosave_dropdown_rect_bottom + 75, "midtop"),
             [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Crash Save\nDirectory", "(CTRL+S)",
-            self.layer, 20
+            self.layer, text_h=20
         )
         self.crash_save_dir_text_label: TextLabel = TextLabel(
-            RectPos(self._crash_save_dir.rect.centerx, self._crash_save_dir.rect.y - 4, "midbottom"),
-            prettify_path_str(self.crash_save_dir_str), self.layer
+            RectPos(first_half_centerx, self._crash_save_dir.rect.y - 4, "midbottom"),
+            prettify_path(self.crash_save_dir_str), self.layer
         )
 
-        self.events: list[int] = []
+        self.invert_zoom: Checkbox = Checkbox(
+            RectPos(second_half_center_x, self._rect.y + 200, "center"),
+            [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG], "Invert Zoom", "(CTRL+Z)", self.layer
+        )
+        self.history_dropdown: Dropdown = Dropdown(
+            RectPos(second_half_center_x, self.invert_zoom.rect.bottom + 75, "midtop"),
+            _HISTORY_DROPDOWN_OPTIONS, "History Max Size", self.layer + SPECIAL_LAYER
+        )
 
         self.objs_info.extend((
             ObjInfo(self.show_fps), ObjInfo(self.fps_dropdown),
+            ObjInfo(self.autosave_dropdown),
             ObjInfo(self._crash_save_dir), ObjInfo(self.crash_save_dir_text_label),
+            ObjInfo(self.invert_zoom), ObjInfo(self.history_dropdown)
         ))
 
-    def set_info(self, data: dict[str, Any], is_fps_counter_active: bool) -> None:
-        self.show_fps.img_i = int(data["is_fps_counter_active"])
-        self.show_fps.is_checked = data["is_fps_counter_active"]
-        if data["is_fps_counter_active"] != is_fps_counter_active:
-            self.events.append(FPS_TOGGLE)
+    def set_info(self: Self, data: dict[str, Any]) -> None:
+        """
+        Sets all the settings from the data.
 
-        self.fps_dropdown.set_option_i(data["selected_fps_cap"])
+        Args:
+            data
+        """
+
+        self.fps_dropdown.set_option_i(data["fps_cap_i"])
+
+        if data["is_fps_counter_active"] != self.show_fps.is_checked:
+            self.show_fps.set_checked(data["is_fps_counter_active"])
+        event.post(Event(
+            SETTINGS_FPS_ACTIVENESS_CHANGE,
+            {"value": self.show_fps.is_checked}
+        ))
+
+        self.autosave_dropdown.set_option_i(data["autosave_behavior_i"])
 
         self.crash_save_dir_str = data["crash_save_dir"]
-        pretty_path_str: str = prettify_path_str(self.crash_save_dir_str)
-        self.crash_save_dir_text_label.set_text(pretty_path_str)
+        self.crash_save_dir_text_label.set_text(prettify_path(self.crash_save_dir_str))
 
-    def _handle_fps_dropdown_shortcuts(self) -> None:
+        if data["is_zooming_inverted"] != self.invert_zoom.is_checked:
+            self.invert_zoom.set_checked(data["is_zooming_inverted"])
+        event.post(Event(
+            SETTINGS_ZOOM_DIRECTION_CHANGE,
+            {"value": -1 if self.invert_zoom.is_checked else 1}
+        ))
+
+        if data["grid_history_max_size_i"] != self.history_dropdown.option_i:
+            self.history_dropdown.set_option_i(data["grid_history_max_size_i"])
+        event.post(Event(
+            SETTINGS_HISTORY_MAX_SIZE_CHANGE,
+            {"value": self.history_dropdown.values[self.history_dropdown.option_i]}
+        ))
+
+    def _handle_fps_dropdown_shortcuts(self: Self) -> None:
         """Selects a fps cap if the user presses ctrl+f+1-9."""
 
         k: int
 
-        num_shortcuts: int = min(len(self.fps_dropdown.values), 9)
+        # Offsets by 1 because of placeholder option
+        num_shortcuts: int = min(len(self.fps_dropdown.values) - 1, 9)
         for k in range(K_1, K_1 + num_shortcuts):
             if k in KEYBOARD.pressed:
-                self.fps_dropdown.set_option_i(k - K_1 + 1)  # Offset by 1 because of placeholder option
+                self.fps_dropdown.set_option_i(k - K_1 + 1)
 
-    def upt(self) -> tuple[bool, bool, Any]:
+    def _handle_autosave_dropdown_shortcuts(self: Self) -> None:
+        """Selects an autosave behavior if the user presses ctrl+a+1-9."""
+
+        k: int
+
+        # Offsets by 1 because of placeholder option
+        num_shortcuts: int = min(len(self.autosave_dropdown.values) - 1, 9)
+        for k in range(K_1, K_1 + num_shortcuts):
+            if k in KEYBOARD.pressed:
+                self.autosave_dropdown.set_option_i(k - K_1 + 1)
+
+    def _handle_history_dropdown_shortcuts(self: Self) -> None:
+        """Selects an history max size if the user presses ctrl+h+1-9."""
+
+        k: int
+
+        # Offsets by 1 because of placeholder option
+        num_shortcuts: int = min(len(self.history_dropdown.values) - 1, 9)
+        for k in range(K_1, K_1 + num_shortcuts):
+            if k in KEYBOARD.pressed:
+                self.history_dropdown.set_option_i(k - K_1 + 1)
+
+    def upt(self: Self) -> tuple[bool, bool, Any]:
         """
         Allows editing generic settings and going to more specific menus.
 
@@ -103,19 +195,46 @@ class SettingsUI(UI):
         is_exiting: bool
         is_confirming: bool
 
-        is_ctrl_f_pressed: bool = KEYBOARD.is_ctrl_on and K_f in KEYBOARD.timed
-        did_toggle_show_fps: bool = self.show_fps.upt(is_ctrl_f_pressed)
-        if did_toggle_show_fps:
-            self.events.append(FPS_TOGGLE)
-
         if KEYBOARD.is_ctrl_on and K_c in KEYBOARD.pressed:
             self._handle_fps_dropdown_shortcuts()
         self.fps_dropdown.upt()
 
+        is_ctrl_f_pressed: bool = KEYBOARD.is_ctrl_on and K_f in KEYBOARD.timed
+        did_toggle_show_fps: bool = self.show_fps.upt(is_ctrl_f_pressed)
+        if did_toggle_show_fps:
+            event.post(Event(
+                SETTINGS_FPS_ACTIVENESS_CHANGE,
+                {"value": self.show_fps.is_checked}
+            ))
+
+        if KEYBOARD.is_ctrl_on and K_a in KEYBOARD.pressed:
+            self._handle_autosave_dropdown_shortcuts()
+        self.autosave_dropdown.upt()
+
         is_crash_save_dir_clicked: bool = self._crash_save_dir.upt()
         is_ctrl_s_pressed: bool = KEYBOARD.is_ctrl_on and K_s in KEYBOARD.timed
         if is_crash_save_dir_clicked or is_ctrl_s_pressed:
-            self.events.append(CRASH_SAVE_DIR_CHANGE)
+            event.post(Event(SETTINGS_CRASH_SAVE_DIR_CHOICE))
+
+        is_ctrl_z_pressed: bool = KEYBOARD.is_ctrl_on and K_z in KEYBOARD.timed
+        did_toggle_invert_zoom: bool = self.invert_zoom.upt(is_ctrl_z_pressed)
+        if did_toggle_invert_zoom:
+            event.post(Event(
+                SETTINGS_ZOOM_DIRECTION_CHANGE,
+                {"value": -1 if self.invert_zoom.is_checked else 1}
+            ))
+
+        prev_history_dropdown_option_i: int = self.history_dropdown.option_i
+
+        if KEYBOARD.is_ctrl_on and K_h in KEYBOARD.pressed:
+            self._handle_history_dropdown_shortcuts()
+        self.history_dropdown.upt()
+
+        if self.history_dropdown.option_i != prev_history_dropdown_option_i:
+            event.post(Event(
+                SETTINGS_HISTORY_MAX_SIZE_CHANGE,
+                {"value": self.history_dropdown.values[self.history_dropdown.option_i]}
+            ))
 
         is_exiting, is_confirming = self._base_upt()
         return is_exiting, is_confirming, None

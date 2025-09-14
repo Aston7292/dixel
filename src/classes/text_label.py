@@ -3,14 +3,15 @@
 from tkinter import messagebox
 from pathlib import Path
 from io import BytesIO
-from typing import Final
+from typing import Self, Final
 
 import pygame as pg
 from pygame import SYSTEM_CURSOR_ARROW
 
-from src.utils import RectPos, ObjInfo, resize_obj, try_read_file, handle_file_os_error
-from src.lock_utils import LockException, FileException, try_lock_file
-from src.type_utils import XY, WH, BlitInfo
+from src.utils import try_read_file, handle_file_os_error
+from src.obj_utils import ObjInfo, resize_obj
+from src.lock_utils import LockError, FileError, try_lock_file
+from src.type_utils import XY, WH, BlitInfo, RectPos
 from src.consts import WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I, BG_LAYER, TEXT_LAYER
 
 _RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
@@ -25,9 +26,9 @@ def _try_add_renderer(h: int) -> None:
         height
     """
 
+    global _is_first_font_load_error
     attempt_i: int
     should_retry: bool
-    global _is_first_font_load_error
 
     font_path: Path = Path("assets", "fonts", "fredoka.ttf")
     renderer: pg.Font | None = None
@@ -35,24 +36,20 @@ def _try_add_renderer(h: int) -> None:
     for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             with font_path.open("rb") as f:
-                try_lock_file(f, True)
+                try_lock_file(f, is_shared=True)
                 font_bytes: BytesIO = BytesIO(try_read_file(f))
                 renderer = pg.font.Font(font_bytes, h)
             break
-        except FileNotFoundError:
-            error_str = "File missing."
-            break
-        except PermissionError:
-            error_str = "Permission denied."
-            break
-        except LockException:
-            error_str = "File locked."
-            break
-        except FileException as e:
-            error_str = e.error_str
-            break
-        except pg.error as e:
-            error_str = str(e)
+        except (FileNotFoundError, PermissionError, LockError, FileError, pg.error) as e:
+            errors_str: dict[type[Exception], str] = {
+                FileNotFoundError: "File missing.",
+                PermissionError: "Permission denied.",
+                LockError: "File locked.",
+                FileError: e.error_str if isinstance(e, FileError) else "",
+                pg.error: str(e),
+            }
+
+            error_str = errors_str[type(e)]
             break
         except OSError as e:
             if not _is_first_font_load_error:
@@ -79,22 +76,22 @@ class TextLabel:
     __slots__ = (
         "init_pos", "init_h", "_renderer", "text", "_bg_color",
         "imgs", "rect", "_rects",
-        "hover_rects", "layer", "blit_sequence"
+        "hover_rects", "layer", "blit_sequence",
     )
 
     cursor_type: int = SYSTEM_CURSOR_ARROW
     objs_info: list[ObjInfo] = []
 
     def __init__(
-            self, pos: RectPos, text: str, base_layer: int = BG_LAYER, h: int = 25,
-            bg_color: pg.Color | None = None
+            self: Self, pos: RectPos, text: str,
+            base_layer: int = BG_LAYER, h: int = 25, bg_color: pg.Color | None = None
     ) -> None:
         """
         Creates the text images, rects and full rect.
 
         Args:
             position, text, base_layer (default = BG_LAYER), height (default = 25),
-            background color (default = transparent)
+            background color (can be None)
         """
 
         self.init_pos: RectPos = pos
@@ -107,31 +104,33 @@ class TextLabel:
         self.text: str = text
         self._bg_color: pg.Color | None = bg_color
 
-        lines: list[str] = self.text.split("\n")
-
         self.imgs: list[pg.Surface] = [
-            self._renderer.render(line, True, WHITE, self._bg_color).convert_alpha()
-            for line in lines
+            self._renderer.render(
+                line,
+                antialias=True, color=WHITE, bgcolor=self._bg_color
+            ).convert_alpha()
+            for line in self.text.split("\n")
         ]
 
         self.rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self._rects: list[pg.Rect] = []
 
-        self.hover_rects: list[pg.Rect] = []
+        self.hover_rects: tuple[pg.Rect, ...] = ()
         self.layer: int = base_layer + TEXT_LAYER
         self.blit_sequence: list[BlitInfo] = [
-            (img, rect, self.layer) for img, rect in zip(self.imgs, self._rects)
+            (img, rect, self.layer)
+            for img, rect in zip(self.imgs, self._rects)
         ]
 
         self._refresh_rects((self.init_pos.x, self.init_pos.y))
 
-    def enter(self) -> None:
+    def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
-    def leave(self) -> None:
+    def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
+    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Resizes the object.
 
@@ -143,20 +142,25 @@ class TextLabel:
         _w: int
         h: int
 
-        xy, (_w, h) = resize_obj(self.init_pos, 0, self.init_h, win_w_ratio, win_h_ratio, True)
+        xy, (_w, h) = resize_obj(
+            self.init_pos, 0, self.init_h,
+            win_w_ratio, win_h_ratio, should_keep_wh_ratio=True
+        )
+
         if h not in _RENDERERS_CACHE:
             _try_add_renderer(h)
         self._renderer = _RENDERERS_CACHE[h]
 
-        lines: list[str] = self.text.split("\n")
         self.imgs = [
-            self._renderer.render(line, True, WHITE, self._bg_color).convert_alpha()
-            for line in lines
+            self._renderer.render(
+                line,
+                antialias=True, color=WHITE, bgcolor=self._bg_color
+            ).convert_alpha()
+            for line in self.text.split("\n")
         ]
-
         self._refresh_rects(xy)
 
-    def _refresh_rects(self, xy: XY) -> None:
+    def _refresh_rects(self: Self, xy: XY) -> None:
         """
         Refreshes the rects and full rect depending on coord_type.
 
@@ -178,21 +182,24 @@ class TextLabel:
         self._rects = []
         line_rect_y: int = self.rect.y
         for img_w, img_h in imgs_whs:
-            # Create full line rect to get the position at coord_type
-            # Shrink it to the line width and move it there
+            # Creates the full line rect to get the position at coord_type
+            # Shrinks it to the line width and moves it there
 
             line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, self.rect.w, img_h)
             line_xy: XY = getattr(line_rect, self.init_pos.coord_type)
 
             line_rect.w = img_w
+
             setattr(line_rect, self.init_pos.coord_type, line_xy)
             self._rects.append(line_rect)
-
             line_rect_y += line_rect.h
 
         self.blit_sequence = [(img, rect, self.layer) for img, rect in zip(self.imgs, self._rects)]
 
-    def move_rect(self, init_x: int, init_y: int, win_w_ratio: float, win_h_ratio: float) -> None:
+    def move_rect(
+            self: Self, init_x: int, init_y: int,
+            win_w_ratio: float, win_h_ratio: float
+    ) -> None:
         """
         Moves the rects and rect to a specific coordinate.
 
@@ -204,17 +211,21 @@ class TextLabel:
         _wh: WH
         rect: pg.Rect
 
-        change_x: int = init_x - self.init_pos.x
-        change_y: int = init_y - self.init_pos.y
-        self.init_pos.x, self.init_pos.y = init_x, init_y  # Modifying init_pos is more accurate
+        self.init_pos.x, self.init_pos.y = init_x, init_y  # More accurate
+
+        prev_rect_x: int = self.rect.x
+        prev_rect_y: int = self.rect.y
 
         xy, _wh = resize_obj(self.init_pos, 0, 0, win_w_ratio, win_h_ratio)
+
         setattr(self.rect, self.init_pos.coord_type, xy)
+        change_x: int = self.rect.x - prev_rect_x
+        change_y: int = self.rect.y - prev_rect_y
         for rect in self._rects:
             rect.x += change_x
             rect.y += change_y
 
-    def set_text(self, text: str) -> None:
+    def set_text(self: Self, text: str) -> None:
         """
         Sets the text and adjusts its position.
 
@@ -223,17 +234,18 @@ class TextLabel:
         """
 
         self.text = text
-
-        lines: list[str] = self.text.split("\n")
         self.imgs = [
-            self._renderer.render(line, True, WHITE, self._bg_color).convert_alpha()
-            for line in lines
+            self._renderer.render(
+                line,
+                antialias=True, color=WHITE, bgcolor=self._bg_color
+            ).convert_alpha()
+            for line in self.text.split("\n")
         ]
 
         xy: XY = getattr(self.rect, self.init_pos.coord_type)
         self._refresh_rects(xy)
 
-    def get_x_at(self, i: int) -> int:
+    def get_x_at(self: Self, i: int) -> int:
         """
         Gets the x coordinate of the character at a given index (only for single line text).
 
@@ -245,7 +257,7 @@ class TextLabel:
 
         return self.rect.x + self._renderer.size(self.text[:i])[0]
 
-    def get_closest_to(self, x: int) -> int:
+    def get_closest_to(self: Self, x: int) -> int:
         """
         Calculates the index of the closest character to a given x (only for single line text).
 
@@ -258,13 +270,12 @@ class TextLabel:
         i: int
         char: str
 
-        prev_right: int = self.rect.x
-        renderer: pg.Font = self._renderer
+        prev_x: int = self.rect.x
         for i, char in enumerate(self.text):
-            current_right: int = prev_right + renderer.size(char)[0]
-            if x < current_right:
+            current_x: int = prev_x + self._renderer.size(char)[0]
+            if x < current_x:
                 break
 
-            prev_right = current_right
+            prev_x = current_x
 
-        return i if abs(x - prev_right) < abs(x - current_right) else i + 1
+        return i if abs(x - prev_x) < abs(x - current_x) else i + 1

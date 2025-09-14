@@ -79,7 +79,7 @@ class TestLockedCheckbox(TestCase):
         copy_locked_checkbox.set_info([_ON_IMG, _OFF_IMG], "world")
 
         self.assertListEqual(copy_locked_checkbox.init_imgs, [_ON_IMG, _OFF_IMG])
-        self.assertListEqual(copy_locked_checkbox.imgs, [_ON_IMG, _OFF_IMG])
+        self.assertListEqual(copy_locked_checkbox._imgs, [_ON_IMG, _OFF_IMG])
 
         mock_set_text.assert_called_once_with(copy_locked_checkbox.hovering_text_label, "world")
 

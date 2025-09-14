@@ -1,12 +1,14 @@
 """Class to indicate an unsaved file."""
 
+from typing import Self
+
 import pygame as pg
 from pygame import SYSTEM_CURSOR_ARROW
 
-from src.utils import RectPos, ObjInfo, resize_obj
-from src.type_utils import XY, BlitInfo
-import src.vars as VARS
-from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, ANIMATION_I_GROW, ANIMATION_I_SHRINK
+from src.obj_utils import ObjInfo, resize_obj
+from src.type_utils import XY, BlitInfo, RectPos
+import src.vars as my_vars
+from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, ANIMATION_GROW, ANIMATION_SHRINK
 
 
 class UnsavedIcon:
@@ -16,13 +18,13 @@ class UnsavedIcon:
         "init_radius", "_normal_radius", "_radius", "_min_radius", "_max_radius",
         "rect", "frame_rect",
         "_color", "_animation_i",
-        "hover_rects", "layer", "blit_sequence", "_min_win_ratio",
+        "hover_rects", "layer", "blit_sequence",
     )
 
     cursor_type: int = SYSTEM_CURSOR_ARROW
     objs_info: list[ObjInfo] = []
 
-    def __init__(self) -> None:
+    def __init__(self: Self) -> None:
         """Creates image and rect."""
 
         self.init_radius: int = 8
@@ -31,30 +33,34 @@ class UnsavedIcon:
         self._min_radius: float = self._normal_radius
         self._max_radius: float = self._normal_radius * 1.5
 
-        # Prevents cutoffs
-        dim: int = (self._radius * 2) + 1
-        max_dim: int = round((self._max_radius * 2) + 1)
-
-        img: pg.Surface = pg.Surface((dim, dim))
-        self.rect: pg.Rect = pg.Rect(0, 0, max_dim, max_dim)
+        img: pg.Surface = pg.Surface((
+            # Prevents cutoffs
+            round((self._radius * 2) + 1),
+            round((self._radius * 2) + 1),
+        ))
+        self.rect: pg.Rect = pg.Rect(
+            0, 0,
+            # Prevents cutoffs
+            round((self._max_radius * 2) + 1),
+            round((self._max_radius * 2) + 1)
+        )
         self.frame_rect: pg.Rect = pg.Rect(0, 0, *img.get_size())
         self.frame_rect.center = self.rect.center
 
         self._color: pg.Color = WHITE
         self._animation_i: int | None = None
 
-        self.hover_rects: list[pg.Rect] = []
+        self.hover_rects: tuple[pg.Rect, ...] = ()
         self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = [(img, self.frame_rect, ELEMENT_LAYER)]
-        self._min_win_ratio: float = 1
 
-    def enter(self) -> None:
+    def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
-    def leave(self) -> None:
+    def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
+    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Resizes the object.
 
@@ -64,24 +70,27 @@ class UnsavedIcon:
 
         _xy: XY
 
-        self._min_win_ratio = min(win_w_ratio, win_h_ratio)
-
-        radius_ratio: float = self._radius / self._normal_radius
+        radius_ratio: float     = self._radius     / self._normal_radius
         min_radius_ratio: float = self._min_radius / self._normal_radius
         max_radius_ratio: float = self._max_radius / self._normal_radius
+
+        # Position is set manually after resize
         _xy, (self._normal_radius, self._normal_radius) = resize_obj(
             RectPos(0, 0, ""), self.init_radius, self.init_radius,
-            win_w_ratio, win_h_ratio, True
+            win_w_ratio, win_h_ratio, should_keep_wh_ratio=True
         )
 
         self._min_radius = self._normal_radius * min_radius_ratio
         self._max_radius = self._normal_radius * max_radius_ratio
 
-        max_dim: int = round((self._max_radius * 2) + 1)  # Prevent cutoffs
-        self.rect.size = (max_dim, max_dim)
+        self.rect.size = (
+            # Prevents cutoffs
+            round((self._max_radius * 2) + 1),
+            round((self._max_radius * 2) + 1),
+        )
         self.set_radius(self._normal_radius * radius_ratio)
 
-    def set_radius(self, radius: float) -> None:
+    def set_radius(self: Self, radius: float) -> None:
         """
         Sets the radius and refreshes image and rect.
 
@@ -91,46 +100,51 @@ class UnsavedIcon:
 
         self._radius = radius
 
-        dim: int = round((self._radius * 2) + 1)  # Prevent cutoffs
-        img: pg.Surface = pg.Surface((dim, dim))
-        self.frame_rect.size = (dim, dim)
+        img: pg.Surface = pg.Surface((
+            # Prevents cutoffs
+            round((self._radius * 2) + 1),
+            round((self._radius * 2) + 1),
+        ))
+        self.frame_rect.size = img.get_size()
         self.frame_rect.center = self.rect.center
+        pg.draw.aacircle(
+            img, self._color,
+            (self.frame_rect.w / 2, self.frame_rect.h / 2), self._radius
+        )
 
-        center: tuple[float, float] = (self.frame_rect.w / 2, self.frame_rect.h / 2)
-        pg.draw.aacircle(img, self._color, center, self._radius)
+        self.blit_sequence = (
+            [] if self.frame_rect.w == 0 else
+            [(img, self.frame_rect, ELEMENT_LAYER)]
+        )
 
-        self.blit_sequence = [] if dim == 0 else [(img, self.frame_rect, ELEMENT_LAYER)]
-
-    def set_animation(self, i: int, color: pg.Color, shrink_to_0: bool) -> None:
+    def set_animation(self: Self, i: int, color: pg.Color, should_go_to_0: bool) -> None:
         """
         Sets the animation info.
 
         Args:
-            index, color, shrink to 0 flag
+            index, color, go to 0 flag
         """
 
         self._animation_i = i
         self._color = color
-        self._min_radius = 0 if shrink_to_0 else self._normal_radius
+        self._min_radius = 0 if should_go_to_0 else self._normal_radius
 
-    def animate(self) -> None:
+    def animate(self: Self) -> None:
         """Plays either the grow or shrink animation."""
-
-        progress: float
 
         prev_radius: float = self._radius
 
         # The animation is fast at the start and slow at the end
-        if self._animation_i == ANIMATION_I_GROW:
-            progress = (self._max_radius - self._radius    ) / self._max_radius
-            self._radius += (0.25 + progress) * VARS.dt
+        if self._animation_i == ANIMATION_GROW:
+            grow_progress: float   = (self._max_radius - self._radius    ) / self._max_radius
+            self._radius += (0.25 + grow_progress  ) * my_vars.dt
 
             if self._radius >= self._max_radius:
                 self._radius = self._max_radius
-                self._animation_i = ANIMATION_I_SHRINK
-        elif self._animation_i == ANIMATION_I_SHRINK:
-            progress = (self._radius     - self._min_radius) / self._max_radius
-            self._radius -= (0.25 + progress) * VARS.dt
+                self._animation_i = ANIMATION_SHRINK
+        elif self._animation_i == ANIMATION_SHRINK:
+            shrink_progress: float = (self._radius     - self._min_radius) / self._max_radius
+            self._radius -= (0.25 + shrink_progress) * my_vars.dt
 
             if self._radius <= self._min_radius:
                 self._radius = self._min_radius

@@ -1,6 +1,6 @@
 """Interface to edit the grid, preview is refreshed automatically."""
 
-from typing import TypeAlias, Final
+from typing import Self, Literal, Final
 
 import pygame as pg
 from pygame.locals import *
@@ -11,13 +11,12 @@ import cv2
 
 from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI
-from src.classes.grid_manager import GRID_TRANSITION_START, GRID_TRANSITION_END
 from src.classes.clickable import Checkbox, Button, SpammableButton
 from src.classes.text_label import TextLabel
 from src.classes.devices import KEYBOARD
 
-from src.utils import UIElement, RectPos, ObjInfo, resize_obj
-from src.type_utils import XY
+from src.obj_utils import UIElement, ObjInfo, resize_obj
+from src.type_utils import XY, RectPos
 from src.consts import EMPTY_TILE_ARR, TILE_H, TILE_W
 from src.imgs import (
     CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG, BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG,
@@ -25,6 +24,8 @@ from src.imgs import (
 )
 
 _GRID_PREVIEW_DIM_CAP: Final[int] = 300
+_GRID_PREVIEW_TRANSITION_START: Final[int] = 20
+_GRID_PREVIEW_TRANSITION_END: Final[int]   = 80
 
 
 class GridUI(UI):
@@ -38,21 +39,23 @@ class GridUI(UI):
         "_win_w_ratio", "_win_h_ratio",
     )
 
-    def __init__(self) -> None:
+    def __init__(self: Self) -> None:
         """Creates the interface, sliders and preview."""
-
 
         super().__init__("EDIT GRID", True)
         assert self._confirm is not None
 
         self._preview_init_pos: RectPos = RectPos(
-            self._rect.centerx, self._rect.centery + 16, "center"
+            self._rect.centerx, self._rect.centery + 16,
+            "center"
         )
 
         preview_img: pg.Surface = pg.Surface((_GRID_PREVIEW_DIM_CAP, _GRID_PREVIEW_DIM_CAP))
         self._preview_rect: pg.Rect = pg.Rect(0, 0, *preview_img.get_size())
-        preview_init_xy: XY = (self._preview_init_pos.x, self._preview_init_pos.y)
-        setattr(self._preview_rect, self._preview_init_pos.coord_type, preview_init_xy)
+        setattr(
+            self._preview_rect, self._preview_init_pos.coord_type,
+            (self._preview_init_pos.x, self._preview_init_pos.y)
+        )
 
         self.w_ratio: float = 1
         self.h_ratio: float = 1
@@ -61,58 +64,63 @@ class GridUI(UI):
 
         self._h_box: NumInputBox = NumInputBox(
             RectPos(self._preview_rect.x - 8, self._preview_rect.y - 25, "bottomleft"),
-            1, 999, self.layer
+            min_limit=1, max_limit=999, base_layer=self.layer
         )
-        h_text_label: TextLabel = TextLabel(
-            RectPos(self._h_box.rect.x   - 8, self._h_box.rect.centery, "midright"),
-            "Height", self.layer
-        )
-
         self._w_box: NumInputBox = NumInputBox(
             RectPos(self._preview_rect.x - 8, self._h_box.rect.y   - 25, "bottomleft"),
-            1, 999, self.layer
-        )
-        w_text_label: TextLabel = TextLabel(
-            RectPos(self._w_box.rect.x   - 8, self._w_box.rect.centery, "midright"),
-            "Width" , self.layer
+            min_limit=1, max_limit=999, base_layer=self.layer
         )
 
         self._selection_i: int = 0
 
         self.checkbox: Checkbox = Checkbox(
-            RectPos(self._preview_rect.right    - 16, self._confirm.rect.y - 16, "bottomright"),
+            RectPos(self._preview_rect.right - 16, self._confirm.rect.y - 16, "bottomright"),
             [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG], "Keep Ratio", "(CTRL+K)", self.layer
         )
-
         self._rotate_left: SpammableButton = SpammableButton(
-            RectPos(self._preview_rect.x        + 16, self.checkbox.rect.centery, "midleft"),
+            RectPos(self._preview_rect.x         + 16, self.checkbox.rect.centery, "midleft"),
             [ROTATE_LEFT_OFF_IMG , ROTATE_LEFT_ON_IMG ], "(CTRL+SHIFT+R)", self.layer
         )
         self._rotate_right: SpammableButton = SpammableButton(
-            RectPos(self._rotate_left.rect.right + 8, self.checkbox.rect.centery, "midleft"),
-            [ROTATE_RIGHT_OFF_IMG, ROTATE_RIGHT_ON_IMG], "(CTRL+R)"     , self.layer
+            RectPos(self._rotate_left.rect.right + 8 , self.checkbox.rect.centery, "midleft"),
+            [ROTATE_RIGHT_OFF_IMG, ROTATE_RIGHT_ON_IMG], "(CTRL+R)"      , self.layer
         )
         self._crop: Button = Button(
             RectPos(self._rotate_left.rect.right + 4, self._confirm.rect.centery, "center"),
             [BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG], "Crop", "(CTRL+C)", self.layer
         )
 
+        def _get_box_tex_label_info(box: NumInputBox, text: str) -> ObjInfo:
+            """
+            Creates a text label to the left of an input box.
+
+            Args:
+                input box
+            Returns:
+                text label object info
+            """
+
+            return ObjInfo(TextLabel(
+                RectPos(box.rect.x - 8, box.rect.centery, "midright"),
+                text , self.layer
+            ))
         self.blit_sequence.append((preview_img, self._preview_rect, self.layer))
         self._win_w_ratio: float = 1
         self._win_h_ratio: float = 1
         self.objs_info.extend((
-            ObjInfo(self._w_box), ObjInfo(w_text_label), ObjInfo(self._h_box), ObjInfo(h_text_label),
-            ObjInfo(self.checkbox),
-            ObjInfo(self._rotate_left), ObjInfo(self._rotate_right), ObjInfo(self._crop),
+            ObjInfo(self._w_box), _get_box_tex_label_info(self._w_box, "Width"),
+            ObjInfo(self._h_box), _get_box_tex_label_info(self._h_box, "Height"),
+            ObjInfo(self.checkbox), ObjInfo(self._rotate_left), ObjInfo(self._rotate_right),
+            ObjInfo(self._crop),
         ))
 
-    def enter(self) -> None:
+    def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
 
         super().enter()
         self._selection_i = 0
 
-    def resize(self, win_w_ratio: float, win_h_ratio: float) -> None:
+    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
         Resizes the object.
 
@@ -125,7 +133,7 @@ class GridUI(UI):
         self._win_w_ratio, self._win_h_ratio = win_w_ratio, win_h_ratio
         self._refresh_preview()
 
-    def set_info(self, cols: int, rows: int, tiles: NDArray[uint8]) -> None:
+    def set_info(self: Self, cols: int, rows: int, tiles: NDArray[uint8]) -> None:
         """
         Sets the area and tiles.
 
@@ -136,10 +144,9 @@ class GridUI(UI):
         self._original_tiles = self._tiles = tiles
         self._w_box.set_value(cols)
         self._h_box.set_value(rows)
-
         self._refresh_preview()
 
-    def _resize_preview(self, unscaled_preview_img: pg.Surface) -> None:
+    def _resize_preview(self: Self, unscaled_preview_img: pg.Surface) -> None:
         """
         Resizes the small preview with a gradual blur.
 
@@ -156,26 +163,28 @@ class GridUI(UI):
         xy, (w, h) = resize_obj(
             self._preview_init_pos,
             self._w_box.value * init_tile_dim, self._h_box.value * init_tile_dim,
-            self._win_w_ratio, self._win_h_ratio, True
+            self._win_w_ratio, self._win_h_ratio, should_keep_wh_ratio=True
         )
 
         max_dim: int = max(self._w_box.value, self._h_box.value)
-        if   max_dim < GRID_TRANSITION_START:
+        if   max_dim < _GRID_PREVIEW_TRANSITION_START:
             img = pg.transform.scale(      unscaled_preview_img, (w, h))
-        elif max_dim > GRID_TRANSITION_END:
+        elif max_dim > _GRID_PREVIEW_TRANSITION_END:
             img = pg.transform.smoothscale(unscaled_preview_img, (w, h))
-        elif GRID_TRANSITION_START <= max_dim <= GRID_TRANSITION_END:
+        elif _GRID_PREVIEW_TRANSITION_START <= max_dim <= _GRID_PREVIEW_TRANSITION_END:
             # Gradual transition
-            img_arr: NDArray[uint8] = pg.surfarray.pixels3d(unscaled_preview_img)
-            img_arr = cv2.resize(img_arr, (h, w), interpolation=cv2.INTER_AREA).astype(uint8)
-            img = pg.surfarray.make_surface(img_arr)
+            img = pg.surfarray.make_surface(cv2.resize(
+                pg.surfarray.pixels3d(unscaled_preview_img),
+                (h, w),
+                interpolation=cv2.INTER_AREA
+            ).astype(uint8))
 
         self._preview_rect.size = (w, h)
         setattr(self._preview_rect, self._preview_init_pos.coord_type, xy)
 
         self.blit_sequence[1] = (img.convert(), self._preview_rect, self.layer)
 
-    def _refresh_preview(self) -> None:
+    def _refresh_preview(self: Self) -> None:
         """Refreshes the preview by using original_tiles."""
 
         self._tiles = self._original_tiles  # Copying is unnecessary
@@ -192,19 +201,19 @@ class GridUI(UI):
         elif extra_h > 0:
             self._tiles = np.pad(self._tiles, ((0, 0), (0, extra_h), (0, 0)), constant_values=0)
 
-        # Repeat tiles so an empty tile image takes 1 normal-sized tile
+        # Repeats tiles so an empty tile image takes 1 normal-sized tile
         repeated_tiles: NDArray[uint8] = self._tiles.repeat(TILE_W, 0).repeat(TILE_H, 1)
-        empty_img_arr_reps: tuple[int, ...] = (self._w_box.value, self._h_box.value, 1)
-        empty_img_arr: NDArray[uint8] = np.tile(EMPTY_TILE_ARR, empty_img_arr_reps)
-
         empty_tiles_mask: NDArray[bool_] = (repeated_tiles[..., 3] == 0)[..., np.newaxis]
+
+        empty_img_arr_reps: tuple[int, int, int] = (self._w_box.value, self._h_box.value, 1)
+        empty_img_arr: NDArray[uint8] = np.tile(EMPTY_TILE_ARR, empty_img_arr_reps)
         rgb_repeated_tiles: NDArray[uint8] = repeated_tiles[..., :3]
+        # Better for scaling
         img_arr: NDArray[uint8] = np.where(empty_tiles_mask, empty_img_arr, rgb_repeated_tiles)
 
-        # Having a version where 1 tile = 1 pixel is better for scaling
         self._resize_preview(pg.surfarray.make_surface(img_arr))
 
-    def _move_with_keys(self) -> None:
+    def _move_with_keys(self: Self) -> None:
         """Moves the selection with the keyboard."""
 
         if K_UP   in KEYBOARD.timed:
@@ -214,7 +223,7 @@ class GridUI(UI):
             self._selection_i = 1
             self._h_box.cursor_i = self._h_box.text_label.get_closest_to(self._w_box.cursor_rect.x)
 
-    def _upt_sliders(self) -> None:
+    def _upt_sliders(self: Self) -> None:
         """Updates sliders and selection."""
 
         obj: UIElement
@@ -228,32 +237,36 @@ class GridUI(UI):
                 prev_selected_obj.leave()
                 self._selection_i = i
 
-    def _adjust_opp_slider(self, did_grid_w_change: bool) -> None:
+    def _adjust_opp_slider(self: Self, prev_w_box_text: str) -> None:
         """
         Adjusts the opposite slider to keep their ratio.
 
         Args:
-            grid width changed flag
+            previous width input box text
         """
 
-        if did_grid_w_change:
-            self._h_box.value = round(self._w_box.value * self.w_ratio)
-            self._h_box.value = min(max(self._h_box.value, self._h_box.min_limit), self._h_box.max_limit)
+        if self._w_box.text_label.text != prev_w_box_text:
+            self._h_box.value = min(max(
+                round(self._w_box.value * self.w_ratio),
+                self._h_box.min_limit), self._h_box.max_limit
+            )
 
             if self._w_box.text_label.text == "" and self._h_box.value == self._h_box.min_limit:
                 self._h_box.text_label.text = ""
             else:
                 self._h_box.text_label.text = str(self._h_box.value)
         else:  # did_grid_h_change
-            self._w_box.value = round(self._h_box.value * self.h_ratio)
-            self._w_box.value = min(max(self._w_box.value, self._w_box.min_limit), self._w_box.max_limit)
+            self._w_box.value = min(max(
+                round(self._h_box.value * self.h_ratio),
+                self._w_box.min_limit), self._w_box.max_limit
+            )
 
             if self._h_box.text_label.text == "" and self._w_box.value == self._w_box.min_limit:
                 self._w_box.text_label.text = ""
             else:
                 self._w_box.text_label.text = str(self._w_box.value)
 
-    def _crop_tiles(self) -> None:
+    def _crop_tiles(self: Self) -> None:
         """Removes unnecessary padding from the image, sets sliders and ratios."""
 
         left: intp
@@ -271,18 +284,20 @@ class GridUI(UI):
 
         # Copying is unnecessary
         self._original_tiles = self._tiles = self._original_tiles[left:right, top:bottom]
-        self._w_box.value = min(
-            max(self._tiles.shape[0], self._w_box.min_limit), self._w_box.max_limit
+        self._w_box.value = min(max(
+            self._tiles.shape[0],
+            self._w_box.min_limit), self._w_box.max_limit
         )
-        self._h_box.value = min(
-            max(self._tiles.shape[1], self._h_box.min_limit), self._h_box.max_limit
+        self._h_box.value = min(max(
+            self._tiles.shape[1],
+            self._h_box.min_limit), self._h_box.max_limit
         )
         self.w_ratio = self._h_box.value / self._w_box.value
         self.h_ratio = self._w_box.value / self._h_box.value
 
         self._refresh_preview()
 
-    def _rotate_tiles(self, direction: int) -> None:
+    def _rotate_tiles(self: Self, direction: Literal[-1, 1]) -> None:
         """
         Rotates the tiles by 90 degrees in a direction.
 
@@ -294,10 +309,9 @@ class GridUI(UI):
         self._original_tiles = self._tiles = np.rot90(self._original_tiles, direction)
         self._w_box.value, self._h_box.value = self._h_box.value, self._w_box.value
         self.w_ratio, self.h_ratio = self.h_ratio, self.w_ratio
-
         self._refresh_preview()
 
-    def upt(self) -> tuple[bool, bool, NDArray[uint8]]:
+    def upt(self: Self) -> tuple[bool, bool, NDArray[uint8]]:
         """
         Allows selecting an area with 2 sliders and view its preview.
 
@@ -308,8 +322,8 @@ class GridUI(UI):
         is_exiting: bool
         is_confirming: bool
 
-        prev_w_slider_text: str = self._w_box.text_label.text
-        prev_h_slider_text: str = self._h_box.text_label.text
+        prev_w_box_text: str = self._w_box.text_label.text
+        prev_h_box_text: str = self._h_box.text_label.text
 
         if KEYBOARD.timed != []:
             self._move_with_keys()
@@ -322,11 +336,12 @@ class GridUI(UI):
             self.w_ratio = self._h_box.value / self._w_box.value
             self.h_ratio = self._w_box.value / self._h_box.value
 
-        did_grid_w_change: bool = self._w_box.text_label.text != prev_w_slider_text
-        did_grid_h_change: bool = self._h_box.text_label.text != prev_h_slider_text
-        if did_grid_w_change or did_grid_h_change:
+        if (
+            self._w_box.text_label.text != prev_w_box_text or
+            self._h_box.text_label.text != prev_h_box_text
+        ):
             if self.checkbox.is_checked:
-                self._adjust_opp_slider(did_grid_w_change)
+                self._adjust_opp_slider(prev_w_box_text)
             self._refresh_preview()
 
         is_crop_clicked: bool = self._crop.upt()

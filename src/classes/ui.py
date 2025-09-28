@@ -3,8 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Self, Final, Any
 
-import pygame as pg
-from pygame import K_ESCAPE, K_RETURN, SYSTEM_CURSOR_ARROW
+from pygame import Surface, Rect, transform, K_ESCAPE, K_RETURN, SYSTEM_CURSOR_ARROW
 
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
@@ -15,7 +14,7 @@ from src.type_utils import XY, BlitInfo, RectPos
 from src.consts import DARKER_GRAY, WIN_INIT_W, WIN_INIT_H, UI_LAYER
 from src.imgs import CLOSE_OFF_IMG, CLOSE_ON_IMG, BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 
-_INTERFACE_IMG: Final[pg.Surface] = pg.Surface((512, 700))
+_INTERFACE_IMG: Final[Surface] = Surface((512, 700))
 _INTERFACE_IMG.fill(DARKER_GRAY)
 
 
@@ -57,10 +56,10 @@ class UI(ABC):
 
         self._init_pos: RectPos = RectPos(round(WIN_INIT_W / 2), round(WIN_INIT_H / 2), "center")
 
-        self._rect: pg.Rect = pg.Rect(0, 0, *_INTERFACE_IMG.get_size())
+        self._rect: Rect = Rect(0, 0, *_INTERFACE_IMG.get_size())
         setattr(self._rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
-        self.hover_rects: tuple[pg.Rect, ...] = ()
+        self.hover_rects: tuple[Rect, ...] = ()
         self.layer: int = UI_LAYER
         self.blit_sequence: list[BlitInfo] = [(_INTERFACE_IMG, self._rect, self.layer)]
         self.objs_info: list[ObjInfo] = []
@@ -111,7 +110,7 @@ class UI(ABC):
             win_w_ratio, win_h_ratio
         )
 
-        img: pg.Surface = pg.transform.scale(_INTERFACE_IMG, self._rect.size).convert()
+        img: Surface = transform.scale(_INTERFACE_IMG, self._rect.size).convert()
         setattr(self._rect, self._init_pos.coord_type, xy)
 
         self.blit_sequence[0] = (img, self._rect, self.layer)

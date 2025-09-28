@@ -147,8 +147,8 @@ class NumInputBox:
         self.cursor_rect.x = self.text_label.rect.x
         self.cursor_i = 0
 
-    def _move_with_keys(self: Self) -> None:
-        """Moves the cursor with the keyboard."""
+    def _handle_move_with_keys(self: Self) -> None:
+        """Handles moving the cursor with the keyboard."""
 
         if K_LEFT  in KEYBOARD.timed:
             self.cursor_i = 0        if KEYBOARD.is_ctrl_on else max(self.cursor_i - 1, 0)
@@ -183,7 +183,7 @@ class NumInputBox:
             self.value = self.min_limit
             self.text_label.text = str(self.value)
 
-    def _insert_char(self: Self) -> None:
+    def _handle_insertion(self: Self) -> None:
         """Inserts a character at the cursor position and moves the cursor."""
 
         prev_text: str = self.text_label.text
@@ -214,7 +214,7 @@ class NumInputBox:
         if KEYBOARD.timed[-1] in (K_BACKSPACE, K_DELETE):
             self._handle_deletion()
         elif K_0 <= KEYBOARD.timed[-1] <= K_9:
-            self._insert_char()
+            self._handle_insertion()
 
         if K_MINUS in KEYBOARD.timed:
             self.value = (
@@ -283,7 +283,7 @@ class NumInputBox:
                 self._should_show_cursor = True
 
             if KEYBOARD.pressed != []:
-                self._move_with_keys()
+                self._handle_move_with_keys()
             if KEYBOARD.timed != []:
                 self._handle_keys()
 

@@ -8,7 +8,6 @@ from tkinter import messagebox
 from pathlib import Path
 from zlib import compress, decompress
 from collections import deque
-from collections.abc import Iterator
 from itertools import islice
 from io import BytesIO
 from typing import Self, Literal, TypeAlias, Final, Any
@@ -20,7 +19,7 @@ from numpy import uint8, uint16, uint32, int32, intp, bool_
 from numpy.typing import NDArray
 import cv2
 
-from src.classes.tools_manager import ToolInfo
+from src.classes.tools_manager import ToolName, ToolInfo
 from src.classes.text_label import TextLabel
 from src.classes.devices import MOUSE, KEYBOARD
 
@@ -39,7 +38,6 @@ from src.consts import (
 
 
 _HistorySnapshot: TypeAlias = tuple[int, int, bytes]
-_BucketStack: TypeAlias = list[tuple[uint16, tuple[uint16, uint16]]]
 
 _GRID_DIM_CAP: Final[int] = 600
 _GRID_TRANSITION_START: Final[int] = 30
@@ -96,7 +94,7 @@ def _inc_mouse_tile(
     return rel_mouse_coord, offset
 
 
-def _get_tiles_in_line(x_1: int, y_1: int, x_2: int, y_2: int) -> list[XY]:
+def _get_tiles_in_line(x_1: int, y_1: int, x_2: int, y_2: int) -> NDArray[int32]:
     """
     Gets the tiles that touch a line using Bresenham's Line Algorithm.
 
@@ -126,7 +124,7 @@ def _get_tiles_in_line(x_1: int, y_1: int, x_2: int, y_2: int) -> list[XY]:
             err += delta_x
             y_1 += step_y
 
-    return tiles
+    return np.array(tiles, int32)
 
 
 def _handle_img_dir_not_found(dir_path: Path, should_ask_create: bool, attempt_i: int) -> bool:
@@ -218,7 +216,8 @@ class Grid:
 
         # Better for scaling
         self._unscaled_minimap_img: pg.Surface = pg.Surface(
-            (self.tiles.shape[0], self.tiles.shape[1])
+            (self.tiles.shape[0], self.tiles.shape[1]),
+            depth=24
         )
 
         self.hover_rects: tuple[pg.Rect, ...] = (self.grid_rect,)
@@ -323,25 +322,22 @@ class Grid:
         selected_xs: NDArray[intp]
         selected_ys: NDArray[intp]
 
-        selected_xs, selected_ys = np.nonzero(
+        selected_tiles_indexes: NDArray[intp] = np.flatnonzero(
             self.selected_tiles[
                 self.offset_x:self.offset_x + self.visible_cols,
                 self.offset_y:self.offset_y + self.visible_rows,
             ]
         )
+        selected_xs, selected_ys = np.divmod(selected_tiles_indexes, self.visible_rows)
+        selected_xs += self.offset_x
+        selected_ys += self.offset_y
         selected_xs *= TILE_W
         selected_ys *= TILE_H
 
-        # Better for scaling
-        img: pg.Surface = self._unscaled_minimap_img.subsurface(
-            pg.Rect(
-                self.offset_x     * TILE_W, self.offset_y     * TILE_H,
-                self.visible_cols * TILE_W, self.visible_rows * TILE_H,
-            )
+        unscaled_minimap_img: pg.Surface = (
+            self._unscaled_minimap_img.copy() if selected_tiles_indexes.size > 250_000 else
+            self._unscaled_minimap_img
         )
-        if selected_xs.size > 14_000:
-            # On small amounts it's faster to not copy and restore after resize
-            img = img.copy()
 
         # For every position get indexes of the TILE_WxTILE_H section as a 1D array
         repeated_cols: NDArray[uint8] = np.repeat(np.arange(TILE_W, dtype=uint8), TILE_H)
@@ -349,19 +345,35 @@ class Grid:
         xs: NDArray[intp] = (selected_xs[:, np.newaxis] + repeated_cols[np.newaxis, :]).ravel()
         ys: NDArray[intp] = (selected_ys[:, np.newaxis] + repeated_rows[np.newaxis, :]).ravel()
 
+        # Faster
+        selected_1d_indexes: NDArray[intp] = ys
+        selected_1d_indexes *= (self.cols * TILE_W)
+        selected_1d_indexes += xs
+
         color_range: NDArray[uint16] = np.arange(256, dtype=uint16)
         # Lookup table for every blend combination with gray (150, 150, 150, 128)
         a: int = 128
         blend_lut: NDArray[uint8] = (((150 * a) + (color_range * (255 - a))) >> 8).astype(uint8)
 
-        unscaled_img_arr: NDArray[uint8] = pg.surfarray.pixels3d(img)
-        target_pixels: NDArray[uint8] = unscaled_img_arr[xs, ys]
-        unscaled_img_arr[xs, ys] = blend_lut[target_pixels]
+        unscaled_img_arr: NDArray[uint8] = pg.surfarray.pixels3d(unscaled_minimap_img)
+        # Fortran order avoids copying, reshaping a subsurface will always copy
+        unscaled_img_arr = unscaled_img_arr.reshape(-1, 3, order="F")
+        target_pixels: NDArray[uint8] = unscaled_img_arr[selected_1d_indexes]
+        unscaled_img_arr[selected_1d_indexes] = blend_lut[target_pixels]
 
-        self._resize_grid(img)
+        # Better for scaling
+        self._resize_grid(
+            unscaled_minimap_img.subsurface(
+                pg.Rect(
+                    self.offset_x     * TILE_W, self.offset_y     * TILE_H,
+                    self.visible_cols * TILE_W, self.visible_rows * TILE_H,
+                )
+            )
+        )
 
-        if selected_xs.size <= 14_000:
-            unscaled_img_arr[xs, ys] = target_pixels
+        if selected_tiles_indexes.size < 250_000:
+            unscaled_img_arr[selected_1d_indexes] = target_pixels
+
 
     def _refresh_minimap_rect(self: Self) -> None:
         """Refreshes the minimap rect."""
@@ -406,6 +418,10 @@ class Grid:
         visible_cols: int = self.visible_cols * TILE_W
         visible_rows: int = self.visible_rows * TILE_H
 
+        target_left_pixels: NDArray[uint8] = img_arr[
+            offset_x:offset_x + TILE_W,
+            offset_y:offset_y + visible_rows
+        ]
         target_top_pixels: NDArray[uint8] = img_arr[
             offset_x:offset_x + visible_cols,
             offset_y:offset_y + TILE_H
@@ -418,32 +434,28 @@ class Grid:
             offset_x:offset_x + visible_cols,
             offset_y + visible_rows - TILE_H:offset_y + visible_rows
         ]
-        target_left_pixels: NDArray[uint8] = img_arr[
-            offset_x:offset_x + TILE_W,
-            offset_y:offset_y + visible_rows
-        ]
 
+        src_left_pixels: NDArray[uint8]   = target_left_pixels.copy()
         src_top_pixels: NDArray[uint8]    = target_top_pixels.copy()
         src_right_pixels: NDArray[uint8]  = target_right_pixels.copy()
         src_bottom_pixels: NDArray[uint8] = target_bottom_pixels.copy()
-        src_left_pixels: NDArray[uint8]   = target_left_pixels.copy()
 
         color_range: NDArray[uint16] = np.arange(256, dtype=uint16)
         # Lookup table for every blend combination with gray (150, 150, 150, 128)
         a: int = 128
         blend_lut: NDArray[uint8] = (((150 * a) + (color_range * (255 - a))) >> 8).astype(uint8)
+        target_left_pixels[  ...] = blend_lut[target_left_pixels]
         target_top_pixels[   ...] = blend_lut[target_top_pixels]
         target_right_pixels[ ...] = blend_lut[target_right_pixels]
         target_bottom_pixels[...] = blend_lut[target_bottom_pixels]
-        target_left_pixels[  ...] = blend_lut[target_left_pixels]
 
         self._resize_minimap()
 
         # Indicator is small, resetting changed pixels is faster than copy
+        target_left_pixels[  ...] = src_left_pixels
         target_top_pixels[   ...] = src_top_pixels
         target_right_pixels[ ...] = src_right_pixels
         target_bottom_pixels[...] = src_bottom_pixels
-        target_left_pixels[  ...] = src_left_pixels
 
     def refresh_full(self: Self) -> None:
         """Refreshes the tiles on the minimap, its rect and retrieves the grid."""
@@ -511,9 +523,9 @@ class Grid:
             self.history.append(snapshot)
             self.history_i = min(self.history_i + 1, len(self.history) - 1)
 
-    def move_with_keys(self: Self, rel_mouse_col: int, rel_mouse_row: int) -> XY:
+    def handle_move_with_keys(self: Self, rel_mouse_col: int, rel_mouse_row: int) -> XY:
         """
-        Moves the mouse tile with the keyboard.
+        Handles moving the mouse tile with the keyboard.
 
         Args:
             relative mouse column, relative mouse row
@@ -641,7 +653,7 @@ class Grid:
         elif amount < 0:
             self._inc_smallest_side(-amount)
 
-    def zoom(self: Self) -> None:
+    def handle_zoom(self: Self) -> None:
         """Zooms the grid in or out."""
 
         amount: int = 0
@@ -696,18 +708,22 @@ class Grid:
         selected_xs: NDArray[intp]
         selected_ys: NDArray[intp]
 
-        prev_tiles_bytes: bytes = self.tiles[self.selected_tiles].tobytes()
-
-        rgba_color: tuple[int, int, int, int] = (
-            (0, 0, 0, 0) if is_erasing else
-            (int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16), 255)
+        rgba_color: NDArray[uint8] = np.array(
+            (
+                (0, 0, 0, 0) if is_erasing else
+                (int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16), 255)
+            ),
+            uint8
         )
-        self.tiles[self.selected_tiles] = rgba_color
 
-        # Comparing bytes in this situation is faster
-        did_draw: bool = self.tiles[self.selected_tiles].tobytes() != prev_tiles_bytes
+        # Packs a color as a uint32 and compares
+        tiles_view: NDArray[uint32] = self.tiles[self.selected_tiles].view(uint32)
+        rgba_color_view: NDArray[uint32] = rgba_color.view(uint32)
+        did_draw: bool = (tiles_view[..., 0] != rgba_color_view[0]).any()
         if did_draw:
-            selected_xs, selected_ys = np.nonzero(self.selected_tiles)
+            self.tiles[self.selected_tiles] = rgba_color
+            selected_tiles_indexes: NDArray[intp] = np.flatnonzero(self.selected_tiles)
+            selected_xs, selected_ys = np.divmod(selected_tiles_indexes, self.rows)
             selected_xs *= TILE_W
             selected_ys *= TILE_H
 
@@ -717,10 +733,24 @@ class Grid:
             xs: NDArray[intp] = (selected_xs[:, np.newaxis] + repeated_cols[np.newaxis, :]).ravel()
             ys: NDArray[intp] = (selected_ys[:, np.newaxis] + repeated_rows[np.newaxis, :]).ravel()
 
-            pg.surfarray.pixels3d(self._unscaled_minimap_img)[xs, ys] = (
-                EMPTY_TILE_ARR[xs % TILE_W, ys % TILE_H] if is_erasing else
-                rgba_color[:3]
-            )
+            # Faster
+            selected_1d_indexes: NDArray[intp] = ys.copy()
+            selected_1d_indexes *= (self.cols * TILE_W)
+            selected_1d_indexes += xs
+
+            unscaled_img_arr: NDArray[uint8] = pg.surfarray.pixels3d(self._unscaled_minimap_img)
+            # Fortran order avoids copying
+            unscaled_img_arr = unscaled_img_arr.reshape(-1, 3, order="F")
+            if is_erasing:
+                xs %= TILE_W
+                ys %= TILE_H
+                empty_tile_arr_1d_indexes: NDArray[intp] = ys
+                empty_tile_arr_1d_indexes *= TILE_W
+                empty_tile_arr_1d_indexes += xs
+                empty_tile_arr_1d: NDArray[uint8] = EMPTY_TILE_ARR.reshape(-1, 3, order="F")
+                unscaled_img_arr[selected_1d_indexes] = empty_tile_arr_1d[empty_tile_arr_1d_indexes]
+            else:
+                unscaled_img_arr[selected_1d_indexes] = rgba_color[:3]
 
         return did_draw
 
@@ -804,7 +834,7 @@ class GridManager:
         "_traveled_x", "_traveled_y",
         "_is_erasing", "_is_coloring", "_did_stop_erasing", "_did_stop_coloring",
         "is_x_mirror_on", "is_y_mirror_on",
-        "eye_dropped_color", "_saved_col", "_saved_row", "_can_add_to_history",
+        "eye_dropped_color", "saved_col", "saved_row", "_can_add_to_history",
         "grid", "_hovering_text_label", "_hovering_text_label_obj_info",
         "_hovering_text_alpha", "_last_mouse_move_time",
         "hover_rects", "layer", "blit_sequence", "objs_info",
@@ -843,8 +873,8 @@ class GridManager:
 
         self.eye_dropped_color: RGBColor | None = None
         # Used for line, rect, etc.
-        self._saved_col: int | None = None
-        self._saved_row: int | None = None
+        self.saved_col: int | None = None
+        self.saved_row: int | None = None
 
         self._can_add_to_history: bool = False
 
@@ -859,7 +889,6 @@ class GridManager:
         self._hovering_text_alpha: int = 0
         self._last_mouse_move_time: int = my_vars.ticks
 
-        # Modifying alpha values is unnecessary
         self._hovering_text_label_obj_info.rec_set_active(False)
 
         self.hover_rects: tuple[pg.Rect, ...] = ()
@@ -879,15 +908,15 @@ class GridManager:
         self._prev_hovered_obj = None
         self._can_leave = False
         self._traveled_x = self._traveled_y = 0
-        self.eye_dropped_color = self._saved_col = self._saved_row = None
+        self.eye_dropped_color = self.saved_col = self.saved_row = None
 
         if self._can_add_to_history:
             self.grid.add_to_history()
             self._can_add_to_history = False
 
-        # Modifying alpha values is unnecessary
-        self._hovering_text_alpha = 0
-        self._hovering_text_label_obj_info.rec_set_active(False)
+        if self._hovering_text_label_obj_info.is_active:
+            self._hovering_text_alpha = 0
+            self._hovering_text_label_obj_info.rec_set_active(False)
 
     def resize(self: Self, _win_w_ratio: float, _win_h_ratio: float) -> None:
         """
@@ -897,13 +926,10 @@ class GridManager:
             window width ratio, window height ratio
         """
 
-        img: pg.Surface
+    def _handle_move(self: Self) -> None:
+        """Handles moving the visible section."""
 
-        for img in self._hovering_text_label.imgs:
-            img.set_alpha(self._hovering_text_alpha)
-
-    def _move(self: Self) -> None:
-        """Moves the visible section, it's faster when moving the mouse faster."""
+        # Faster when moving the mouse faster
 
         speed_x: float = abs(MOUSE.prev_x - MOUSE.x) ** 1.25
         if MOUSE.x > MOUSE.prev_x:
@@ -931,9 +957,9 @@ class GridManager:
                 0), self.grid.rows - self.grid.visible_rows
             )
 
-    def _move_history_i(self: Self) -> bool:
+    def _handle_move_history_i(self: Self) -> bool:
         """
-        Changes the index of the viewed history snapshot with the keyboard.
+        Handles changing the index of the viewed history snapshot with the keyboard.
 
         Returns:
             changed flag
@@ -982,44 +1008,48 @@ class GridManager:
 
         if KEYBOARD.timed != []:
             # Changes the offset
-            rel_mouse_col, rel_mouse_row = self.grid.move_with_keys(rel_mouse_col, rel_mouse_row)
+            rel_mouse_col, rel_mouse_row = self.grid.handle_move_with_keys(rel_mouse_col, rel_mouse_row)
 
         self._mouse_col      = rel_mouse_col      + self.grid.offset_x
         self._mouse_row      = rel_mouse_row      + self.grid.offset_y
 
+    from line_profiler import profile
+    @profile
     def _pencil(self: Self) -> None:
         """Handles the pencil tool."""
 
         # Centers tiles to the cursor
-        selected_tiles_list: list[XY] = _get_tiles_in_line(
+        selected_tiles_coords: NDArray[int32] = _get_tiles_in_line(
             min(max(self._prev_mouse_col, 0), self.grid.cols - 1) - (self.grid.brush_dim // 2),
             min(max(self._prev_mouse_row, 0), self.grid.rows - 1) - (self.grid.brush_dim // 2),
             min(max(self._mouse_col     , 0), self.grid.cols - 1) - (self.grid.brush_dim // 2),
             min(max(self._mouse_row     , 0), self.grid.rows - 1) - (self.grid.brush_dim // 2),
         )
+        selected_xs: NDArray[int32] = selected_tiles_coords[:, 0]
+        selected_ys: NDArray[int32] = selected_tiles_coords[:, 1]
 
-        base_coords: NDArray[int32] = np.array(selected_tiles_list, dtype=int32)
-        selected_xs: NDArray[int32] = base_coords[:, 0]
-        selected_ys: NDArray[int32] = base_coords[:, 1]
-
-        # For every position get indexes of the dimXdim section as a 1D array
+        # For every position get indexes of the brush_dimXbrush_dim section as a 1D array
         brush_dim_range: NDArray[uint8] = np.arange(self.grid.brush_dim, dtype=uint8)
         repeated_cols: NDArray[uint8] = np.repeat(brush_dim_range, self.grid.brush_dim)
         repeated_rows: NDArray[uint8] = np.tile(  brush_dim_range, self.grid.brush_dim)
 
         xs: NDArray[int32] = (selected_xs[:, np.newaxis] + repeated_cols[np.newaxis, :]).ravel()
         ys: NDArray[int32] = (selected_ys[:, np.newaxis] + repeated_rows[np.newaxis, :]).ravel()
-        xs = np.clip(xs, 0, self.grid.cols - 1, dtype=int32)
-        ys = np.clip(ys, 0, self.grid.rows - 1, dtype=int32)
+        np.clip(xs, 0, self.grid.cols - 1, out=xs, dtype=int32)
+        np.clip(ys, 0, self.grid.rows - 1, out=ys, dtype=int32)
 
-        self.grid.selected_tiles[xs, ys] = True
+        # Faster
+        selected_1d_indexes: NDArray[intp] = xs.astype(intp)
+        selected_1d_indexes *= self.grid.rows
+        selected_1d_indexes += ys
+        self.grid.selected_tiles.reshape(-1)[selected_1d_indexes] = True
 
         if self.is_x_mirror_on:
             self.grid.selected_tiles |= self.grid.selected_tiles[::-1, :]
         if self.is_y_mirror_on:
             self.grid.selected_tiles |= self.grid.selected_tiles[:, ::-1]
 
-    def _init_bucket_stack(self: Self, mask: NDArray[bool_]) -> _BucketStack:
+    def _init_bucket_stack(self: Self, mask: NDArray[bool_]) -> list[tuple[intp, uint16, uint16]]:
         """
         Initializes the stack for the bucket tool.
 
@@ -1030,18 +1060,14 @@ class GridManager:
         """
 
         up_tiles: NDArray[bool_] = mask[self._mouse_col, :self._mouse_row + 1]
-        up_stop: int | intp = up_tiles[::-1].argmin()
-        if up_stop == 0:
-            up_stop = up_tiles.size
+        up_stop: int | intp = up_tiles[::-1].argmin() or up_tiles.size
         first_y: uint16 = uint16(self._mouse_row - up_stop   + 1)
 
         down_tiles: NDArray[bool_] = mask[self._mouse_col, self._mouse_row:]
-        down_stop: int | intp = down_tiles.argmin()
-        if down_stop == 0:
-            down_stop = down_tiles.size
+        down_stop: int | intp = down_tiles.argmin() or down_tiles.size
         last_y: uint16  = uint16(self._mouse_row + down_stop - 1)
 
-        return [(uint16(self._mouse_col), (first_y, last_y))]
+        return [(intp(self._mouse_col), first_y, last_y)]
 
     def _bucket(self: Self, extra_info: dict[str, Any]) -> None:
         """
@@ -1051,9 +1077,13 @@ class GridManager:
             extra info (color fill)
         """
 
-        x: uint16
+        x: intp
         start_y: uint16
         end_y: uint16
+        span_starts: NDArray[uint16]
+        span_ends: NDArray[uint16]
+        valid_spans_mask: NDArray[bool_]
+        xs: tuple[intp, ...]
 
         if (
             (self._mouse_col < 0 or self._mouse_col >= self.grid.cols) or
@@ -1061,116 +1091,188 @@ class GridManager:
         ):
             return
 
-        selected_tiles: NDArray[bool_] = self.grid.selected_tiles
-
         # Packs a color as a uint32 and compares
         color: NDArray[uint8] = self.grid.tiles[self._mouse_col, self._mouse_row]
         mask: NDArray[bool_] = self.grid.tiles.view(uint32)[..., 0] == color.view(uint32)[0]
         if extra_info["color_fill"]:
-            selected_tiles[mask] = True
+            self.grid.selected_tiles[mask] = True
             return
 
-        stack: _BucketStack = self._init_bucket_stack(mask)
+        stack: list[tuple[intp, uint16, uint16]] = self._init_bucket_stack(mask)
+        empty_list: list[Any] = []
 
         # Padded to avoid boundary checks
         visitable_tiles: NDArray[bool_] = np.ones((self.grid.cols + 2, self.grid.rows), bool_)
         visitable_tiles[0] = visitable_tiles[-1] = False
 
-        left_shifted_col_mask: NDArray[bool_]  = np.empty(self.grid.rows, bool_)
-        left_shifted_col_mask[-1] = False
-        right_shifted_col_mask: NDArray[bool_] = np.empty(self.grid.rows, bool_)
-        right_shifted_col_mask[0] = False
+        left_shifted_cols_mask: NDArray[bool_] = np.empty((self.grid.cols, self.grid.rows), bool_)
+        left_shifted_cols_mask[:, :-1] = mask[:, 1:]
+        left_shifted_cols_mask[:, -1] = False
+        right_shifted_cols_mask: NDArray[bool_] = np.empty((self.grid.cols, self.grid.rows), bool_)
+        right_shifted_cols_mask[:, 1:] = mask[:, :-1]
+        right_shifted_cols_mask[:, 0] = False
+
+        temp_mask: NDArray[bool_] = np.empty(self.grid.rows, bool_)
         indexes: NDArray[uint16] = np.arange(0, self.grid.rows, dtype=uint16)
 
-        def _get_spans(x: uint16) -> None:
-            """
-            Gets the spans for a single column for the buck tool.
+        selected_tiles: NDArray[bool_] = self.grid.selected_tiles
+        np_logical_and = np.logical_and
+        stack_pop, stack_extend = stack.pop, stack.extend
+        local_zip = zip
 
-            Args:
-                x
-            """
-
-            temp_mask: NDArray[bool_] = mask[x] & visitable_tiles[x + 1]
-            left_shifted_col_mask[:-1] = mask[x, 1:]
-            right_shifted_col_mask[1:] = mask[x, :-1]
-
-            spans: Iterator[tuple[uint16, uint16]] = zip(
-                indexes[temp_mask & ~right_shifted_col_mask],  # Starts of True sequences
-                indexes[temp_mask & ~left_shifted_col_mask]  # Ends of True sequences
-            )
-            # Faster than numpy
-            stack.extend([(x, span) for span in spans if span[1] >= start_y and span[0] <= end_y])
-        while stack != []:
-            x, (start_y, end_y) = stack.pop()
+        while stack != empty_list:
+            x, start_y, end_y = stack_pop()
             selected_tiles[ x    , start_y:end_y + 1] = True
             visitable_tiles[x + 1, start_y:end_y + 1] = False
 
-            if visitable_tiles[x    , start_y] or visitable_tiles[x    , end_y]:
-                _get_spans(x - 1)
+            if visitable_tiles[x, start_y] or visitable_tiles[x, + end_y]:
+                np_logical_and(mask[x - 1], visitable_tiles[x], out=temp_mask)
+                span_starts = indexes[temp_mask & ~right_shifted_cols_mask[x - 1]]
+                span_ends   = indexes[temp_mask & ~left_shifted_cols_mask[ x - 1]]
+                valid_spans_mask = (span_ends >= start_y) & (span_starts <= end_y)
+
+                xs = (x - 1,) * valid_spans_mask.size
+                stack_extend(local_zip(xs, span_starts[valid_spans_mask], span_ends[valid_spans_mask]))
             if visitable_tiles[x + 2, start_y] or visitable_tiles[x + 2, end_y]:
-                _get_spans(x + 1)
+                np_logical_and(mask[x + 1], visitable_tiles[x + 2], out=temp_mask)
+                span_starts = indexes[temp_mask & ~right_shifted_cols_mask[x + 1]]
+                span_ends   = indexes[temp_mask & ~left_shifted_cols_mask[ x + 1]]
+                valid_spans_mask = (span_ends >= start_y) & (span_starts <= end_y)
+
+                xs = (x + 1,) * valid_spans_mask.size
+                stack_extend(local_zip(xs, span_starts[valid_spans_mask], span_ends[valid_spans_mask]))
 
     def _eye_dropper(self: Self) -> None:
         """Handles the eye dropper tool."""
 
         if 0 <= self._mouse_col < self.grid.cols and 0 <= self._mouse_row < self.grid.rows:
+            self.grid.selected_tiles[self._mouse_col, self._mouse_row] = True
             if self._is_coloring:
                 self.eye_dropped_color = self.grid.tiles[self._mouse_col, self._mouse_row][:3]
-            self.grid.selected_tiles[self._mouse_col, self._mouse_row] = True
 
         self._is_erasing = self._is_coloring = False
 
     def _line(self: Self) -> None:
         """Handles the line tool."""
 
-        brush_dim: int = self.grid.brush_dim
-        selected_tiles_list: list[XY] = []
+        selected_tiles_coords: NDArray[int32] = np.empty((0, 2), int32)
 
         self._is_erasing = self._is_coloring = False
         # Centers tiles to the cursor
-        if self._saved_col is not None and self._saved_row is not None:
-            selected_tiles_list = _get_tiles_in_line(
-                min(max(self._saved_col, 0), self.grid.cols - 1) - (brush_dim // 2),
-                min(max(self._saved_row, 0), self.grid.rows - 1) - (brush_dim // 2),
-                min(max(self._mouse_col, 0), self.grid.cols - 1) - (brush_dim // 2),
-                min(max(self._mouse_row, 0), self.grid.rows - 1) - (brush_dim // 2),
+        if self.saved_col is not None and self.saved_row is not None:
+            selected_tiles_coords = _get_tiles_in_line(
+                min(max(self.saved_col, 0) , self.grid.cols - 1) - (self.grid.brush_dim // 2),
+                min(max(self.saved_row, 0) , self.grid.rows - 1) - (self.grid.brush_dim // 2),
+                min(max(self._mouse_col, 0), self.grid.cols - 1) - (self.grid.brush_dim // 2),
+                min(max(self._mouse_row, 0), self.grid.rows - 1) - (self.grid.brush_dim // 2),
             )
 
             if self._did_stop_erasing or self._did_stop_coloring:
-                self._saved_col = self._saved_row = None
+                self.saved_col = self.saved_row = None
                 self._is_erasing = self._did_stop_erasing
                 self._is_coloring = self._did_stop_coloring
-        elif 0 <= self._mouse_col < self.grid.cols and 0 <= self._mouse_row < self.grid.rows:
-            selected_tiles_list = [(
-                self._mouse_col - (brush_dim // 2),
-                self._mouse_row - (brush_dim // 2),
-            )]
+        elif self._is_hovering:
+            selected_tiles_coords = np.array(
+                ((
+                    self._mouse_col - (self.grid.brush_dim // 2),
+                    self._mouse_row - (self.grid.brush_dim // 2),
+                ),),
+                int32
+            )
 
             if self._did_stop_erasing or self._did_stop_coloring:
-                self._saved_col, self._saved_row = self._mouse_col, self._mouse_row
+                self.saved_col, self.saved_row = self._mouse_col, self._mouse_row
 
-        if selected_tiles_list != []:
-            base_coords: NDArray[int32] = np.array(selected_tiles_list, dtype=int32)
-            selected_xs: NDArray[int32] = base_coords[:, 0]
-            selected_ys: NDArray[int32] = base_coords[:, 1]
+        selected_xs: NDArray[int32] = selected_tiles_coords[:, 0]
+        selected_ys: NDArray[int32] = selected_tiles_coords[:, 1]
 
-            # For every position get indexes of the dimXdim section as a 1D array
-            brush_dim_range: NDArray[uint8] = np.arange(self.grid.brush_dim, dtype=uint8)
-            repeated_cols: NDArray[uint8] = np.repeat(brush_dim_range, self.grid.brush_dim)
-            repeated_rows: NDArray[uint8] = np.tile(  brush_dim_range, self.grid.brush_dim)
+        # For every position get indexes of the brush_dimXbrush_dim section as a 1D array
+        brush_dim_range: NDArray[uint8] = np.arange(self.grid.brush_dim, dtype=uint8)
+        repeated_cols: NDArray[uint8] = np.repeat(brush_dim_range, self.grid.brush_dim)
+        repeated_rows: NDArray[uint8] = np.tile(  brush_dim_range, self.grid.brush_dim)
 
-            xs: NDArray[int32] = selected_xs[:, np.newaxis] + repeated_cols[np.newaxis, :]
-            ys: NDArray[int32] = selected_ys[:, np.newaxis] + repeated_rows[np.newaxis, :]
-            xs = np.clip(xs, 0, self.grid.cols - 1, dtype=int32).ravel()
-            ys = np.clip(ys, 0, self.grid.rows - 1, dtype=int32).ravel()
+        xs: NDArray[int32] = selected_xs[:, np.newaxis] + repeated_cols[np.newaxis, :]
+        ys: NDArray[int32] = selected_ys[:, np.newaxis] + repeated_rows[np.newaxis, :]
+        xs = xs.ravel()
+        ys = ys.ravel()
+        np.clip(xs, 0, self.grid.cols - 1, out=xs, dtype=int32)
+        np.clip(ys, 0, self.grid.rows - 1, out=ys, dtype=int32)
 
-            # Mark all selected tiles
-            self.grid.selected_tiles[xs, ys] = True
+        # Faster
+        selected_1d_indexes: NDArray[intp] = xs.astype(intp)
+        selected_1d_indexes *= self.grid.rows
+        selected_1d_indexes += ys
+        self.grid.selected_tiles.reshape(-1)[selected_1d_indexes] = True
 
-            if self.is_x_mirror_on:
-                self.grid.selected_tiles |= self.grid.selected_tiles[::-1, :]
-            if self.is_y_mirror_on:
-                self.grid.selected_tiles |= self.grid.selected_tiles[:, ::-1]
+        if self.is_x_mirror_on:
+            self.grid.selected_tiles |= self.grid.selected_tiles[::-1, :]
+        if self.is_y_mirror_on:
+            self.grid.selected_tiles |= self.grid.selected_tiles[:, ::-1]
+
+    def _rectangle(self: Self, extra_info: dict[str, Any]) -> None:
+        """
+        Handles the rectangle tool.
+
+        Args:
+            extra info (fill)
+        """
+
+        self._is_erasing = self._is_coloring = False
+        if self._is_hovering and (self.saved_col is None or self.saved_row is None):
+            # Centers tiles to the cursor
+            x: int = self._mouse_col - (self.grid.brush_dim // 2)
+            y: int = self._mouse_row - (self.grid.brush_dim // 2)
+            self.grid.selected_tiles[
+                max(x, 0):x + self.grid.brush_dim,
+                max(y, 0):y + self.grid.brush_dim
+            ] = True
+
+            if self._did_stop_erasing or self._did_stop_coloring:
+                self.saved_col, self.saved_row = x, y
+        elif self.saved_col is not None and self.saved_row is not None:
+            start_x: int = min(self.saved_col, self._mouse_col)
+            start_y: int = min(self.saved_row, self._mouse_row)
+            end_x: int   = max(self.saved_col, self._mouse_col) + 1
+            end_y: int   = max(self.saved_row, self._mouse_row) + 1
+
+            # Better UX
+            if self._mouse_col < self.saved_col:
+                end_x += self.grid.brush_dim - 1
+            if self._mouse_row < self.saved_row:
+                end_y += self.grid.brush_dim - 1
+            # Rect can't be smaller than brush_dim
+            end_x = max(end_x, start_x + self.grid.brush_dim)
+            end_y = max(end_y, start_y + self.grid.brush_dim)
+
+            if extra_info["fill"]:
+                self.grid.selected_tiles[start_x:end_x, start_y:end_y] = True
+            else:
+                self.grid.selected_tiles[
+                    start_x:start_x + self.grid.brush_dim,
+                    start_y:end_y
+                ] = True
+                self.grid.selected_tiles[
+                    start_x:end_x,
+                    start_y:start_y + self.grid.brush_dim
+                ] = True
+                self.grid.selected_tiles[
+                    end_x - self.grid.brush_dim:end_x,
+                    start_y:end_y
+                ] = True
+                self.grid.selected_tiles[
+                    start_x:end_x,
+                    end_y - self.grid.brush_dim:end_y
+                ] = True
+
+            if self._did_stop_erasing or self._did_stop_coloring:
+                self.saved_col = self.saved_row = None
+                self._is_erasing = self._did_stop_erasing
+                self._is_coloring = self._did_stop_coloring
+
+        if self.is_x_mirror_on:
+            self.grid.selected_tiles |= self.grid.selected_tiles[::-1, :]
+        if self.is_y_mirror_on:
+            self.grid.selected_tiles |= self.grid.selected_tiles[:, ::-1]
 
     def _handle_draw(self: Self, hex_color: HexColor, tool_info: ToolInfo) -> tuple[bool, bool]:
         """
@@ -1191,16 +1293,18 @@ class GridManager:
         self._is_erasing  = MOUSE.pressed[MOUSE_RIGHT] or K_BACKSPACE in KEYBOARD.pressed
         self._is_coloring = MOUSE.pressed[MOUSE_LEFT ] or K_RETURN    in KEYBOARD.pressed
 
-        tool_name: str                  = tool_info[0]
-        extra_tool_info: dict[str, Any] = tool_info[1]
+        tool_name: ToolName             = tool_info[0]
+        tool_extra_info: dict[str, Any] = tool_info[1]
         if   tool_name == "pencil":
             self._pencil()
         elif tool_name == "bucket":
-            self._bucket(extra_tool_info)
+            self._bucket(tool_extra_info)
         elif tool_name == "eye_dropper":
             self._eye_dropper()
         elif tool_name == "line":
             self._line()
+        elif tool_name == "rectangle":
+            self._rectangle(tool_extra_info)
 
         selected_tiles_bytes: bytes = np.packbits(self.grid.selected_tiles).tobytes()
         if self._is_erasing or self._is_coloring:
@@ -1217,21 +1321,18 @@ class GridManager:
         img: pg.Surface
 
         if self._is_hovering and (my_vars.ticks - self._last_mouse_move_time >= 750):
-            if self._hovering_text_alpha == 0:
-                rec_move_rect(
-                    self._hovering_text_label, MOUSE.x + 4, MOUSE.y,
-                    win_w_ratio=1, win_h_ratio=1
-                )
+            if not self._hovering_text_label_obj_info.is_active:
                 self._hovering_text_label_obj_info.rec_set_active(True)
+            rec_move_rect(
+                self._hovering_text_label, MOUSE.x + 4, MOUSE.y,
+                win_w_ratio=1, win_h_ratio=1
+            )
+
             if self._hovering_text_alpha != 255:
-                self._hovering_text_alpha = round(self._hovering_text_alpha + (16 * my_vars.dt))
+                self._hovering_text_alpha = round(self._hovering_text_alpha + (8 * my_vars.dt))
                 self._hovering_text_alpha = min(self._hovering_text_alpha, 255)
                 for img in self._hovering_text_label.imgs:
                     img.set_alpha(self._hovering_text_alpha)
-        elif self._hovering_text_alpha != 0:
-            # Modifying alpha values is unnecessary
-            self._hovering_text_alpha = 0
-            self._hovering_text_label_obj_info.rec_set_active(False)
 
     def _refresh(
             self: Self, did_draw: bool,
@@ -1247,6 +1348,9 @@ class GridManager:
         """
 
         if not self._is_hovering or (MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y):
+            if self._hovering_text_label_obj_info.is_active:
+                self._hovering_text_alpha = 0
+                self._hovering_text_label_obj_info.rec_set_active(False)
             self._last_mouse_move_time = my_vars.ticks
         self._refresh_hovering_text_label()
 
@@ -1284,19 +1388,19 @@ class GridManager:
         self._did_stop_coloring = MOUSE.released[MOUSE_LEFT] or K_RETURN in KEYBOARD.released
 
         if MOUSE.pressed[MOUSE_WHEEL]:
-            self._move()
+            self._handle_move()
         else:
             self._traveled_x = self._traveled_y = 0
 
         if self._is_hovering and (MOUSE.scroll_amount != 0 or KEYBOARD.is_ctrl_on):
-            self.grid.zoom()
+            self.grid.handle_zoom()
 
         did_move_history_i: bool = False
         did_draw: bool = False
         did_selected_tiles_change: bool = False
 
         if KEYBOARD.is_ctrl_on:
-            did_move_history_i = self._move_history_i()
+            did_move_history_i = self._handle_move_history_i()
 
             if K_r in KEYBOARD.pressed:
                 self.grid.visible_cols = min(32, self.grid.cols)
@@ -1313,7 +1417,7 @@ class GridManager:
                 self._can_add_to_history = True
         elif self._can_leave:
             self.grid.leave()
-            self._saved_col = self._saved_row = None
+            self.saved_col = self.saved_row = None
             self._can_leave = False
 
         if (

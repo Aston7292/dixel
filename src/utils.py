@@ -1,4 +1,4 @@
-"""Functions and shared between files."""
+"""Functions shared between files."""
 
 import shutil
 

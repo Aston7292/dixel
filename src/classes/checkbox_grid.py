@@ -142,8 +142,8 @@ class CheckboxGrid:
         self.clicked_i = self.prev_clicked_i = clicked_i
         self.checkboxes[self.clicked_i     ].set_checked(True)
 
-    def _move_with_left_right(self: Self) -> None:
-        """Moves the selected checkbox with left and right keys."""
+    def _handle_move_with_left_right(self: Self) -> None:
+        """Handles moving the selected checkbox with left and right keys."""
 
         k_sub: int = K_LEFT
         k_add: int = K_RIGHT
@@ -163,8 +163,8 @@ class CheckboxGrid:
             else:
                 self.clicked_i = min(self.clicked_i + 1            , len(self.checkboxes) - 1)
 
-    def _move_with_up_down(self: Self) -> None:
-        """Moves the selected checkbox with up and down keys."""
+    def _handle_move_with_up_down(self: Self) -> None:
+        """Handles moving the selected checkbox with up and down keys."""
 
         k_sub: int = K_UP
         k_add: int = K_DOWN
@@ -217,8 +217,8 @@ class CheckboxGrid:
             (MOUSE.hovered_obj == self or self._hovered_checkbox is not None) and
             KEYBOARD.pressed != []
         ):
-            self._move_with_left_right()
-            self._move_with_up_down()
+            self._handle_move_with_left_right()
+            self._handle_move_with_up_down()
             if K_HOME in KEYBOARD.pressed:
                 self.clicked_i = 0
             if K_END  in KEYBOARD.pressed:

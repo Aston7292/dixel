@@ -339,8 +339,8 @@ class ColorsGrid:
             if k in KEYBOARD.pressed:
                 self.clicked_i = k - K_1
 
-    def _move_with_left_right(self: Self) -> None:
-        """Moves the selected checkbox with left and right keys."""
+    def _handle_move_with_left_right(self: Self) -> None:
+        """Handles moving the selected checkbox with left and right keys."""
 
         if K_RIGHT in KEYBOARD.timed:
             if KEYBOARD.is_ctrl_on:
@@ -355,8 +355,8 @@ class ColorsGrid:
             else:
                 self.clicked_i = min(self.clicked_i + 1      , len(self.colors) - 1)
 
-    def _move_with_up_down(self: Self) -> None:
-        """Moves the selected checkbox with up and down keys."""
+    def _handle_move_with_up_down(self: Self) -> None:
+        """Handles moving the selected checkbox with up and down keys."""
 
         if K_DOWN in KEYBOARD.timed:
             can_sub_cols: bool = self.clicked_i - NUM_COLS >= 0
@@ -405,8 +405,8 @@ class ColorsGrid:
             (MOUSE.hovered_obj == self or self._hovered_checkbox is not None) and
             KEYBOARD.pressed != []
         ):
-            self._move_with_left_right()
-            self._move_with_up_down()
+            self._handle_move_with_left_right()
+            self._handle_move_with_up_down()
             if K_HOME in KEYBOARD.pressed:
                 self.clicked_i = 0
             if K_END  in KEYBOARD.pressed:

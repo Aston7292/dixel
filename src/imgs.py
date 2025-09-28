@@ -98,6 +98,7 @@ PENCIL_IMG: Final[pg.Surface]      = _try_get_img("pencil.png"     , (64, 64))
 BUCKET_IMG: Final[pg.Surface]      = _try_get_img("bucket.png"     , (64, 64))
 EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper.png", (64, 64))
 LINE_IMG: Final[pg.Surface]        = _try_get_img("line.png"       , (64, 64))
+RECT_IMG: Final[pg.Surface]        = _try_get_img("rect.png"       , (64, 64))
 
 SETTINGS_OFF_IMG: Final[pg.Surface] = _try_get_img("settings_off.png", (32, 32))
 SETTINGS_ON_IMG: Final[pg.Surface]  = _try_get_img("settings_on.png" , (32, 32))

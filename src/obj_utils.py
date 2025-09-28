@@ -1,15 +1,14 @@
-"""Functions and dataclasses to manage objects."""
+"""Functions/Classes shared between files to manage objects."""
 
 from dataclasses import dataclass
 from collections.abc import Callable
 from math import ceil
-from typing import Self, Literal, Protocol
+from typing import Self, Protocol
 
 from pygame import Rect
 
 from src.type_utils import XY, WH, BlitInfo, RectPos
 
-state_i: int = 0
 states_info: list[list["ObjInfo"]] = [[]]
 state_active_objs: list["UIElement"] = []
 
@@ -67,19 +66,20 @@ class ObjInfo:
         """
 
         objs_info: list[ObjInfo] = [self]
-        method_str: Literal["enter", "leave"] = "enter" if should_activate else "leave"
         while objs_info != []:
             info: ObjInfo = objs_info.pop()
-            info.is_active = should_activate
+            if info.is_active != should_activate:
+                info.is_active = should_activate
 
-            getattr(info.obj, method_str)()
+                if should_activate:
+                    info.obj.enter()
+                    state_active_objs.append(info.obj)
+                else:
+                    info.obj.leave()
+                    if info.obj in state_active_objs:
+                        state_active_objs.remove(info.obj)
+
             objs_info.extend(info.obj.objs_info)
-
-        global state_active_objs
-        state_active_objs = [
-            info.obj
-            for info in states_info[state_i] if info.is_active
-        ]
 
 
 def resize_obj(

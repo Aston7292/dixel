@@ -2,8 +2,7 @@
 
 from typing import Self, Any
 
-import pygame as pg
-from pygame.locals import SYSTEM_CURSOR_ARROW
+from pygame import Rect, SYSTEM_CURSOR_ARROW
 
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
@@ -59,7 +58,7 @@ class Dropdown:
         self.option_i: int = 0
         self._is_fully_visible: bool = False
 
-        option_rect: pg.Rect = self._options[0].rect
+        option_rect: Rect = self._options[0].rect
         text_label_pos: RectPos = (
             RectPos(option_rect.centerx, option_rect.y - 4, "midbottom") if is_text_above else
             RectPos(option_rect.x - 10, option_rect.centery, "midright")
@@ -69,7 +68,7 @@ class Dropdown:
             text, base_layer + TOP_LAYER - TEXT_LAYER
         )
 
-        self.hover_rects: tuple[pg.Rect, ...] = ()
+        self.hover_rects: tuple[Rect, ...] = ()
         self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = []
         self._win_w_ratio: float = 1

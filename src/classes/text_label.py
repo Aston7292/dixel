@@ -143,8 +143,8 @@ class TextLabel:
         h: int
 
         xy, (_w, h) = resize_obj(
-            self.init_pos, 0, self.init_h,
-            win_w_ratio, win_h_ratio, should_keep_wh_ratio=True
+            self.init_pos, init_w=0, init_h=self.init_h,
+            win_w_ratio=win_w_ratio, win_h_ratio=win_h_ratio, should_keep_wh_ratio=True
         )
 
         if h not in _RENDERERS_CACHE:
@@ -216,7 +216,10 @@ class TextLabel:
         prev_rect_x: int = self.rect.x
         prev_rect_y: int = self.rect.y
 
-        xy, _wh = resize_obj(self.init_pos, 0, 0, win_w_ratio, win_h_ratio)
+        xy, _wh = resize_obj(
+            self.init_pos, init_w=0, init_h=0,
+            win_w_ratio=win_w_ratio, win_h_ratio=win_h_ratio
+        )
 
         setattr(self.rect, self.init_pos.coord_type, xy)
         change_x: int = self.rect.x - prev_rect_x

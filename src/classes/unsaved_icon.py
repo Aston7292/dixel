@@ -2,8 +2,7 @@
 
 from typing import Self
 
-import pygame as pg
-from pygame import SYSTEM_CURSOR_ARROW
+from pygame import Surface, Rect, Color, draw, SYSTEM_CURSOR_ARROW
 
 from src.obj_utils import ObjInfo, resize_obj
 from src.type_utils import XY, BlitInfo, RectPos
@@ -33,24 +32,24 @@ class UnsavedIcon:
         self._min_radius: float = self._normal_radius
         self._max_radius: float = self._normal_radius * 1.5
 
-        img: pg.Surface = pg.Surface((
+        img: Surface = Surface((
             # Prevents cutoffs
             round((self._radius * 2) + 1),
             round((self._radius * 2) + 1),
         ))
-        self.rect: pg.Rect = pg.Rect(
+        self.rect: Rect = Rect(
             0, 0,
             # Prevents cutoffs
             round((self._max_radius * 2) + 1),
             round((self._max_radius * 2) + 1)
         )
-        self.frame_rect: pg.Rect = pg.Rect(0, 0, *img.get_size())
+        self.frame_rect: Rect = Rect(0, 0, *img.get_size())
         self.frame_rect.center = self.rect.center
 
-        self._color: pg.Color = WHITE
+        self._color: Color = WHITE
         self._animation_i: int | None = None
 
-        self.hover_rects: tuple[pg.Rect, ...] = ()
+        self.hover_rects: tuple[Rect, ...] = ()
         self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = [(img, self.frame_rect, ELEMENT_LAYER)]
 
@@ -76,7 +75,7 @@ class UnsavedIcon:
 
         # Position is set manually after resize
         _xy, (self._normal_radius, self._normal_radius) = resize_obj(
-            RectPos(0, 0, ""), self.init_radius, self.init_radius,
+            RectPos(0, 0, "topleft"), self.init_radius, self.init_radius,
             win_w_ratio, win_h_ratio, should_keep_wh_ratio=True
         )
 
@@ -100,14 +99,14 @@ class UnsavedIcon:
 
         self._radius = radius
 
-        img: pg.Surface = pg.Surface((
+        img: Surface = Surface((
             # Prevents cutoffs
             round((self._radius * 2) + 1),
             round((self._radius * 2) + 1),
         ))
         self.frame_rect.size = img.get_size()
         self.frame_rect.center = self.rect.center
-        pg.draw.aacircle(
+        draw.aacircle(
             img, self._color,
             (self.frame_rect.w / 2, self.frame_rect.h / 2), self._radius
         )
@@ -117,7 +116,7 @@ class UnsavedIcon:
             [(img, self.frame_rect, ELEMENT_LAYER)]
         )
 
-    def set_animation(self: Self, i: int, color: pg.Color, should_go_to_0: bool) -> None:
+    def set_animation(self: Self, i: int, color: Color, should_go_to_0: bool) -> None:
         """
         Sets the animation info.
 

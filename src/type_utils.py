@@ -1,7 +1,7 @@
 """Types shared between files."""
 
 from dataclasses import dataclass
-from typing import TypeAlias, Any
+from typing import Literal, TypeAlias, Any
 
 from pygame import Surface, Rect
 
@@ -26,4 +26,8 @@ class RectPos:
 
     x: int
     y: int
-    coord_type: str
+    coord_type: Literal[
+        "topleft", "midtop", "topright",
+        "midleft", "center", "midright",
+        "bottomleft", "midbottom", "bottomright",
+    ]

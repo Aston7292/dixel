@@ -169,17 +169,8 @@ class _ColorScrollbar:
 
         self.blit_sequence[0] = (self._bar_img, self.bar_rect, self.layer)
 
-    def _scroll(self: Self) -> None:
-        """Changes the color with the mouse."""
-
-        unit_w: float = self.bar_rect.w / self._bar_init_w
-        self.input_box.value = min(max(
-            int((MOUSE.x - self.bar_rect.x) / unit_w),
-            self.input_box.min_limit), self.input_box.max_limit
-        )
-
-    def _scroll_with_keys(self: Self) -> None:
-        """Changes the color with the keyboard."""
+    def _handle_scroll_with_keys(self: Self) -> None:
+        """Handles changing the color with the keyboard."""
 
         if K_LEFT     in KEYBOARD.timed:
             self.input_box.value = max(self.input_box.value - 1 , self.input_box.min_limit)
@@ -222,9 +213,13 @@ class _ColorScrollbar:
             selected_obj = self
 
         if self._is_scrolling:
-            self._scroll()
+            unit_w: float = self.bar_rect.w / self._bar_init_w
+            self.input_box.value = min(max(
+                int((MOUSE.x - self.bar_rect.x) / unit_w),
+                self.input_box.min_limit), self.input_box.max_limit
+            )
         if selected_obj == self and KEYBOARD.pressed != []:
-            self._scroll_with_keys()
+            self._handle_scroll_with_keys()
 
         selected_obj = self.input_box.upt(selected_obj)
 
@@ -338,8 +333,8 @@ class ColorPicker(UI):
         self._preview_img.fill(color)
         self._hex_text_label.set_text(hex_color)
 
-    def _move_with_keys(self: Self) -> None:
-        """Moves the selection with the keyboard."""
+    def _handle_move_with_keys(self: Self) -> None:
+        """Handles moving the selection with the keyboard."""
 
         if K_TAB in KEYBOARD.timed:
             if KEYBOARD.is_shift_on:
@@ -386,7 +381,7 @@ class ColorPicker(UI):
         is_confirming: bool
 
         if KEYBOARD.timed != []:
-            self._move_with_keys()
+            self._handle_move_with_keys()
 
         prev_rgb_color: RGBColor = (
             self._r_bar.input_box.value,

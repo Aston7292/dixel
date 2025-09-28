@@ -18,7 +18,7 @@ Extra UI elements need:
     - a rect attribute
 """
 
-from typing import Self, TypeAlias, Final, Any
+from typing import Self, Literal, TypeAlias, Final, Any
 
 import pygame as pg
 from pygame.locals import *
@@ -32,12 +32,13 @@ from src.type_utils import BlitInfo, RectPos
 from src.consts import BG_LAYER, SPECIAL_LAYER
 from src.imgs import (
     CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG,
-    PENCIL_IMG, BUCKET_IMG, EYE_DROPPER_IMG, LINE_IMG,
+    PENCIL_IMG, BUCKET_IMG, EYE_DROPPER_IMG, LINE_IMG, RECT_IMG,
 )
 
 
-ToolInfo: TypeAlias = tuple[str, dict[str, Any]]
-_ToolsInfo: TypeAlias = dict[str, dict[str, Any]]
+ToolName: TypeAlias = Literal["pencil", "bucket", "eye_dropper", "line", "rectangle"]
+ToolInfo: TypeAlias = tuple[ToolName, dict[str, Any]]
+_ToolsInfo: TypeAlias = dict[ToolName, dict[str, Any]]
 _ToolExtraInfo: TypeAlias = list[dict[str, Any]]
 
 _CHECKBOX_IMGS: Final[list[pg.Surface]] = [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG]
@@ -72,6 +73,19 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
         "shortcut_k": K_l,
         "extra_info": (),
     },
+
+    "rectangle": {
+        "info": (RECT_IMG, "Rectangle\n(SHIFT+R)"),
+        "shortcut_k": K_r,
+        "extra_info": (
+            {
+                "type": Checkbox,
+                "init_args": (_CHECKBOX_IMGS, "Fill", "Autofill\nthe rectangle"),
+                "upt_args": (),
+                "out_format": {"fill": "is_checked"},
+            },
+        ),
+    },
 }
 
 _EYE_DROPPER_I: Final[int] = 2
@@ -104,7 +118,7 @@ class ToolsManager:
             [info["info"] for info in _TOOLS_INFO.values()],
             num_cols=5, should_invert_cols=False, should_invert_rows=True
         )
-        self._tool_name: str = tuple(_TOOLS_INFO.keys())[0]
+        self._tool_name: ToolName = tuple(_TOOLS_INFO.keys())[0]
 
         def _refine_extra_info(raw_extra_info: tuple[dict[str, Any], ...]) -> _ToolExtraInfo:
             """
@@ -253,15 +267,11 @@ class ToolsManager:
         self.tools_grid.upt()
 
         if KEYBOARD.is_alt_on:
-            if self.tools_grid.clicked_i != _EYE_DROPPER_I:
-                self.saved_clicked_i = self.tools_grid.clicked_i
-                self.tools_grid.clicked_i = _EYE_DROPPER_I
+            self.saved_clicked_i = self.tools_grid.clicked_i
+            self.tools_grid.clicked_i = _EYE_DROPPER_I
         elif self.saved_clicked_i is not None:
             self.tools_grid.clicked_i = self.saved_clicked_i
             self.saved_clicked_i = None
-
-        if self.tools_grid.clicked_i != self.tools_grid.prev_clicked_i:
-            self.check(self.tools_grid.clicked_i)
 
         out_dict: dict[str, Any] = self._upt_sub_objs(locals())
         return self._tool_name, out_dict

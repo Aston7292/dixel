@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Self, Final, Any
 
 from pygame import event
-from pygame.event import Event
 from pygame.locals import *
 
 from src.classes.ui import UI
@@ -127,7 +126,7 @@ class SettingsUI(UI):
 
         if data["is_fps_counter_active"] != self.show_fps.is_checked:
             self.show_fps.set_checked(data["is_fps_counter_active"])
-        event.post(Event(
+        event.post(event.Event(
             SETTINGS_FPS_ACTIVENESS_CHANGE,
             {"value": self.show_fps.is_checked}
         ))
@@ -139,14 +138,14 @@ class SettingsUI(UI):
 
         if data["is_zooming_inverted"] != self.invert_zoom.is_checked:
             self.invert_zoom.set_checked(data["is_zooming_inverted"])
-        event.post(Event(
+        event.post(event.Event(
             SETTINGS_ZOOM_DIRECTION_CHANGE,
             {"value": -1 if self.invert_zoom.is_checked else 1}
         ))
 
         if data["grid_history_max_size_i"] != self.history_dropdown.option_i:
             self.history_dropdown.set_option_i(data["grid_history_max_size_i"])
-        event.post(Event(
+        event.post(event.Event(
             SETTINGS_HISTORY_MAX_SIZE_CHANGE,
             {"value": self.history_dropdown.values[self.history_dropdown.option_i]}
         ))
@@ -202,7 +201,7 @@ class SettingsUI(UI):
         is_ctrl_f_pressed: bool = KEYBOARD.is_ctrl_on and K_f in KEYBOARD.timed
         did_toggle_show_fps: bool = self.show_fps.upt(is_ctrl_f_pressed)
         if did_toggle_show_fps:
-            event.post(Event(
+            event.post(event.Event(
                 SETTINGS_FPS_ACTIVENESS_CHANGE,
                 {"value": self.show_fps.is_checked}
             ))
@@ -214,12 +213,12 @@ class SettingsUI(UI):
         is_crash_save_dir_clicked: bool = self._crash_save_dir.upt()
         is_ctrl_s_pressed: bool = KEYBOARD.is_ctrl_on and K_s in KEYBOARD.timed
         if is_crash_save_dir_clicked or is_ctrl_s_pressed:
-            event.post(Event(SETTINGS_CRASH_SAVE_DIR_CHOICE))
+            event.post(event.Event(SETTINGS_CRASH_SAVE_DIR_CHOICE))
 
         is_ctrl_z_pressed: bool = KEYBOARD.is_ctrl_on and K_z in KEYBOARD.timed
         did_toggle_invert_zoom: bool = self.invert_zoom.upt(is_ctrl_z_pressed)
         if did_toggle_invert_zoom:
-            event.post(Event(
+            event.post(event.Event(
                 SETTINGS_ZOOM_DIRECTION_CHANGE,
                 {"value": -1 if self.invert_zoom.is_checked else 1}
             ))
@@ -231,7 +230,7 @@ class SettingsUI(UI):
         self.history_dropdown.upt()
 
         if self.history_dropdown.option_i != prev_history_dropdown_option_i:
-            event.post(Event(
+            event.post(event.Event(
                 SETTINGS_HISTORY_MAX_SIZE_CHANGE,
                 {"value": self.history_dropdown.values[self.history_dropdown.option_i]}
             ))

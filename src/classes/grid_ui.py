@@ -213,8 +213,8 @@ class GridUI(UI):
 
         self._resize_preview(pg.surfarray.make_surface(img_arr))
 
-    def _move_with_keys(self: Self) -> None:
-        """Moves the selection with the keyboard."""
+    def _handle_move_with_keys(self: Self) -> None:
+        """Handles moving the selection with the keyboard."""
 
         if K_UP   in KEYBOARD.timed:
             self._selection_i = 0
@@ -274,13 +274,13 @@ class GridUI(UI):
         top: intp
         bottom: intp
 
-        colored_tiles_indices: NDArray[intp] = np.argwhere(self._original_tiles[..., 3] != 0)
-        if colored_tiles_indices.size == 0:
+        colored_tiles_indexes: NDArray[intp] = np.argwhere(self._original_tiles[..., 3] != 0)
+        if colored_tiles_indexes.size == 0:
             left  = top    = intp(0)
             right = bottom = intp(1)
         else:
-            left , top    = colored_tiles_indices.min(0)
-            right, bottom = colored_tiles_indices.max(0) + 1
+            left , top    = colored_tiles_indexes.min(0)
+            right, bottom = colored_tiles_indexes.max(0) + 1
 
         # Copying is unnecessary
         self._original_tiles = self._tiles = self._original_tiles[left:right, top:bottom]
@@ -326,7 +326,7 @@ class GridUI(UI):
         prev_h_box_text: str = self._h_box.text_label.text
 
         if KEYBOARD.timed != []:
-            self._move_with_keys()
+            self._handle_move_with_keys()
 
         self._upt_sliders()
 

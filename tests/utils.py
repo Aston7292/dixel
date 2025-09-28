@@ -1,29 +1,46 @@
-"""Functions shared between tests."""
+"""Functions/Classes shared between tests."""
 
-import pygame as pg
-import numpy as np
-from numpy import uint8
-from numpy.typing import NDArray
+from typing import Self
+
+from pygame import Rect, SYSTEM_CURSOR_ARROW
+
+from src.obj_utils import ObjInfo
+from src.type_utils import BlitInfo, RectPos
+from src.consts import BG_LAYER
 
 
-def cmp_imgs(img: pg.Surface, expected_img: pg.Surface) -> bool:
-    """
-    Compares two images.
+class DummyUIElement():
+    """Blank UI element for testing."""
 
-    Args:
-        image, expected image
-    Returns:
-        equal flag
-    """
+    init_pos: RectPos = RectPos(0, 0, "topleft")
 
-    pixels_rgb: NDArray[uint8]            = pg.surfarray.pixels3d(img)
-    alpha_values: NDArray[uint8]          = pg.surfarray.pixels_alpha(img)
-    pixels: NDArray[np.uint8]       = np.dstack((pixels_rgb         , alpha_values))
+    cursor_type: int = SYSTEM_CURSOR_ARROW
+    blit_sequence: list[BlitInfo] = []
 
-    expected_pixels_rgb: NDArray[uint8]   = pg.surfarray.pixels3d(expected_img)
-    expected_alpha_values: NDArray[uint8] = pg.surfarray.pixels_alpha(expected_img)
-    expected_pixels: NDArray[uint8] = np.dstack((expected_pixels_rgb, expected_alpha_values))
+    def __init__(self: Self, hover_rects: tuple[Rect, ...] = ()) -> None:
+        """
+        Initializes the hover rectangles, the layer and objects info.
 
-    if pixels.shape != expected_pixels.shape:
-        print(f"Size differs: {pixels.shape} {expected_pixels.shape}", end="")
-    return np.array_equal(pixels, expected_pixels)
+        Args:
+            hover rectangles
+        """
+
+        self.hover_rects: tuple[Rect, ...] = hover_rects
+        self.layer: int = BG_LAYER
+
+        self.objs_info: list[ObjInfo] = []
+
+    def enter(self: Self) -> None:
+        """Blank method to respect the UIElement protocol."""
+
+    def leave(self: Self) -> None:
+        """Blank method to respect the UIElement protocol."""
+
+    def resize(self: Self, _win_w_ratio: float, _win_h_ratio: float) -> None:
+        """Blank method to respect the UIElement protocol."""
+
+    def move_rect(
+            self: Self, _init_x: int, _init_y: int,
+            _win_w_ratio: float, _win_h_ratio: float
+    ) -> None:
+        """Blank method to test the rec_move_rect method."""

@@ -8,7 +8,7 @@ they're for colors, grid, grid history and settings.
 
 Mouse info:
     the MOUSE object contains current and previous coordinates, pressed and released buttons,
-    scroll amount, hovered object and cursor type.
+    scrolling amount, hovered object and cursor type.
 
 Keyboard input:
     The KEYBOARD object contains 3 lists and the flags for control, shift, alt and numpad.
@@ -154,7 +154,7 @@ from src.consts import (
 # TODO: screenshots
 _i: int
 for _i in range(5):
-    pg.init()
+    pg.font.init()  # Others aren't used
 pg.key.stop_text_input()
 
 # Window gets focused before starting, so it doesn't appear when exiting early
@@ -403,7 +403,7 @@ class _Dixel:
         self._is_asking_file_open: bool      = False
         self._is_asking_crash_save_dir: bool = False
 
-        self._state_i: int = _STATE_I_MAIN  # Used to sync OBJS.state_i after refreshing stuff
+        self._state_i: int = _STATE_I_MAIN
 
         self._load_data()
         self._load_palettes()
@@ -815,7 +815,7 @@ class _Dixel:
             for info in objs.states_info[self._state_i] if info.is_active
         ]
 
-    def _draw(self: Self) -> None:
+    def _handle_draw(self: Self) -> None:
         """Gets every blit_sequence attribute and draws it to the screen."""
 
         blittable_objs: list[UIElement] = objs.state_active_objs.copy()
@@ -842,7 +842,6 @@ class _Dixel:
         for obj in objs.state_active_objs:
             obj.leave()
 
-        objs.state_i = self._state_i
         objs.state_active_objs = [
             info.obj
             for info in objs.states_info[self._state_i] if info.is_active
@@ -959,7 +958,11 @@ class _Dixel:
         elif event.type == KEYUP:
             KEYBOARD.remove(event.key)
         elif event.type == KEYMAPCHANGED:
-            KEYBOARD.clear()
+            KEYBOARD.raws = KEYBOARD.pressed = KEYBOARD.released = KEYBOARD.timed = []
+            KEYBOARD.is_ctrl_on   = False
+            KEYBOARD.is_shift_on  = False
+            KEYBOARD.is_alt_on    = False
+            KEYBOARD.is_numpad_on = False
 
     def _refresh_unsaved_icon(self: Self, unsaved_color: pg.Color) -> None:
         """
@@ -1130,8 +1133,8 @@ class _Dixel:
             if did_win_resize:
                 self._orig_win_wh = _WIN.size
 
-    def _resize_with_keys(self: Self) -> None:
-        """Resizes the window with the keyboard."""
+    def _handle_resize_with_keys(self: Self) -> None:
+        """Handles resizing the window with the keyboard."""
 
         win_w: int = self._orig_win_wh[0]
         win_h: int = self._orig_win_wh[1]
@@ -1509,6 +1512,9 @@ class _Dixel:
             _COLOR_PICKER.set_color(hex_color_to_edit, is_external_change=True)
 
         tool_info: ToolInfo = _TOOLS_MANAGER.upt()
+        if _TOOLS_MANAGER.tools_grid.clicked_i != _TOOLS_MANAGER.tools_grid.prev_clicked_i:
+            _TOOLS_MANAGER.check(_TOOLS_MANAGER.tools_grid.clicked_i)
+            _GRID_MANAGER.saved_col = _GRID_MANAGER.saved_row = None
 
         did_grid_change: bool = _GRID_MANAGER.upt(hex_color, tool_info)
         if did_grid_change and self._file_str != "":
@@ -1637,12 +1643,12 @@ class _Dixel:
                 KEYBOARD.refresh_timed()
 
                 if KEYBOARD.timed != [] and not (self._is_maximized or self._is_fullscreen):
-                    self._resize_with_keys()
+                    self._handle_resize_with_keys()
 
                 self._handle_states()
 
                 _UNSAVED_ICON.animate()
-                self._draw()
+                self._handle_draw()
 
                 MOUSE.prev_x, MOUSE.prev_y = MOUSE.x, MOUSE.y
         except KeyboardInterrupt:

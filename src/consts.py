@@ -2,7 +2,7 @@
 
 from typing import Literal, Final
 
-import pygame as pg
+from pygame import Color, event
 import numpy as np
 from numpy import uint8
 from numpy.typing import NDArray
@@ -14,9 +14,9 @@ MOUSE_LEFT: Final[Literal[0]]  = 0
 MOUSE_WHEEL: Final[Literal[1]] = 1
 MOUSE_RIGHT: Final[Literal[2]] = 2
 
-BLACK: Final[pg.Color]       = pg.Color(0  , 0  , 0)
-WHITE: Final[pg.Color]       = pg.Color(255, 255, 255)
-DARKER_GRAY: Final[pg.Color] = pg.Color(50 , 50 , 50)
+BLACK: Final[Color]       = Color(0  , 0  , 0)
+WHITE: Final[Color]       = Color(255, 255, 255)
+DARKER_GRAY: Final[Color] = Color(50 , 50 , 50)
 
 _RGB_LIGHT_GRAY: Final[RGBColor] = (70, 70, 70)
 _RGB_DARK_GRAY: Final[RGBColor]  = (60, 60, 60)
@@ -49,7 +49,7 @@ UI_LAYER: Final[int]      = SPECIAL_LAYER * 2  # Base for the UI layers
 ANIMATION_GROW: Final[int]   = 0
 ANIMATION_SHRINK: Final[int] = 1
 
-SETTINGS_FPS_ACTIVENESS_CHANGE: Final[int]   = pg.event.custom_type()
-SETTINGS_CRASH_SAVE_DIR_CHOICE: Final[int]   = pg.event.custom_type()
-SETTINGS_ZOOM_DIRECTION_CHANGE: Final[int]   = pg.event.custom_type()
-SETTINGS_HISTORY_MAX_SIZE_CHANGE: Final[int] = pg.event.custom_type()
+SETTINGS_FPS_ACTIVENESS_CHANGE: Final[int]   = event.custom_type()
+SETTINGS_CRASH_SAVE_DIR_CHOICE: Final[int]   = event.custom_type()
+SETTINGS_ZOOM_DIRECTION_CHANGE: Final[int]   = event.custom_type()
+SETTINGS_HISTORY_MAX_SIZE_CHANGE: Final[int] = event.custom_type()

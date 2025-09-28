@@ -3,8 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Self, Final
 
-import pygame as pg
-from pygame import SYSTEM_CURSOR_HAND
+from pygame import Surface, Rect, transform, SYSTEM_CURSOR_HAND
 
 from src.classes.text_label import TextLabel
 from src.classes.devices import MOUSE
@@ -49,7 +48,7 @@ class _Clickable(ABC):
     cursor_type: int = SYSTEM_CURSOR_HAND
 
     def __init__(
-            self: Self, pos: RectPos, imgs: list[pg.Surface], hovering_text: str,
+            self: Self, pos: RectPos, imgs: list[Surface], hovering_text: str,
             base_layer: int
     ) -> None:
         """
@@ -59,13 +58,13 @@ class _Clickable(ABC):
             position, images, hovering text, base layer
         """
 
-        img: pg.Surface
+        img: Surface
 
         self.init_pos: RectPos = pos
 
-        self.init_imgs: list[pg.Surface] = imgs  # Better for scaling
-        self._imgs: list[pg.Surface] = self.init_imgs
-        self.rect: pg.Rect = pg.Rect(0, 0, *self._imgs[0].get_size())
+        self.init_imgs: list[Surface] = imgs  # Better for scaling
+        self._imgs: list[Surface] = self.init_imgs
+        self.rect: Rect = Rect(0, 0, *self._imgs[0].get_size())
         setattr(self.rect, self.init_pos.coord_type, (self.init_pos.x, self.init_pos.y))
 
         self._is_hovering: bool = False
@@ -79,10 +78,7 @@ class _Clickable(ABC):
         self._hovering_text_alpha: int = 0
         self._last_mouse_move_time: int = my_vars.ticks
 
-        for img in self.hovering_text_label.imgs:
-            img.set_alpha(self._hovering_text_alpha)
-
-        self.hover_rects: tuple[pg.Rect, ...] = (self.rect,)
+        self.hover_rects: tuple[Rect, ...] = (self.rect,)
         self.layer: int = base_layer + ELEMENT_LAYER
         self.blit_sequence: list[BlitInfo] = [(self._imgs[0], self.rect, self.layer)]
         self.objs_info: list[ObjInfo] = []
@@ -97,14 +93,10 @@ class _Clickable(ABC):
     def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-        img: pg.Surface
-
         self._is_hovering = False
         self._hovering_text_alpha = 0
-        for img in self.hovering_text_label.imgs:
-            img.set_alpha(self._hovering_text_alpha)
-
         self.hovering_text_label.leave()
+        # blit_sequence is refreshed by subclasses
 
     def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
         """
@@ -115,7 +107,6 @@ class _Clickable(ABC):
         """
 
         xy: XY
-        img: pg.Surface
 
         xy, self.rect.size = resize_obj(
             self.init_pos, *self.init_imgs[0].get_size(),
@@ -123,14 +114,12 @@ class _Clickable(ABC):
         )
 
         self.set_imgs([
-            pg.transform.scale(img, self.rect.size).convert()
+            transform.scale(img, self.rect.size).convert()
             for img in self.init_imgs
         ])
         setattr(self.rect, self.init_pos.coord_type, xy)
 
         self.hovering_text_label.resize(win_w_ratio, win_h_ratio)
-        for img in self.hovering_text_label.imgs:
-            img.set_alpha(self._hovering_text_alpha)
 
     def move_rect(
             self: Self, init_x: int, init_y: int,
@@ -147,10 +136,13 @@ class _Clickable(ABC):
         _wh: WH
 
         self.init_pos.x, self.init_pos.y = init_x, init_y  # More accurate
-        xy, _wh = resize_obj(self.init_pos, 0, 0, win_w_ratio, win_h_ratio)
+        xy, _wh = resize_obj(
+            self.init_pos, init_w=0, init_h=0,
+            win_w_ratio=win_w_ratio, win_h_ratio=win_h_ratio
+        )
         setattr(self.rect, self.init_pos.coord_type, xy)
 
-    def set_imgs(self: Self, imgs: list[pg.Surface]) -> None:
+    def set_imgs(self: Self, imgs: list[Surface]) -> None:
         """
         Modifies the images and refreshes the blit sequence.
 
@@ -162,6 +154,7 @@ class _Clickable(ABC):
         self._imgs = imgs
         self.blit_sequence[0] = (self._imgs[img_i], self.rect, self.layer)
 
+
     def _refresh(self: Self, img_i: int) -> None:
         """
         Refreshes the last mouse move time and blit sequence.
@@ -170,30 +163,26 @@ class _Clickable(ABC):
             image index
         """
 
-        img: pg.Surface
+        img: Surface
 
         if not self._is_hovering or (MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y):
+            self._hovering_text_alpha = 0
             self._last_mouse_move_time = my_vars.ticks
 
         self.blit_sequence = [(self._imgs[img_i], self.rect, self.layer)]
         if self._is_hovering and (my_vars.ticks - self._last_mouse_move_time >= 750):
-            if self._hovering_text_alpha == 0:
-                rec_move_rect(
-                    self.hovering_text_label, MOUSE.x + 10, MOUSE.y,
-                    win_w_ratio=1, win_h_ratio=1
-                )
+            rec_move_rect(
+                self.hovering_text_label, MOUSE.x + 10, MOUSE.y,
+                win_w_ratio=1, win_h_ratio=1
+            )
 
             if self._hovering_text_alpha != 255:
-                self._hovering_text_alpha = round(self._hovering_text_alpha + (16 * my_vars.dt))
+                self._hovering_text_alpha = round(self._hovering_text_alpha + (8 * my_vars.dt))
                 self._hovering_text_alpha = min(self._hovering_text_alpha, 255)
                 for img in self.hovering_text_label.imgs:
                     img.set_alpha(self._hovering_text_alpha)
 
             self.blit_sequence.extend(self.hovering_text_label.blit_sequence)
-        elif self._hovering_text_alpha != 0:
-            self._hovering_text_alpha = 0
-            for img in self.hovering_text_label.imgs:
-                img.set_alpha(self._hovering_text_alpha)
 
     @abstractmethod
     def upt(self: Self) -> bool:
@@ -213,7 +202,7 @@ class Checkbox(_Clickable):
     )
 
     def __init__(
-            self: Self, pos: RectPos, imgs: list[pg.Surface], text: str | None, hovering_text: str,
+            self: Self, pos: RectPos, imgs: list[Surface], text: str | None, hovering_text: str,
             base_layer: int = BG_LAYER
     ) -> None:
         """
@@ -281,7 +270,7 @@ class LockedCheckbox(_Clickable):
     )
 
     def __init__(
-            self: Self, pos: RectPos, imgs: list[pg.Surface], hovering_text: str,
+            self: Self, pos: RectPos, imgs: list[Surface], hovering_text: str,
             base_layer: int = BG_LAYER
     ) -> None:
         """
@@ -334,7 +323,7 @@ class Button(_Clickable):
     )
 
     def __init__(
-            self: Self, pos: RectPos, imgs: list[pg.Surface], text: str | None, hovering_text: str,
+            self: Self, pos: RectPos, imgs: list[Surface], text: str | None, hovering_text: str,
             base_layer: int = BG_LAYER, text_h: int = 25
     ) -> None:
         """
@@ -397,7 +386,7 @@ class SpammableButton(_Clickable):
     )
 
     def __init__(
-            self: Self, pos: RectPos, imgs: list[pg.Surface], hovering_text: str,
+            self: Self, pos: RectPos, imgs: list[Surface], hovering_text: str,
             base_layer: int = BG_LAYER
     ) -> None:
         """
@@ -409,7 +398,7 @@ class SpammableButton(_Clickable):
 
         super().__init__(pos, imgs, hovering_text, base_layer)
 
-        self._hover_rect: pg.Rect = self.rect.copy()
+        self._hover_rect: Rect = self.rect.copy()
         self.hover_rects = (self._hover_rect,)
 
         self._click_interval: int = _INIT_CLICK_INTERVAL

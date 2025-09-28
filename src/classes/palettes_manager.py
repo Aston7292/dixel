@@ -38,7 +38,7 @@ class _VerScrollbar:
         "_bar_init_pos", "_bar_rect", "_bar_init_w", "_bar_init_h",
         "num_values", "value", "selected_value", "_unit_h",
         "_slider_rect", "_selected_value_rect",
-        "_traveled_y", "_is_scrolling", "_prev_num_values", "_prev_value", "_prev_selected_value",
+        "_traveled_y", "_is_scrolling", "prev_num_values", "prev_value", "prev_selected_value",
         "_down", "_up",
         "hover_rects", "layer", "blit_sequence", "objs_info",
     )
@@ -91,9 +91,9 @@ class _VerScrollbar:
 
         self._traveled_y: float = 0
         self._is_scrolling: bool = False
-        self._prev_num_values: int = self.num_values
-        self._prev_value: int = self.value
-        self._prev_selected_value: int = self.selected_value
+        self.prev_num_values: int = self.num_values
+        self.prev_value: int = self.value
+        self.prev_selected_value: int = self.selected_value
 
         self._down: SpammableButton = SpammableButton(
             RectPos(self._bar_rect.centerx, self._bar_rect.bottom + 5, "midtop"),
@@ -181,9 +181,9 @@ class _VerScrollbar:
             values, value, selected value
         """
 
-        self.num_values = self._prev_num_values = max(num_values, NUM_VISIBLE_ROWS)
-        self.value = self._prev_value = value
-        self.selected_value = self._prev_selected_value = selected_value
+        self.num_values = self.prev_num_values = max(num_values, NUM_VISIBLE_ROWS)
+        self.value = self.prev_value = value
+        self.selected_value = self.prev_selected_value = selected_value
         self._unit_h = (self._bar_rect.h - (_SCROLLBAR_BORDER_DIM * 2)) / self.num_values
 
         usable_bottom: int = self._bar_rect.h - _SCROLLBAR_BORDER_DIM
@@ -197,7 +197,7 @@ class _VerScrollbar:
 
         self.blit_sequence[0] = (self._get_bar_img(), self._bar_rect, self.layer)
 
-    def _start_scrolling(self: Self) -> None:
+    def _start_scroll(self: Self) -> None:
         """Changes the value depending on the mouse position and starts scrolling."""
 
         rel_mouse_y: int = MOUSE.y - self._bar_rect.y
@@ -211,8 +211,8 @@ class _VerScrollbar:
         self._traveled_y = 0
         self._is_scrolling = True
 
-    def _scroll(self: Self) -> None:
-        """Changes the value depending on the mouse traveled distance."""
+    def _handle_scroll(self: Self) -> None:
+        """Handles changing the value depending on the mouse traveled distance."""
 
         self._traveled_y += MOUSE.prev_y - MOUSE.y
         if abs(self._traveled_y) >= self._unit_h:
@@ -223,8 +223,8 @@ class _VerScrollbar:
             )
             self._traveled_y -= units_traveled * self._unit_h
 
-    def _scroll_with_keys(self: Self) -> None:
-        """Changes the value with the keyboard."""
+    def _handle_scroll_with_keys(self: Self) -> None:
+        """Handles changing the value with the keyboard."""
 
         if MOUSE.hovered_obj == self:
             if K_DOWN     in KEYBOARD.timed:
@@ -247,28 +247,18 @@ class _VerScrollbar:
                 max_limit: int = self.num_values - NUM_VISIBLE_ROWS
                 self.value = max_limit if KEYBOARD.is_ctrl_on else min(self.value + 1, max_limit)
 
-    def refresh(self: Self) -> None:
-        """Refreshes the scrollbar if the values, value or selected value changed."""
-
-        if (
-            self.num_values != self._prev_num_values or
-            self.value != self._prev_value or
-            self.selected_value != self._prev_selected_value
-        ):
-            self.set_info(self.num_values, self.value, self.selected_value)
-
     def upt(self: Self) -> None:
         """Allows to pick a value via scrolling, keyboard or arrow buttons."""
 
         if not MOUSE.pressed[MOUSE_LEFT]:
             self._is_scrolling = False
         elif MOUSE.hovered_obj == self and not self._is_scrolling:
-            self._start_scrolling()
+            self._start_scroll()
 
         if self._is_scrolling:
-            self._scroll()
+            self._handle_scroll()
         if KEYBOARD.pressed != []:
-            self._scroll_with_keys()
+            self._handle_scroll_with_keys()
 
         is_down_clicked: bool = self._down.upt()
         if is_down_clicked:
@@ -506,6 +496,8 @@ class PalettesManager:
         dropdown_objs_info: list[ObjInfo] = self.objs_info[
             self._dropdown_objs_info_start_i:self._dropdown_objs_info_end_i
         ]
+        if not is_dropdown_on:
+            pass
         for obj_info in dropdown_objs_info:
             obj_info.rec_set_active(is_dropdown_on)
 
@@ -643,7 +635,16 @@ class PalettesManager:
         if self.colors_grid.offset_y != self.colors_grid.prev_offset_y:
             self.colors_grid.set_offset_y(self.colors_grid.offset_y)
 
-        self._scrollbar.refresh()
+        if (
+            self._scrollbar.num_values != self._scrollbar.prev_num_values or
+            self._scrollbar.value != self._scrollbar.prev_value or
+            self._scrollbar.selected_value != self._scrollbar.prev_selected_value
+        ):
+            self._scrollbar.set_info(
+                self._scrollbar.num_values,
+                self._scrollbar.value,
+                self._scrollbar.selected_value
+            )
 
         if did_offset_y_change or self.dropdown_i != prev_dropdown_i:
             self.refresh_dropdown()

@@ -2,11 +2,12 @@
 
 from typing import Self, Final
 
-import pygame as pg
+from pygame import mouse, key
 from pygame.locals import *
 
 from src.obj_utils import UIElement
 import src.obj_utils as objs
+from src.type_utils import XY
 import src.vars as my_vars
 
 _NUMPAD_FIRST_K: Final[int] = K_KP_1
@@ -53,21 +54,17 @@ class _Mouse:
     def refresh_pos(self: Self) -> None:
         """Refreshes the position, if a coordinate is outside the window it will be -1."""
 
-        self.x, self.y = pg.mouse.get_pos()
-        if not pg.mouse.get_focused():
-            if self.x == 0:
-                self.x = -1
-            if self.y == 0:
-                self.y = -1
+        self.x, self.y = mouse.get_pos()
+        if not mouse.get_focused():
+            self.x, self.y = self.x or -1, self.y or -1
 
     def refresh_hovered_obj(self: Self) -> None:
         """Refreshes the hovered object with the get_hovering method of the active objects."""
 
+        state_active_objs: list[UIElement] = objs.state_active_objs
+        xy: XY = (self.x, self.y)
         hovered_objs: list[UIElement] = [
-            obj
-            for obj in objs.state_active_objs
-            for rect in obj.hover_rects
-            if rect.x <= self.x < (rect.x + rect.w) and rect.y <= self.y < (rect.y + rect.h)
+            obj for obj in state_active_objs for rect in obj.hover_rects if rect.collidepoint(xy)
         ]
 
         if hovered_objs == []:
@@ -86,14 +83,14 @@ class _Mouse:
         )
 
         if self._cursor_type != prev_cursor_type:
-            pg.mouse.set_cursor(self._cursor_type)
+            mouse.set_cursor(self._cursor_type)
 
 
 class _Keyboard:
     """Class to store keyboard info."""
 
     __slots__ = (
-        "_raws", "pressed", "released", "timed",
+        "raws", "pressed", "released", "timed",
         "is_ctrl_on", "is_shift_on", "is_alt_on", "is_numpad_on",
         "_timed_interval", "_prev_timed_refresh", "_alt_k",
     )
@@ -101,7 +98,7 @@ class _Keyboard:
     def __init__(self: Self) -> None:
         """Initializes the info."""
 
-        self._raws: list[int]    = []
+        self.raws: list[int]    = []
         self.pressed: list[int]  = []
         self.released: list[int] = []
         self.timed: list[int]    = []
@@ -137,10 +134,10 @@ class _Keyboard:
             key
         """
 
-        self.is_ctrl_on   = (pg.key.get_mods() & KMOD_CTRL ) != 0
-        self.is_shift_on  = (pg.key.get_mods() & KMOD_SHIFT) != 0
-        self.is_alt_on    = (pg.key.get_mods() & KMOD_ALT  ) != 0
-        self.is_numpad_on = (pg.key.get_mods() & KMOD_NUM  ) != 0
+        self.is_ctrl_on   = (key.get_mods() & KMOD_CTRL ) != 0
+        self.is_shift_on  = (key.get_mods() & KMOD_SHIFT) != 0
+        self.is_alt_on    = (key.get_mods() & KMOD_ALT  ) != 0
+        self.is_numpad_on = (key.get_mods() & KMOD_NUM  ) != 0
 
         converted_k: int = k
         numpad_offset: int = int(self.is_numpad_on)
@@ -155,11 +152,11 @@ class _Keyboard:
 
             self._alt_k = self._alt_k.lstrip("0")
         else:
-            self._raws.append(k)
+            self.raws.append(k)
             self.pressed = [
                 _NUMPAD_MAP[((k - _NUMPAD_FIRST_K) * 2) + numpad_offset]
                 if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else k
-                for k in self._raws
+                for k in self.raws
             ]
             self._alt_k = ""
 
@@ -174,21 +171,21 @@ class _Keyboard:
             key
         """
 
-        self.is_ctrl_on   = (pg.key.get_mods() & KMOD_CTRL ) != 0
-        self.is_shift_on  = (pg.key.get_mods() & KMOD_SHIFT) != 0
-        self.is_alt_on    = (pg.key.get_mods() & KMOD_ALT  ) != 0
-        self.is_numpad_on = (pg.key.get_mods() & KMOD_NUM  ) != 0
+        self.is_ctrl_on   = (key.get_mods() & KMOD_CTRL ) != 0
+        self.is_shift_on  = (key.get_mods() & KMOD_SHIFT) != 0
+        self.is_alt_on    = (key.get_mods() & KMOD_ALT  ) != 0
+        self.is_numpad_on = (key.get_mods() & KMOD_NUM  ) != 0
 
-        if k in self._raws:  # Numbers pressed with alt aren't inserted
-            remove_i: int = self._raws.index(k)
-            self._raws.pop(remove_i)
+        if k in self.raws:  # Numbers pressed with alt aren't inserted
+            remove_i: int = self.raws.index(k)
+            self.raws.pop(remove_i)
             self.pressed.pop(remove_i)
 
             numpad_offset: int = int(self.is_numpad_on)
             self.pressed = [
                 _NUMPAD_MAP[((k - _NUMPAD_FIRST_K) * 2) + numpad_offset]
                 if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else k
-                for k in self._raws
+                for k in self.raws
             ]
 
             if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K:
@@ -198,12 +195,6 @@ class _Keyboard:
                 self.released.append(k)
 
         self._timed_interval = 128
-
-    def clear(self: Self) -> None:
-        """Clears the keyboard data."""
-
-        self._raws = self.pressed = self.released = self.timed = []
-        self.is_ctrl_on = self.is_shift_on = self.is_alt_on = self.is_numpad_on = False
 
 
 MOUSE: Final[_Mouse] = _Mouse()

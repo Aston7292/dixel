@@ -84,28 +84,28 @@ class TestDevices(TestCase):
         keyboard: _Keyboard = _Keyboard()
 
         mock_get_mods.return_value = KMOD_NONE
-        keyboard.raws = keyboard.pressed = []
+        keyboard._raws = keyboard.pressed = []
         keyboard.add(K_KP1)
-        self.assertListEqual(keyboard.raws, [K_KP1])
+        self.assertListEqual(keyboard._raws, [K_KP1])
         self.assertListEqual(keyboard.pressed, [K_END])
 
         mock_get_mods.return_value = KMOD_NUM
-        keyboard.raws = keyboard.pressed = []
+        keyboard._raws = keyboard.pressed = []
         keyboard.is_numpad_on = False
         keyboard.add(K_KP1)
         self.assertTrue(keyboard.is_numpad_on)
         self.assertListEqual(keyboard.pressed, [K_1])
 
         mock_get_mods.return_value = KMOD_ALT
-        keyboard.raws = keyboard.pressed = []
+        keyboard._raws = keyboard.pressed = []
         keyboard.is_alt_on = False
         keyboard._alt_k = ""
         keyboard.add(K_1)
-        self.assertListEqual(keyboard.raws, [])
+        self.assertListEqual(keyboard._raws, [])
         self.assertEqual(keyboard._alt_k, "1")
 
         mock_get_mods.return_value = KMOD_ALT
-        keyboard.raws = keyboard.pressed = []
+        keyboard._raws = keyboard.pressed = []
         keyboard.is_alt_on = False
         keyboard._alt_k = "1114111"
         keyboard.add(K_1)
@@ -118,16 +118,16 @@ class TestDevices(TestCase):
         keyboard: _Keyboard = _Keyboard()
 
         mock_get_mods.return_value = KMOD_NONE
-        keyboard.raws    = [K_KP1, K_KP1]
+        keyboard._raws    = [K_KP1, K_KP1]
         keyboard.pressed = [K_KP1, K_KP1]
         keyboard.released = []
         keyboard.remove(K_KP1)
-        self.assertListEqual(keyboard.raws, [K_KP1])
+        self.assertListEqual(keyboard._raws, [K_KP1])
         self.assertListEqual(keyboard.pressed , [K_END])
         self.assertListEqual(keyboard.released, [K_END])
 
         mock_get_mods.return_value = KMOD_NUM
-        keyboard.raws    = [K_KP1, K_KP1]
+        keyboard._raws    = [K_KP1, K_KP1]
         keyboard.pressed = [K_KP1, K_KP1]
         keyboard.released = []
         keyboard.is_numpad_on = False
@@ -137,7 +137,7 @@ class TestDevices(TestCase):
         self.assertListEqual(keyboard.released, [K_1])
 
         mock_get_mods.return_value = KMOD_NONE
-        keyboard.raws    = [K_1]
+        keyboard._raws    = [K_1]
         keyboard.pressed = [K_1]
         keyboard.released = []
         keyboard.remove(K_1)

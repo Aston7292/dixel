@@ -39,9 +39,9 @@ from src.imgs import (
 ToolName: TypeAlias = Literal["pencil", "bucket", "eye_dropper", "line", "rectangle"]
 ToolInfo: TypeAlias = tuple[ToolName, dict[str, Any]]
 _ToolsInfo: TypeAlias = dict[ToolName, dict[str, Any]]
-_ToolExtraInfo: TypeAlias = list[dict[str, Any]]
+_ToolExtraInfo: TypeAlias = tuple[dict[str, Any], ...]
 
-_CHECKBOX_IMGS: Final[list[pg.Surface]] = [CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG]
+_CHECKBOX_IMGS: Final[tuple[pg.Surface, ...]] = (CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG)
 _TOOLS_INFO: Final[_ToolsInfo] = {
     "pencil": {
         "info": (PENCIL_IMG, "Pencil\n(SHIFT+P)"),
@@ -87,6 +87,7 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
         ),
     },
 }
+del _CHECKBOX_IMGS
 
 _EYE_DROPPER_I: Final[int] = 2
 
@@ -115,12 +116,12 @@ class ToolsManager:
 
         self.tools_grid: CheckboxGrid = CheckboxGrid(
             pos,
-            [info["info"] for info in _TOOLS_INFO.values()],
+            tuple([info["info"] for info in _TOOLS_INFO.values()]),
             num_cols=5, should_invert_cols=False, should_invert_rows=True
         )
         self._tool_name: ToolName = tuple(_TOOLS_INFO.keys())[0]
 
-        def _refine_extra_info(raw_extra_info: tuple[dict[str, Any], ...]) -> _ToolExtraInfo:
+        def _refine_extra_info(raw_extra_info: _ToolExtraInfo) -> _ToolExtraInfo:
             """
             Creates the sub options of a tool from its extra info.
 
@@ -133,7 +134,7 @@ class ToolsManager:
             raw_sub_tool_extra_info: dict[str, Any]
 
             obj_x: int = self.tools_grid.rect.x + 16
-            extra_info: _ToolExtraInfo = []
+            extra_info: _ToolExtraInfo = ()
             for raw_sub_tool_extra_info in raw_extra_info:
                 obj: UIElement = raw_sub_tool_extra_info["type"](
                     RectPos(obj_x, self.tools_grid.rect.y - 16, "bottomleft"),
@@ -146,33 +147,33 @@ class ToolsManager:
 
                 raw_sub_tool_extra_info["obj"] = obj
                 del raw_sub_tool_extra_info["type"], raw_sub_tool_extra_info["init_args"]
-                extra_info.append(raw_sub_tool_extra_info)
+                extra_info += (raw_sub_tool_extra_info,)
 
             return extra_info
         # Added keys: obj | removed keys: type, init_args
-        self._tools_extra_info: list[_ToolExtraInfo] = [
+        self._tools_extra_info: tuple[_ToolExtraInfo, ...] = tuple([
             _refine_extra_info(info["extra_info"])
             for info in _TOOLS_INFO.values()
-        ]
+        ])
 
         self.saved_clicked_i: int | None = None
 
         self.hover_rects: tuple[pg.Rect, ...] = ()
         self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = []
-        self.objs_info: list[ObjInfo] = [ObjInfo(self.tools_grid)]
+        self.objs_info: tuple[ObjInfo, ...] = (ObjInfo(self.tools_grid),)
 
-        self._sub_tools_ranges: list[tuple[int, int]] = []
+        self._sub_tools_ranges: tuple[tuple[int, int], ...] = ()
         for tool_extra_info in self._tools_extra_info:
             range_start: int = len(self.objs_info)
 
             for sub_tool_extra_info in tool_extra_info:
                 obj_info: ObjInfo = ObjInfo(sub_tool_extra_info["obj"])
-                self.objs_info.append(obj_info)
+                self.objs_info += (obj_info,)
                 obj_info.rec_set_active(False)
 
             range_end: int = len(self.objs_info)
-            self._sub_tools_ranges.append((range_start, range_end))
+            self._sub_tools_ranges += ((range_start, range_end),)
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -242,7 +243,7 @@ class ToolsManager:
 
         out_dict: dict[str, Any] = {}
         for extra_info in self._tools_extra_info[self.tools_grid.clicked_i]:
-            upt_args: list[str] = extra_info["upt_args"]
+            upt_args: tuple[str, ...] = extra_info["upt_args"]
             extra_info["obj"].upt(*[
                 local_vars.get(arg, arg)  # If it doesn't exist use it as a string
                 for arg in upt_args

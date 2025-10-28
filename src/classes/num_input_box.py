@@ -9,10 +9,10 @@ from src.classes.clickable import SpammableButton
 from src.classes.text_label import TextLabel
 from src.classes.devices import MOUSE, KEYBOARD
 
+import src.vars as my_vars
 from src.obj_utils import UIElement, ObjInfo, resize_obj
 from src.type_utils import XY, BlitInfo, RectPos
-import src.vars as my_vars
-from src.consts import MOUSE_LEFT, WHITE, BG_LAYER, ELEMENT_LAYER
+from src.consts import WHITE, MOUSE_LEFT, BG_LAYER, ELEMENT_LAYER
 from src.imgs import ARROW_UP_OFF_IMG, ARROW_UP_ON_IMG, ARROW_DOWN_OFF_IMG, ARROW_DOWN_ON_IMG
 
 _INPUT_BOX_IMG: Final[pg.Surface] = pg.Surface((64, 40))
@@ -25,13 +25,14 @@ class NumInputBox:
         "_init_pos", "_img", "rect", "_init_w", "_init_h",
         "value", "min_limit", "max_limit",
         "cursor_i", "_is_selected", "_last_cursor_blink_time", "_should_show_cursor",
-        "text_label", "_prev_selected_obj", "_prev_text", "_prev_cursor_i",
-        "_cursor_img", "cursor_rect",
+        "text_label", "_cursor_img", "cursor_rect",
+        "_prev_selected_obj", "_prev_text", "_prev_cursor_i",
         "_decrease", "_increase",
         "hover_rects", "layer", "blit_sequence", "objs_info",
     )
 
     cursor_type: int = SYSTEM_CURSOR_IBEAM
+    half_w: int = round((_INPUT_BOX_IMG.get_width() + ARROW_UP_OFF_IMG.get_width() + 5) / 2)
 
     def __init__(
             self: Self, pos: RectPos, min_limit: int, max_limit: int,
@@ -66,11 +67,6 @@ class NumInputBox:
             RectPos(self.rect.centerx, self.rect.centery, "center"),
             "", base_layer
         )
-
-        self._prev_selected_obj: UIElement | None = None
-        self._prev_text: str = self.text_label.text
-        self._prev_cursor_i: int = self.cursor_i
-
         self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
         self.cursor_rect: pg.Rect = pg.Rect(0, 0, *self._cursor_img.get_size())
@@ -79,13 +75,17 @@ class NumInputBox:
             self.text_label.rect.y,
         )
 
+        self._prev_selected_obj: UIElement | None = None
+        self._prev_text: str = self.text_label.text
+        self._prev_cursor_i: int = self.cursor_i
+
         self._decrease: SpammableButton = SpammableButton(
             RectPos(self.rect.right + 5, self.rect.centery + 3, "topleft"),
-            [ARROW_DOWN_OFF_IMG, ARROW_DOWN_ON_IMG], " - \n(CTRL -)", base_layer
+            (ARROW_DOWN_OFF_IMG, ARROW_DOWN_ON_IMG), " - \n(CTRL -)", base_layer
         )
         self._increase: SpammableButton = SpammableButton(
             RectPos(self.rect.right + 5, self.rect.centery - 3, "bottomleft"),
-            [ARROW_UP_OFF_IMG  , ARROW_UP_ON_IMG  ], " + \n(CTRL +)", base_layer
+            (ARROW_UP_OFF_IMG  , ARROW_UP_ON_IMG  ), " + \n(CTRL +)", base_layer
         )
         self._decrease.set_hover_extra_size(5, 10, 3 , 10)
         self._increase.set_hover_extra_size(5, 10, 10, 3)
@@ -93,10 +93,10 @@ class NumInputBox:
         self.hover_rects: tuple[pg.Rect, ...] = (self.rect,)
         self.layer: int = base_layer + ELEMENT_LAYER
         self.blit_sequence: list[BlitInfo] = [(self._img, self.rect, self.layer)]
-        self.objs_info: list[ObjInfo] = [
+        self.objs_info: tuple[ObjInfo, ...] = (
             ObjInfo(self.text_label),
             ObjInfo(self._decrease), ObjInfo(self._increase),
-        ]
+        )
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -209,7 +209,7 @@ class NumInputBox:
             self.cursor_i = min(self.cursor_i + 1, len(self.text_label.text))
 
     def _handle_keys(self: Self) -> None:
-        """Handles deletion, insertion, decrement and increment with timed keys."""
+        """Handles deletion, insertion, decrementing and incrementing with timed keys."""
 
         if KEYBOARD.timed[-1] in (K_BACKSPACE, K_DELETE):
             self._handle_deletion()
@@ -230,7 +230,7 @@ class NumInputBox:
             self.text_label.text = str(self.value)
 
     def refresh(self: Self) -> None:
-        """Refreshes text label and cursor position."""
+        """Refreshes the text label and cursor position."""
 
         if   self.text_label.text != self._prev_text:
             self.text_label.set_text(self.text_label.text)
@@ -282,9 +282,9 @@ class NumInputBox:
                 self._last_cursor_blink_time = my_vars.ticks
                 self._should_show_cursor = True
 
-            if KEYBOARD.pressed != []:
+            if KEYBOARD.pressed != ():
                 self._handle_move_with_keys()
-            if KEYBOARD.timed != []:
+            if KEYBOARD.timed != ():
                 self._handle_keys()
 
         is_decrease_clicked: bool = self._decrease.upt()

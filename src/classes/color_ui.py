@@ -1,25 +1,25 @@
 """Interface to choose a color, scrollbars and preview are refreshed automatically."""
 
-from typing import Self, Literal, Final
+from typing import Literal, Self, Final
 
 import pygame as pg
 from pygame.locals import *
 
-from src.classes.num_input_box import NumInputBox
 from src.classes.ui import UI
+from src.classes.num_input_box import NumInputBox
 from src.classes.text_label import TextLabel
 from src.classes.devices import MOUSE, KEYBOARD
 
 from src.obj_utils import UIElement, ObjInfo, resize_obj
 from src.type_utils import XY, WH, RGBColor, HexColor, BlitInfo, RectPos
-from src.consts import MOUSE_LEFT, BLACK, ELEMENT_LAYER, UI_LAYER
+from src.consts import BLACK, MOUSE_LEFT, ELEMENT_LAYER, UI_LAYER
 
 _SLIDER_OFF_IMG: Final[pg.Surface] = pg.Surface((10, 32))
 _SLIDER_ON_IMG: Final[pg.Surface]  = pg.Surface((10, 32))
 _SLIDER_OFF_IMG.fill((25, 25, 25))
 _SLIDER_ON_IMG.fill(BLACK)
 
-INPUT_BOXES_COL_I: Final[Literal[1]] = 1
+_INPUT_BOXES_COL_I: Final[Literal[1]] = 1
 
 
 class _ColorScrollbar:
@@ -28,7 +28,7 @@ class _ColorScrollbar:
     __slots__ = (
         "_bar_init_pos", "_bar_img", "bar_rect", "_bar_init_w", "_bar_init_h",
         "_slider_init_pos", "_slider_imgs", "_slider_rect", "_slider_init_w", "_slider_init_h",
-        "_is_scrolling", "_channel_i",
+        "_channel_i", "_is_scrolling",
         "input_box",
         "hover_rects", "layer", "blit_sequence", "objs_info",
     )
@@ -60,7 +60,7 @@ class _ColorScrollbar:
 
         self._slider_init_pos: RectPos = RectPos(0, self.bar_rect.centery, "midleft")
 
-        self._slider_imgs: list[pg.Surface] = [_SLIDER_OFF_IMG, _SLIDER_ON_IMG]
+        self._slider_imgs: tuple[pg.Surface, ...] = (_SLIDER_OFF_IMG, _SLIDER_ON_IMG)
         self._slider_rect: pg.Rect = pg.Rect(0, 0, *self._slider_imgs[0].get_size())
         setattr(
             self._slider_rect, self._slider_init_pos.coord_type,
@@ -70,8 +70,8 @@ class _ColorScrollbar:
         self._slider_init_w: int = self._slider_rect.w
         self._slider_init_h: int = self._slider_rect.h
 
-        self._is_scrolling: bool = False
         self._channel_i: Literal[0, 1, 2] = channel_i
+        self._is_scrolling: bool = False
 
         channel_text_label: TextLabel = TextLabel(
             RectPos(self.bar_rect.x - 4, self.bar_rect.centery, "midright"),
@@ -88,7 +88,7 @@ class _ColorScrollbar:
             (self._bar_img       , self.bar_rect    , self.layer),
             (self._slider_imgs[0], self._slider_rect, self.layer),
         ]
-        self.objs_info: list[ObjInfo] = [ObjInfo(channel_text_label), ObjInfo(self.input_box),]
+        self.objs_info: tuple[ObjInfo, ...] = (ObjInfo(channel_text_label), ObjInfo(self.input_box))
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -128,10 +128,10 @@ class _ColorScrollbar:
         # More accurate
         unit_w: float = self.bar_rect.w / self._bar_init_w
 
-        self._slider_imgs = [
+        self._slider_imgs = tuple([
             pg.transform.scale(img, self._slider_rect.size).convert()
             for img in self._slider_imgs
-        ]
+        ])
         setattr(
             self._slider_rect, self._slider_init_pos.coord_type,
             (self.bar_rect.x + round(self.input_box.value * unit_w), slider_y)
@@ -218,7 +218,7 @@ class _ColorScrollbar:
                 int((MOUSE.x - self.bar_rect.x) / unit_w),
                 self.input_box.min_limit), self.input_box.max_limit
             )
-        if selected_obj == self and KEYBOARD.pressed != []:
+        if selected_obj == self and KEYBOARD.pressed != ():
             self._handle_scroll_with_keys()
 
         selected_obj = self.input_box.upt(selected_obj)
@@ -233,9 +233,9 @@ class ColorPicker(UI):
     """Class to create an interface that allows picking a color, has a preview."""
 
     __slots__ = (
-        "_preview_init_pos", "_preview_img", "_preview_rect", "_preview_init_w", "_preview_init_h",
-        "_hex_text_label",
         "_b_bar", "_g_bar", "_r_bar", "_objs", "_selection_x", "_selection_y",
+        "_hex_text_label",
+        "_preview_init_pos", "_preview_img", "_preview_rect", "_preview_init_w", "_preview_init_h",
     )
 
     def __init__(self: Self) -> None:
@@ -243,7 +243,36 @@ class ColorPicker(UI):
 
         super().__init__("CHOOSE A COLOR", True)
 
-        self._preview_init_pos: RectPos = RectPos(self._rect.centerx, self._rect.centery, "midtop")
+        self._r_bar: _ColorScrollbar = _ColorScrollbar(
+            RectPos(self._rect.centerx, self._title_text_label.rect.bottom + 40, "midtop"),
+            channel_i=0
+        )
+        self._g_bar: _ColorScrollbar = _ColorScrollbar(
+            RectPos(self._rect.centerx, self._r_bar.bar_rect.bottom        + 40, "midtop"),
+            channel_i=1
+        )
+        self._b_bar: _ColorScrollbar = _ColorScrollbar(
+            RectPos(self._rect.centerx, self._g_bar.bar_rect.bottom        + 40, "midtop"),
+            channel_i=2
+        )
+
+        self._objs: tuple[tuple[_ColorScrollbar, NumInputBox], ...] = (
+            (self._r_bar, self._r_bar.input_box),
+            (self._g_bar, self._g_bar.input_box),
+            (self._b_bar, self._b_bar.input_box),
+        )
+        self._selection_x: int = 0
+        self._selection_y: int = 0
+
+        self._hex_text_label: TextLabel = TextLabel(
+            RectPos(self._rect.centerx, self._b_bar.bar_rect.bottom + 40, "midtop"),
+            "", self.layer
+        )
+
+        self._preview_init_pos: RectPos = RectPos(
+            self._rect.centerx, self._hex_text_label.rect.bottom + 16,
+            "midtop"
+        )
 
         self._preview_img: pg.Surface = pg.Surface((256, 256))
         self._preview_rect: pg.Rect = pg.Rect(0, 0, *self._preview_img.get_size())
@@ -255,37 +284,11 @@ class ColorPicker(UI):
         self._preview_init_w: int = self._preview_rect.w
         self._preview_init_h: int = self._preview_rect.h
 
-        self._hex_text_label: TextLabel = TextLabel(
-            RectPos(self._preview_rect.centerx, self._preview_rect.y - 32, "midbottom"),
-            "", self.layer
-        )
-
-        self._b_bar: _ColorScrollbar = _ColorScrollbar(
-            RectPos(self._rect.centerx, self._hex_text_label.rect.y - 50, "center"),
-            channel_i=2
-        )
-        self._g_bar: _ColorScrollbar = _ColorScrollbar(
-            RectPos(self._rect.centerx, self._b_bar.bar_rect.y      - 50, "center"),
-            channel_i=1
-        )
-        self._r_bar: _ColorScrollbar = _ColorScrollbar(
-            RectPos(self._rect.centerx, self._g_bar.bar_rect.y      - 50, "center"),
-            channel_i=0
-        )
-
-        self._objs: tuple[tuple[_ColorScrollbar, NumInputBox], ...] = (
-            (self._r_bar, self._r_bar.input_box),
-            (self._g_bar, self._g_bar.input_box),
-            (self._b_bar, self._b_bar.input_box),
-        )
-        self._selection_x: int = 0
-        self._selection_y: int = 0
-
         self.blit_sequence.append((self._preview_img, self._preview_rect, self.layer))
-        self.objs_info.extend((
-            ObjInfo(self._hex_text_label),
+        self.objs_info += (
             ObjInfo(self._r_bar), ObjInfo(self._b_bar), ObjInfo(self._g_bar),
-        ))
+            ObjInfo(self._hex_text_label),
+        )
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -324,17 +327,18 @@ class ColorPicker(UI):
             hexadecimal color, external change flag
         """
 
-        hex_color = "#" + hex_color
-        color: pg.Color = pg.Color(hex_color)
+        color: pg.Color = pg.Color("#" + hex_color)
 
         self._r_bar.set_value(color, is_external_change)
         self._g_bar.set_value(color, is_external_change)
         self._b_bar.set_value(color, is_external_change)
+        self._hex_text_label.set_text(color.hex)
         self._preview_img.fill(color)
-        self._hex_text_label.set_text(hex_color)
 
     def _handle_move_with_keys(self: Self) -> None:
         """Handles moving the selection with the keyboard."""
+
+        prev_input_box: NumInputBox = self._objs[self._selection_y][_INPUT_BOXES_COL_I]
 
         if K_TAB in KEYBOARD.timed:
             if KEYBOARD.is_shift_on:
@@ -342,19 +346,17 @@ class ColorPicker(UI):
             else:
                 self._selection_x = min(self._selection_x + 1, len(self._objs[0]) - 1)
 
-        prev_selection_i_y: int = self._selection_y
         if K_UP   in KEYBOARD.timed:
             self._selection_y = max(self._selection_y - 1, 0)
         if K_DOWN in KEYBOARD.timed:
             self._selection_y = min(self._selection_y + 1, len(self._objs) - 1)
 
-        if self._selection_x == INPUT_BOXES_COL_I and self._selection_y != prev_selection_i_y:
-            prev_input_box: NumInputBox = self._objs[prev_selection_i_y][INPUT_BOXES_COL_I]
-            input_box: NumInputBox      = self._objs[self._selection_y ][INPUT_BOXES_COL_I]
+        input_box: NumInputBox = self._objs[self._selection_y][_INPUT_BOXES_COL_I]
+        if input_box != prev_input_box:
             input_box.cursor_i = input_box.text_label.get_closest_to(prev_input_box.cursor_rect.x)
 
     def _upt_scrollbars(self: Self) -> None:
-        """Updates scrollbars and selection."""
+        """Updates the scrollbars and selection."""
 
         i: int
         channel: _ColorScrollbar
@@ -380,7 +382,7 @@ class ColorPicker(UI):
         is_exiting: bool
         is_confirming: bool
 
-        if KEYBOARD.timed != []:
+        if KEYBOARD.timed != ():
             self._handle_move_with_keys()
 
         prev_rgb_color: RGBColor = (

@@ -4,7 +4,7 @@ Drawing program for pixel art.
 
 ## Install instructions
 
-Requires python 3.10.0 or higher, it can be installed from <https://www.python.org/downloads/>.\
+Requires python 3.14.0 or higher, it can be installed from <https://www.python.org/downloads/>.\
 Check with ```python3 --version```.
 
 1. Clone the repository ```git clone https://github.com/Aston7292/dixel.git```
@@ -63,7 +63,7 @@ if the program crashes the image will always be saved.
 **CTRL W**: Close file\
 **SHIFT H**: Mirror tool horizontally\
 **SHIFT V**: Mirror tool vertically\
-**CTRL SHIFT P**: Add palette\n
+**CTRL SHIFT P**: Add palette\
 **CTRL P 1-9**: Change palette\
 **CTRL A**: Go to add color UI\
 **CTRL G**: Go to edit grid UI\
@@ -120,7 +120,7 @@ if the program crashes the image will always be saved.
 
 **CTRL F**: Show/hide fps counter in settings\
 **CTRL C 1-5**: Change fps cap\
-**CTRL A 1-4**: change autosave behavior\
+**CTRL A 1-4**: change autosave mode\
 **CTRL S**: Choose crash save directory\
 **CTRL Z**: Invert zoom direction\
 **CTRL H 1-7**: Change grid history max size

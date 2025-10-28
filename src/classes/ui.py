@@ -11,7 +11,8 @@ from src.classes.devices import KEYBOARD
 
 from src.obj_utils import ObjInfo, resize_obj
 from src.type_utils import XY, BlitInfo, RectPos
-from src.consts import DARKER_GRAY, WIN_INIT_W, WIN_INIT_H, UI_LAYER
+from src.consts import DARKER_GRAY, UI_LAYER
+from src.win import WIN_INIT_W, WIN_INIT_H
 from src.imgs import CLOSE_OFF_IMG, CLOSE_ON_IMG, BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 
 _INTERFACE_IMG: Final[Surface] = Surface((512, 700))
@@ -40,8 +41,8 @@ class UI(ABC):
 
     __slots__ = (
         "_init_pos", "_rect",
+        "_title_text_label", "_exit", "_confirm",
         "hover_rects", "layer", "blit_sequence", "objs_info",
-        "_exit", "_confirm",
     )
 
     cursor_type: int = SYSTEM_CURSOR_ARROW
@@ -59,31 +60,29 @@ class UI(ABC):
         self._rect: Rect = Rect(0, 0, *_INTERFACE_IMG.get_size())
         setattr(self._rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
-        self.hover_rects: tuple[Rect, ...] = ()
-        self.layer: int = UI_LAYER
-        self.blit_sequence: list[BlitInfo] = [(_INTERFACE_IMG, self._rect, self.layer)]
-        self.objs_info: list[ObjInfo] = []
-
-        title_text_label: TextLabel = TextLabel(
+        self._title_text_label: TextLabel = TextLabel(
             RectPos(self._rect.centerx, self._rect.y + 16, "midtop"),
-            title, self.layer, h=35
+            title, UI_LAYER, h=35
         )
 
         self._exit: Button = Button(
             RectPos(self._rect.right - 10, self._rect.y + 10, "topright"),
-            [CLOSE_OFF_IMG, CLOSE_ON_IMG], None, "Escape", self.layer
+            (CLOSE_OFF_IMG, CLOSE_ON_IMG), None, "Escape", UI_LAYER
         )
 
         self._confirm: Button | None = None
         if should_have_confirm:
             self._confirm = Button(
                 RectPos(self._rect.right - 10, self._rect.bottom - 10, "bottomright"),
-                [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Confirm", "Enter", self.layer
+                (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "Confirm", "Enter", UI_LAYER
             )
 
-        self.objs_info.extend((ObjInfo(title_text_label), ObjInfo(self._exit)))
+        self.hover_rects: tuple[Rect, ...] = ()
+        self.layer: int = UI_LAYER
+        self.blit_sequence: list[BlitInfo] = [(_INTERFACE_IMG, self._rect, self.layer)]
+        self.objs_info: tuple[ObjInfo, ...] = (ObjInfo(self._title_text_label), ObjInfo(self._exit))
         if self._confirm is not None:
-            self.objs_info.append(ObjInfo(self._confirm))
+            self.objs_info += (ObjInfo(self._confirm),)
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -134,7 +133,7 @@ class UI(ABC):
         return is_exiting, is_confirming
 
     @abstractmethod
-    def upt(self: Self) -> tuple[bool, bool, Any]:
+    def upt(self: Self) -> tuple[bool, bool, *tuple[Any, ...]]:
         """
         Should implement a way to make the object interactable.
 

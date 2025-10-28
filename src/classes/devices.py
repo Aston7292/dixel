@@ -5,10 +5,9 @@ from typing import Self, Final
 from pygame import mouse, key
 from pygame.locals import *
 
-from src.obj_utils import UIElement
 import src.obj_utils as objs
-from src.type_utils import XY
 import src.vars as my_vars
+from src.obj_utils import UIElement
 
 _NUMPAD_FIRST_K: Final[int] = K_KP_1
 _NUMPAD_LAST_K: Final[int]  = K_KP_PERIOD
@@ -32,8 +31,8 @@ class _Mouse:
 
     __slots__ = (
         "x", "y", "prev_x", "prev_y",
-        "pressed", "released", "scroll_amount",
-        "hovered_obj", "_cursor_type",
+        "pressed", "released",
+        "scroll_amount", "_cursor_type", "hovered_obj",
     )
 
     def __init__(self: Self) -> None:
@@ -45,11 +44,11 @@ class _Mouse:
         self.prev_y: int = self.y
 
         self.pressed: tuple[bool, bool, bool] = (False, False, False)
-        self.released: list[bool] = [False, False, False, False, False]
-        self.scroll_amount: int = 0
+        self.released: tuple[bool, ...] = (False, False, False, False, False)
 
-        self.hovered_obj: UIElement | None = None
+        self.scroll_amount: int = 0
         self._cursor_type: int = SYSTEM_CURSOR_ARROW
+        self.hovered_obj: UIElement | None = None
 
     def refresh_pos(self: Self) -> None:
         """Refreshes the position, if a coordinate is outside the window it will be -1."""
@@ -57,21 +56,6 @@ class _Mouse:
         self.x, self.y = mouse.get_pos()
         if not mouse.get_focused():
             self.x, self.y = self.x or -1, self.y or -1
-
-    def refresh_hovered_obj(self: Self) -> None:
-        """Refreshes the hovered object with the get_hovering method of the active objects."""
-
-        state_active_objs: list[UIElement] = objs.state_active_objs
-        xy: XY = (self.x, self.y)
-        hovered_objs: list[UIElement] = [
-            obj for obj in state_active_objs for rect in obj.hover_rects if rect.collidepoint(xy)
-        ]
-
-        if hovered_objs == []:
-            self.hovered_obj = None
-        else:
-            hovered_objs.sort(key=lambda obj: -obj.layer)
-            self.hovered_obj = hovered_objs[0]
 
     def refresh_type(self: Self) -> None:
         """Refreshes the cursor type using the cursor_type attribute of the hovered object."""
@@ -85,12 +69,26 @@ class _Mouse:
         if self._cursor_type != prev_cursor_type:
             mouse.set_cursor(self._cursor_type)
 
+    def refresh_hovered_obj(self: Self) -> None:
+        """Refreshes the hovered object with the get_hovering method of the active objects."""
+
+        hovered_objs: list[UIElement] = [
+            obj
+            for obj in objs.state_active_objs
+            for rect in obj.hover_rects
+            if rect.x <= self.x < (rect.x + rect.w) and rect.y <= self.y < (rect.y + rect.h)
+        ]
+        self.hovered_obj = (
+            None if hovered_objs == [] else
+            sorted(hovered_objs, key=lambda obj: -obj.layer)[0]
+        )
+
 
 class _Keyboard:
     """Class to store keyboard info."""
 
     __slots__ = (
-        "raws", "pressed", "released", "timed",
+        "_raws", "pressed", "released", "timed",
         "is_ctrl_on", "is_shift_on", "is_alt_on", "is_numpad_on",
         "_timed_interval", "_prev_timed_refresh", "_alt_k",
     )
@@ -98,10 +96,10 @@ class _Keyboard:
     def __init__(self: Self) -> None:
         """Initializes the info."""
 
-        self.raws: list[int]    = []
-        self.pressed: list[int]  = []
-        self.released: list[int] = []
-        self.timed: list[int]    = []
+        self._raws: tuple[int, ...]    = ()
+        self.pressed: tuple[int, ...]  = ()
+        self.released: tuple[int, ...] = ()
+        self.timed: tuple[int, ...]    = ()
 
         self.is_ctrl_on: bool   = False
         self.is_shift_on: bool  = False
@@ -115,15 +113,15 @@ class _Keyboard:
     def refresh_timed(self: Self) -> None:
         """Fills the timed keys once every 128ms + acceleration and adds the alt_k if needed."""
 
-        if self.pressed == [] or (my_vars.ticks - self._prev_timed_refresh < self._timed_interval):
-            self.timed = []
+        if self.pressed == () or (my_vars.ticks - self._prev_timed_refresh < self._timed_interval):
+            self.timed = ()
         else:
-            self.timed = self.pressed.copy()
+            self.timed = self.pressed
             self._timed_interval = max(self._timed_interval - 8, 64)
             self._prev_timed_refresh = my_vars.ticks
 
         if self._alt_k != "" and not self.is_alt_on:
-            self.timed.append(int(self._alt_k))
+            self.timed += (int(self._alt_k),)
             self._alt_k = ""
 
     def add(self: Self, k: int) -> None:
@@ -152,12 +150,12 @@ class _Keyboard:
 
             self._alt_k = self._alt_k.lstrip("0")
         else:
-            self.raws.append(k)
-            self.pressed = [
+            self._raws += (k,)
+            self.pressed = tuple([
                 _NUMPAD_MAP[((k - _NUMPAD_FIRST_K) * 2) + numpad_offset]
                 if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else k
-                for k in self.raws
-            ]
+                for k in self._raws
+            ])
             self._alt_k = ""
 
         self._timed_interval = 128
@@ -176,25 +174,31 @@ class _Keyboard:
         self.is_alt_on    = (key.get_mods() & KMOD_ALT  ) != 0
         self.is_numpad_on = (key.get_mods() & KMOD_NUM  ) != 0
 
-        if k in self.raws:  # Numbers pressed with alt aren't inserted
-            remove_i: int = self.raws.index(k)
-            self.raws.pop(remove_i)
-            self.pressed.pop(remove_i)
+        if k in self._raws:  # Numbers pressed with alt aren't inserted
+            remove_i: int = self._raws.index(k)
+            self._raws = self._raws[:remove_i] + self._raws[remove_i + 1:]
+            self.pressed = self.pressed[:remove_i] + self.pressed[remove_i + 1:]
 
             numpad_offset: int = int(self.is_numpad_on)
-            self.pressed = [
+            self.pressed = tuple([
                 _NUMPAD_MAP[((k - _NUMPAD_FIRST_K) * 2) + numpad_offset]
                 if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else k
-                for k in self.raws
-            ]
+                for k in self._raws
+            ])
 
             if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K:
                 k_i: int = (k - _NUMPAD_FIRST_K) * 2
-                self.released.append(_NUMPAD_MAP[k_i + numpad_offset])
+                self.released += (_NUMPAD_MAP[k_i + numpad_offset],)
             else:
-                self.released.append(k)
+                self.released += (k,)
 
         self._timed_interval = 128
+
+    def clear(self: Self) -> None:
+        """Clears the keyboard data."""
+
+        self._raws = self.pressed = self.released = self.timed = ()
+        self.is_ctrl_on = self.is_shift_on = self.is_alt_on = self.is_numpad_on = False
 
 
 MOUSE: Final[_Mouse] = _Mouse()

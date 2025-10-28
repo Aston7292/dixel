@@ -9,8 +9,9 @@ from pygame import Rect
 
 from src.type_utils import XY, WH, BlitInfo, RectPos
 
-states_info: list[list["ObjInfo"]] = [[]]
-state_active_objs: list["UIElement"] = []
+states_info: tuple[tuple[ObjInfo, ...], ...] = ((),)
+state_active_objs: tuple[UIElement, ...] = ()
+state_i: int = 0
 
 
 class UIElement(Protocol):
@@ -36,7 +37,7 @@ class UIElement(Protocol):
         """
 
     @property
-    def objs_info(self: Self) -> list["ObjInfo"]:
+    def objs_info(self: Self) -> tuple[ObjInfo, ...]:
         """
         Gets the sub objects info.
 
@@ -65,33 +66,35 @@ class ObjInfo:
             activate flag
         """
 
-        objs_info: list[ObjInfo] = [self]
-        while objs_info != []:
-            info: ObjInfo = objs_info.pop()
-            if info.is_active != should_activate:
+        if self.is_active != should_activate:
+            objs_info: list[ObjInfo] = [self]
+            while objs_info != []:
+                info: ObjInfo = objs_info.pop()
                 info.is_active = should_activate
-
                 if should_activate:
                     info.obj.enter()
-                    state_active_objs.append(info.obj)
                 else:
                     info.obj.leave()
-                    if info.obj in state_active_objs:
-                        state_active_objs.remove(info.obj)
 
-            objs_info.extend(info.obj.objs_info)
+                objs_info.extend(info.obj.objs_info)
+
+            global state_active_objs
+            state_active_objs = tuple([
+                info.obj
+                for info in states_info[state_i] if info.is_active
+            ])
 
 
 def resize_obj(
-        init_pos: RectPos, init_w: float, init_h: float, win_w_ratio: float, win_h_ratio: float,
-        should_keep_wh_ratio: bool = False
+        init_pos: RectPos, init_w: float, init_h: float,
+        win_w_ratio: float, win_h_ratio: float, should_keep_wh_ratio: bool = False
 ) -> tuple[XY, WH]:
     """
     Scales position and size of an object without creating gaps between attached objects.
 
     Args:
-        initial position, initial width, initial height, window width ratio, window height ratio
-        keep size ratio flag (default = False)
+        initial position, initial width, initial height,
+        window width ratio, window height ratio keep size ratio flag (default = False)
     Returns:
         position, size
     """
@@ -129,10 +132,10 @@ def rec_move_rect(
 
         move_rect: Callable[[int, int, float, float], None] = obj.move_rect
         init_pos: RectPos = obj.init_pos
-        if obj != main_obj:
-            move_rect(init_pos.x + change_x, init_pos.y + change_y, win_w_ratio, win_h_ratio)
-        else:
+        if obj == main_obj:
             change_x, change_y = init_x - init_pos.x, init_y - init_pos.y
             move_rect(init_x, init_y, win_w_ratio, win_h_ratio)
+        else:
+            move_rect(init_pos.x + change_x, init_pos.y + change_y, win_w_ratio, win_h_ratio)
 
         objs_list.extend([info.obj for info in obj.objs_info])

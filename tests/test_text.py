@@ -50,7 +50,7 @@ class TestTextLabel(TestCase):
         self.assertEqual(text_label.layer, 1 + TEXT_LAYER)
 
         lines: list[str] = text_label.text.split("\n")
-        for img, line in zip(text_label.imgs, lines, strict=True):
+        for img, line in zip(text_label._imgs, lines, strict=True):
             expected_img: pg.Surface = expected_renderer.render(
                 line, True, WHITE, WHITE
             ).convert_alpha()
@@ -70,7 +70,7 @@ class TestTextLabel(TestCase):
 
         expected_sequence: list[BlitInfo] = [
             (img, rect, text_label.layer)
-            for img, rect in zip(text_label.imgs, text_label._rects, strict=True)
+            for img, rect in zip(text_label._imgs, text_label._rects, strict=True)
         ]
 
         self.assertListEqual(text_label.blit_sequence, expected_sequence)
@@ -99,7 +99,7 @@ class TestTextLabel(TestCase):
         self.assertIs(text_label._renderer, expected_renderer)
 
         lines: list[str] = text_label.text.split("\n")
-        for img, line in zip(text_label.imgs, lines, strict=True):
+        for img, line in zip(text_label._imgs, lines, strict=True):
             expected_img: pg.Surface = expected_renderer.render(
                 line, True, WHITE, WHITE
             ).convert_alpha()
@@ -120,14 +120,14 @@ class TestTextLabel(TestCase):
 
         expected_rect: pg.Rect = pg.Rect()
         expected_rect.size = (
-            max([img.get_width() for img in text_label.imgs]),
-            sum([img.get_height() for img in text_label.imgs])
+            max([img.get_width() for img in text_label._imgs]),
+            sum([img.get_height() for img in text_label._imgs])
         )
         expected_rect.center = (2, 3)
 
         expected_rects: list[pg.Rect] = []
         expected_line_rect_x, expected_line_rect_y = expected_rect.topleft
-        for img in text_label.imgs:
+        for img in text_label._imgs:
             expected_line_rect: pg.Rect = pg.Rect(
                 expected_line_rect_x, expected_line_rect_y, expected_rect.w, img.get_height()
             )
@@ -178,7 +178,7 @@ class TestTextLabel(TestCase):
 
         lines: list[str] = text_label.text.split("\n")
         expected_renderer: pg.Font = pg.font.SysFont("helvetica", 60)
-        for img, line in zip(text_label.imgs, lines, strict=True):
+        for img, line in zip(text_label._imgs, lines, strict=True):
             expected_img: pg.Surface = expected_renderer.render(
                 line, True, WHITE, WHITE
             ).convert_alpha()

@@ -4,8 +4,8 @@ from unittest import TestCase, mock
 from unittest.mock import Mock
 from typing import Self
 
-from src.obj_utils import ObjInfo, resize_obj, rec_move_rect
 import src.obj_utils as objs
+from src.obj_utils import ObjInfo, resize_obj, rec_move_rect
 from src.type_utils import XY, WH, RectPos
 
 from tests.utils import DummyUIElement

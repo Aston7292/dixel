@@ -4,9 +4,9 @@ from typing import Self
 
 from pygame import Surface, Rect, Color, draw, SYSTEM_CURSOR_ARROW
 
-from src.obj_utils import ObjInfo, resize_obj
-from src.type_utils import XY, BlitInfo, RectPos
 import src.vars as my_vars
+from src.obj_utils import ObjInfo, resize_obj
+from src.type_utils import XY, WH, BlitInfo, RectPos
 from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, ANIMATION_GROW, ANIMATION_SHRINK
 
 
@@ -14,19 +14,22 @@ class UnsavedIcon:
     """Class to indicate an unsaved file."""
 
     __slots__ = (
-        "init_radius", "_normal_radius", "_radius", "_min_radius", "_max_radius",
-        "rect", "frame_rect",
+        "init_pos", "init_radius",
+        "_normal_radius", "_radius", "_min_radius", "_max_radius",
+        "_rect", "_frame_rect",
         "_color", "_animation_i",
         "hover_rects", "layer", "blit_sequence",
     )
 
     cursor_type: int = SYSTEM_CURSOR_ARROW
-    objs_info: list[ObjInfo] = []
+    objs_info: tuple[ObjInfo, ...] = ()
 
     def __init__(self: Self) -> None:
         """Creates image and rect."""
 
+        self.init_pos: RectPos = RectPos(0, 0, "midleft")
         self.init_radius: int = 8
+
         self._normal_radius: float = self.init_radius
         self._radius: float = 0
         self._min_radius: float = self._normal_radius
@@ -37,21 +40,21 @@ class UnsavedIcon:
             round((self._radius * 2) + 1),
             round((self._radius * 2) + 1),
         ))
-        self.rect: Rect = Rect(
+        self._rect: Rect = Rect(
             0, 0,
             # Prevents cutoffs
             round((self._max_radius * 2) + 1),
             round((self._max_radius * 2) + 1)
         )
-        self.frame_rect: Rect = Rect(0, 0, *img.get_size())
-        self.frame_rect.center = self.rect.center
+        self._frame_rect: Rect = Rect(0, 0, *img.get_size())
+        self._frame_rect.center = self._rect.center
 
         self._color: Color = WHITE
         self._animation_i: int | None = None
 
         self.hover_rects: tuple[Rect, ...] = ()
         self.layer: int = BG_LAYER
-        self.blit_sequence: list[BlitInfo] = [(img, self.frame_rect, ELEMENT_LAYER)]
+        self.blit_sequence: list[BlitInfo] = [(img, self._frame_rect, ELEMENT_LAYER)]
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -82,12 +85,35 @@ class UnsavedIcon:
         self._min_radius = self._normal_radius * min_radius_ratio
         self._max_radius = self._normal_radius * max_radius_ratio
 
-        self.rect.size = (
+        self._rect.size = (
             # Prevents cutoffs
             round((self._max_radius * 2) + 1),
             round((self._max_radius * 2) + 1),
         )
         self.set_radius(self._normal_radius * radius_ratio)
+
+    def move_rect(
+            self: Self, init_x: int, init_y: int,
+            win_w_ratio: float, win_h_ratio: float
+    ) -> None:
+        """
+        Moves the rect and frame_rect to a specific coordinate.
+
+        Args:
+            initial x, initial y, window width ratio, window height ratio
+        """
+
+        xy: XY
+        _wh: WH
+
+        self.init_pos.x, self.init_pos.y = init_x, init_y  # More accurate
+        xy, _wh = resize_obj(
+            self.init_pos, init_w=0, init_h=0,
+            win_w_ratio=win_w_ratio, win_h_ratio=win_h_ratio
+        )
+
+        setattr(self._rect, self.init_pos.coord_type, xy)
+        self._frame_rect.center = self._rect.center
 
     def set_radius(self: Self, radius: float) -> None:
         """
@@ -104,27 +130,27 @@ class UnsavedIcon:
             round((self._radius * 2) + 1),
             round((self._radius * 2) + 1),
         ))
-        self.frame_rect.size = img.get_size()
-        self.frame_rect.center = self.rect.center
+        self._frame_rect.size = img.get_size()
+        self._frame_rect.center = self._rect.center
         draw.aacircle(
             img, self._color,
-            (self.frame_rect.w / 2, self.frame_rect.h / 2), self._radius
+            (self._frame_rect.w / 2, self._frame_rect.h / 2), self._radius
         )
 
         self.blit_sequence = (
-            [] if self.frame_rect.w == 0 else
-            [(img, self.frame_rect, ELEMENT_LAYER)]
+            [] if self._frame_rect.w == 0 else
+            [(img, self._frame_rect, ELEMENT_LAYER)]
         )
 
-    def set_animation(self: Self, i: int, color: Color, should_go_to_0: bool) -> None:
+    def set_animation(self: Self, animation_i: int, color: Color, should_go_to_0: bool) -> None:
         """
         Sets the animation info.
 
         Args:
-            index, color, go to 0 flag
+            animation index, color, go to 0 flag
         """
 
-        self._animation_i = i
+        self._animation_i = animation_i
         self._color = color
         self._min_radius = 0 if should_go_to_0 else self._normal_radius
 

@@ -19,15 +19,15 @@ class CheckboxGrid:
 
     __slots__ = (
         "_init_pos", "_num_cols", "_increment_x", "_increment_y",
-        "checkboxes", "_hovered_checkbox",
-        "clicked_i", "prev_clicked_i", "rect",
+        "checkboxes", "_hovered_checkbox", "rect",
+        "clicked_i", "prev_clicked_i",
         "hover_rects", "layer", "blit_sequence", "_win_w_ratio", "_win_h_ratio",
     )
 
     cursor_type: int = SYSTEM_CURSOR_ARROW
 
     def __init__(
-            self: Self, pos: RectPos, info: list[tuple[pg.Surface, str]],
+            self: Self, pos: RectPos, info: tuple[tuple[pg.Surface, str], ...],
             num_cols: int, should_invert_cols: bool, should_invert_rows: bool,
             base_layer: int = BG_LAYER
     ) -> None:
@@ -35,8 +35,8 @@ class CheckboxGrid:
         Creates the checkboxes and finds the visible ones.
 
         Args:
-            position, checkboxes images and hovering texts, columns, invert columns flag,
-            invert rows flag, base layer (default = BG_LAYER)
+            position, checkboxes images and hovering texts,
+            columns, invert columns flag, invert rows flag, base layer (default = BG_LAYER)
         """
 
         i: int
@@ -51,12 +51,12 @@ class CheckboxGrid:
         self._increment_x: int = -(checkbox_w + 10) if should_invert_cols else checkbox_w + 10
         self._increment_y: int = -(checkbox_h + 10) if should_invert_rows else checkbox_h + 10
 
-        self.checkboxes: list[LockedCheckbox] = []
+        self.checkboxes: tuple[LockedCheckbox, ...] = ()
         self._hovered_checkbox: LockedCheckbox | None = None
+        self.rect: pg.Rect = pg.Rect()
 
         self.clicked_i: int = 0
         self.prev_clicked_i: int = self.clicked_i
-        self.rect: pg.Rect = pg.Rect(0, 0, 0, 0)
 
         self.hover_rects: tuple[pg.Rect, ...] = (self.rect,)
         self.layer: int = base_layer
@@ -68,12 +68,12 @@ class CheckboxGrid:
             init_x: int = self._init_pos.x + (self._increment_x * (i %  self._num_cols))
             init_y: int = self._init_pos.y + (self._increment_y * (i // self._num_cols))
 
-            self.checkboxes.append(
+            self.checkboxes += (
                 LockedCheckbox(
                     RectPos(init_x, init_y, self._init_pos.coord_type),
-                    [img, add_border(img, WHITE)], hovering_text, self.layer
+                    (img, add_border(img, WHITE)), hovering_text, self.layer
                 )
-            )
+            ,)
 
         rects: list[pg.Rect] = [checkbox.rect for checkbox in self.checkboxes]
         rects_xs: list[int] = [rect.x for rect in rects]
@@ -120,7 +120,7 @@ class CheckboxGrid:
         )
 
     @property
-    def objs_info(self: Self) -> list[ObjInfo]:
+    def objs_info(self: Self) -> tuple[ObjInfo, ...]:
         """
         Gets the sub objects info.
 
@@ -128,7 +128,7 @@ class CheckboxGrid:
             objects info
         """
 
-        return [ObjInfo(checkbox) for checkbox in self.checkboxes]
+        return tuple([ObjInfo(checkbox) for checkbox in self.checkboxes])
 
     def check(self: Self, clicked_i: int) -> None:
         """
@@ -215,7 +215,7 @@ class CheckboxGrid:
 
         if (
             (MOUSE.hovered_obj == self or self._hovered_checkbox is not None) and
-            KEYBOARD.pressed != []
+            KEYBOARD.pressed != ()
         ):
             self._handle_move_with_left_right()
             self._handle_move_with_up_down()

@@ -2,17 +2,13 @@
 
 from typing import Literal, Final
 
-from pygame import Color, event
 import numpy as np
+from pygame import Color, event
 from numpy import uint8
 from numpy.typing import NDArray
 
 from src.type_utils import RGBColor, HexColor
 
-
-MOUSE_LEFT: Final[Literal[0]]  = 0
-MOUSE_WHEEL: Final[Literal[1]] = 1
-MOUSE_RIGHT: Final[Literal[2]] = 2
 
 BLACK: Final[Color]       = Color(0  , 0  , 0)
 WHITE: Final[Color]       = Color(255, 255, 255)
@@ -21,9 +17,6 @@ DARKER_GRAY: Final[Color] = Color(50 , 50 , 50)
 _RGB_LIGHT_GRAY: Final[RGBColor] = (70, 70, 70)
 _RGB_DARK_GRAY: Final[RGBColor]  = (60, 60, 60)
 HEX_BLACK: Final[HexColor] = "000000"
-
-WIN_INIT_W: Final[int] = 1_250
-WIN_INIT_H: Final[int] = 900
 
 # Flips rows and cols because, when making it a surface, pygame uses it like this
 EMPTY_TILE_ARR: Final[NDArray[uint8]] = np.array(
@@ -37,7 +30,16 @@ TILE_W: Final[int] = EMPTY_TILE_ARR.shape[0]
 TILE_H: Final[int] = EMPTY_TILE_ARR.shape[1]
 
 FILE_ATTEMPT_START_I: Final[int] = 4
-FILE_ATTEMPT_STOP_I: Final[int]  = 8
+FILE_ATTEMPT_STOP_I: Final[int]  = 9
+
+MOUSE_LEFT: Final[Literal[0]]  = 0
+MOUSE_WHEEL: Final[Literal[1]] = 1
+MOUSE_RIGHT: Final[Literal[2]] = 2
+
+STATE_I_MAIN: Final[int]     = 0
+STATE_I_COLOR: Final[int]    = 1
+STATE_I_GRID: Final[int]     = 2
+STATE_I_SETTINGS: Final[int] = 4
 
 BG_LAYER: Final[int]      = 0
 ELEMENT_LAYER: Final[int] = 1
@@ -53,3 +55,5 @@ SETTINGS_FPS_ACTIVENESS_CHANGE: Final[int]   = event.custom_type()
 SETTINGS_CRASH_SAVE_DIR_CHOICE: Final[int]   = event.custom_type()
 SETTINGS_ZOOM_DIRECTION_CHANGE: Final[int]   = event.custom_type()
 SETTINGS_HISTORY_MAX_SIZE_CHANGE: Final[int] = event.custom_type()
+
+del _RGB_LIGHT_GRAY, _RGB_DARK_GRAY

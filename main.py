@@ -71,10 +71,9 @@ Interacting with elements:
 ----------TODO----------
 - text with hovering text
 - split Dixel
-- more extensions
 - option to change the palette to match the active colors
 - UI to view grid history
-- option to make drawing only affect the visible_area?
+- dropdown with scrollbar
 - custom utility wins
 - have multiple files open
 - handle old data files
@@ -87,16 +86,14 @@ Interacting with elements:
 
 - GRID_UI:
     - separate minimap from grid and place minimap in grid UI
-    - add option to change offset and visible_area?
-    - move image before resizing?
+    - move image
 
 - TOOLS_MANAGER:
     - pencil (different shapes?, smooth edges?)
     - draw line (pixelated?)
-    - draw rectangle (auto fill)
     - draw circle, semi circle and ellipse (auto fill, pixelated?)
-    - copy and paste (flip and rotate?)
-    - move, flip or rotate section (affects all grid)
+    - copy and paste
+    - move, flip or rotate section
     - change brightness of tile/area
     - scale section
 
@@ -106,7 +103,6 @@ optimizations:
 
 import os
 import json
-
 from tkinter import filedialog, messagebox
 from threading import Thread
 from pathlib import Path
@@ -114,94 +110,80 @@ from json import JSONDecodeError
 from collections import deque
 from sys import argv, stderr
 from io import BytesIO
-from traceback import format_exc
-from typing import Self, TypeAlias, Final, Any
+from typing import NoReturn, Self, TypeAlias, Final, Any
 
 os.environ["PYGAME_BLEND_ALPHA_SDL2"]    = "1"
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+
 import pygame as pg
-from pygame.locals import *
 import numpy as np
+from pygame.locals import *
 from numpy import uint8
 from numpy.typing import NDArray
+from PIL import Image
 
+from src.win import WIN, WIN_SURF, WIN_INIT_W, WIN_INIT_H
+
+from src.classes.grid_ui import GridUI
+from src.classes.color_ui import ColorPicker
+from src.classes.settings_ui import (
+    SettingsUI,
+    AUTOSAVE_MODE_NEVER, AUTOSAVE_MODE_CRASH, AUTOSAVE_MODE_INTERRUPT,
+)
+from src.classes.grid_manager import GridManager
+from src.classes.tools_manager import ToolsManager, ToolInfo
+from src.classes.palettes_manager import PalettesManager
 from src.classes.checkbox_grid import CheckboxGrid
 from src.classes.clickable import Checkbox, Button
 from src.classes.text_label import TextLabel
 from src.classes.unsaved_icon import UnsavedIcon
 from src.classes.devices import MOUSE, KEYBOARD
 
-from src.utils import (
-    get_pixels, get_brush_dim_checkbox_info,
-    prettify_path, try_read_file, try_write_file, handle_file_os_error,
-    try_get_paths, try_create_dir, try_remove_element,
-    print_funcs_profiles,
-)
-from src.obj_utils import UIElement, ObjInfo, rec_move_rect
 import src.obj_utils as objs
-from src.lock_utils import LockError, FileError, try_lock_file
-from src.type_utils import XY, WH, RGBColor, HexColor, BlitInfo, RectPos
 import src.vars as my_vars
+from src.utils import get_pixels, get_brush_dim_checkbox_info, print_funcs_profiles
+from src.obj_utils import UIElement, ObjInfo, rec_move_rect
+from src.file_utils import (
+    FileError, prettify_path, handle_file_os_error,
+    try_read_file, try_write_file, try_replace_file, try_remove_file,
+    try_get_paths, try_create_dir,
+)
+from src.lock_utils import LockError, try_lock_file
+from src.type_utils import XY, WH, RGBColor, HexColor, BlitInfo, RectPos
 from src.consts import (
     BLACK, WHITE, HEX_BLACK,
-    WIN_INIT_W, WIN_INIT_H,
     FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I,
+    STATE_I_MAIN, STATE_I_COLOR, STATE_I_GRID, STATE_I_SETTINGS,
     ANIMATION_GROW, ANIMATION_SHRINK,
     SETTINGS_FPS_ACTIVENESS_CHANGE, SETTINGS_CRASH_SAVE_DIR_CHOICE,
     SETTINGS_ZOOM_DIRECTION_CHANGE, SETTINGS_HISTORY_MAX_SIZE_CHANGE,
 )
-
-# TODO: screenshots
-_i: int
-for _i in range(5):
-    pg.font.init()  # Others aren't used
-pg.key.stop_text_input()
-
-# Window gets focused before starting, so it doesn't appear when exiting early
-_WIN: Final[pg.Window] = pg.Window(
-    "Dixel", (WIN_INIT_W, WIN_INIT_H),
-    hidden=True, resizable=True, allow_high_dpi=True
-)
-_WIN_SURF: Final[pg.Surface] = _WIN.get_surface()
-_WIN.minimum_size = (950, 600)
-
-# These files load images at the start which requires a window
 from src.imgs import (
     ICON_IMG,
     BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG, BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG,
     X_MIRROR_OFF_IMG, X_MIRROR_ON_IMG, Y_MIRROR_OFF_IMG, Y_MIRROR_ON_IMG,
     SETTINGS_OFF_IMG, SETTINGS_ON_IMG,
 )
-from src.classes.grid_ui import GridUI
-from src.classes.color_ui import ColorPicker
-from src.classes.grid_manager import GridManager
-from src.classes.settings_ui import (
-    SettingsUI,
-    AUTOSAVE_BEHAVIOR_NEVER, AUTOSAVE_BEHAVIOR_CRASH, AUTOSAVE_BEHAVIOR_INTERRUPT,
-)
-from src.classes.tools_manager import ToolsManager, ToolInfo
-from src.classes.palettes_manager import PalettesManager
+WIN.set_icon(ICON_IMG)
 
 _StatesObjInfo: TypeAlias = tuple[tuple[ObjInfo, ...], ...]
 _IgnoredExceptions: TypeAlias = tuple[type[Exception], ...] | None
 
-_WIN.set_icon(ICON_IMG)
-
 _SAVE: Final[Button] = Button(
     RectPos(0, 0, "topleft"),
-    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Save"   , "(CTRL+S)"      , text_h=16
+    (BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG), "Save"   , "(CTRL+S)"      , text_h=16
 )
 _SAVE_AS: Final[Button] = Button(
     RectPos(_SAVE.rect.right, _SAVE.rect.y, "topleft"),
-    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Save As", "(CTRL+SHIFT+S)", text_h=16
+    (BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG), "Save As", "(CTRL+SHIFT+S)", text_h=16
 )
 _OPEN: Final[Button] = Button(
     RectPos(_SAVE_AS.rect.right, _SAVE_AS.rect.y, "topleft"),
-    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Open"   , "(CTRL+O)"      , text_h=16
+    (BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG), "Open"   , "(CTRL+O)"      , text_h=16
 )
 _CLOSE: Final[Button] = Button(
     RectPos(_OPEN.rect.right, _OPEN.rect.y, "topleft"),
-    [BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG], "Close"  , "(CTRL+W)"      , text_h=16
+    (BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG), "Close"  , "(CTRL+W)"      , text_h=16
 )
 
 _GRID_MANAGER: Final[GridManager] = GridManager(
@@ -211,29 +193,29 @@ _GRID_MANAGER: Final[GridManager] = GridManager(
 
 _BRUSH_DIMS: Final[CheckboxGrid] = CheckboxGrid(
     RectPos(10, _SAVE_AS.rect.bottom + 10, "topleft"),
-    [get_brush_dim_checkbox_info(dim) for dim in range(1, 6)],
+    tuple([get_brush_dim_checkbox_info(dim) for dim in range(1, 6)]),
     num_cols=5, should_invert_cols=False, should_invert_rows=False
 )
 _X_MIRROR: Final[Checkbox] = Checkbox(
     RectPos(_BRUSH_DIMS.rect.x       , _BRUSH_DIMS.rect.bottom + 10, "topleft"),
-    [X_MIRROR_OFF_IMG, X_MIRROR_ON_IMG], None, "Mirror Horizontally\n(SHIFT+H)"
+    (X_MIRROR_OFF_IMG, X_MIRROR_ON_IMG), None, "Mirror Horizontally\n(SHIFT+H)"
 )
 _Y_MIRROR: Final[Checkbox] = Checkbox(
     RectPos(_X_MIRROR.rect.right + 10, _BRUSH_DIMS.rect.bottom + 10, "topleft"),
-    [Y_MIRROR_OFF_IMG, Y_MIRROR_ON_IMG], None, "Mirror Vertically\n(SHIFT+V)"
+    (Y_MIRROR_OFF_IMG, Y_MIRROR_ON_IMG), None, "Mirror Vertically\n(SHIFT+V)"
 )
 
 _ADD_COLOR: Final[Button] = Button(
     RectPos(WIN_INIT_W        - 10, WIN_INIT_H - 10, "bottomright"),
-    [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Add\nColor", "(CTRL+A)"
+    (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "Add\nColor", "(CTRL+A)"
 )
 _EDIT_GRID: Final[Button] = Button(
     RectPos(_ADD_COLOR.rect.x - 10, WIN_INIT_H - 10, "bottomright"),
-    [BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG], "Edit Grid" , "(CTRL+G)"
+    (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "Edit Grid" , "(CTRL+G)"
 )
 _OPEN_SETTINGS: Final[Button] = Button(
     RectPos(_GRID_MANAGER.grid.minimap_rect.x - 16, _GRID_MANAGER.grid.minimap_rect.y, "topright"),
-    [SETTINGS_OFF_IMG, SETTINGS_ON_IMG], None, "(CTRL+COMMA)"
+    (SETTINGS_OFF_IMG, SETTINGS_ON_IMG), None, "(CTRL+COMMA)"
 )
 
 _PALETTES_MANAGER: Final[PalettesManager] = PalettesManager(
@@ -257,10 +239,6 @@ _COLOR_PICKER: Final[ColorPicker] = ColorPicker()
 _GRID_UI: Final[GridUI]           = GridUI()
 _SETTINGS_UI: Final[SettingsUI]   = SettingsUI()
 
-_STATE_I_MAIN: Final[int]     = 0
-_STATE_I_COLOR: Final[int]    = 1
-_STATE_I_GRID: Final[int]     = 2
-_STATE_I_SETTINGS: Final[int] = 4
 _FPS_TEXT_LABEL_OBJ_INFO: Final[ObjInfo] = ObjInfo(_FPS_TEXT_LABEL)
 _STATES_MAIN_OBJS_INFO: Final[_StatesObjInfo] = (
     (
@@ -299,6 +277,22 @@ _TIMED_UPDATE_1000: Final[int]          = pg.event.custom_type()
 _CLOCK: Final[pg.Clock] = pg.Clock()
 
 
+def stop(e: BaseException) -> NoReturn:
+    """
+    Exits gracefully.
+
+    Args:
+        exception
+    Raises:
+        exception
+    """
+
+    WIN.destroy()
+    pg.quit()
+    print_funcs_profiles()
+
+    raise e
+
 def _ensure_valid_img_format(file_str: str) -> str:
     """
     Changes a path to a png if it's not a supported format.
@@ -317,7 +311,7 @@ def _ensure_valid_img_format(file_str: str) -> str:
     sections: list[str] = file_path.name.rsplit(".", maxsplit=1)
     if len(sections) == 1:
         sections.append("png")
-    elif sections[1] not in ("png", "bmp"):
+    elif sections[1] not in ("png", "webp", "bmp", "tiff", "dds", "tga", "ico"):
         sections[1] = "png"
 
     return str(file_path.parent / f"{sections[0]}.{sections[1]}")
@@ -337,7 +331,7 @@ def _try_get_grid_img(file_str: str, ignored_exceptions: _IgnoredExceptions) -> 
     should_retry: bool
 
     file_path: Path = Path(file_str)
-    img: pg.Surface | None = None
+    pg_img: pg.Surface | None = None
 
     exception: type[Exception] | None = None
     error_str: str = ""
@@ -345,33 +339,33 @@ def _try_get_grid_img(file_str: str, ignored_exceptions: _IgnoredExceptions) -> 
         try:
             with file_path.open("rb") as f:
                 try_lock_file(f, is_shared=True)
-                img_bytes: BytesIO = BytesIO(try_read_file(f))
-                img = pg.image.load(img_bytes, namehint=file_path.name).convert_alpha()
+                img_bytes_io: BytesIO = BytesIO(try_read_file(f))
+                img: Image.Image = Image.open(img_bytes_io).convert("RGBA")
+                pg_img = pg.image.frombytes(img.tobytes(), img.size, "RGBA").convert_alpha()
             break
         except (FileNotFoundError, PermissionError, LockError, FileError, pg.error) as e:
-            errors_str: dict[type[Exception], str] = {
+            exception = type(e)
+            error_str = {
                 FileNotFoundError: "File missing.",
                 PermissionError: "Permission denied.",
                 LockError: "File locked.",
                 FileError: e.error_str if isinstance(e, FileError) else "",
                 pg.error: str(e),
-            }
+            }[exception]
 
-            exception = type(e)
-            error_str = errors_str[exception]
             break
         except OSError as e:
+            exception = type(e)
             error_str, should_retry = handle_file_os_error(e)
             if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
                 pg.time.wait(2 ** attempt_i)
                 continue
 
-            exception = type(e)
             break
 
-    if img is None and (ignored_exceptions is not None and exception not in ignored_exceptions):
+    if pg_img is None and (ignored_exceptions is not None and exception not in ignored_exceptions):
         messagebox.showerror("Image Load Failed", f"{file_path.name}: {error_str}")
-    return img
+    return pg_img
 
 
 class _Dixel:
@@ -389,8 +383,8 @@ class _Dixel:
 
         obj: UIElement
 
-        self._orig_win_xy: XY = _WIN.position
-        self._orig_win_wh: WH = _WIN.size
+        self._orig_win_xy: XY = WIN.position
+        self._orig_win_wh: WH = WIN.size
         self._is_minimized: bool  = False
         self._is_maximized: bool  = False
         self._is_fullscreen: bool = False
@@ -403,7 +397,7 @@ class _Dixel:
         self._is_asking_file_open: bool      = False
         self._is_asking_crash_save_dir: bool = False
 
-        self._state_i: int = _STATE_I_MAIN
+        self._state_i: int = STATE_I_MAIN  # Used to sync objs.state_i when state changes
 
         self._load_data()
         self._load_palettes()
@@ -428,13 +422,13 @@ class _Dixel:
         for obj in objs.state_active_objs:
             obj.enter()
 
-        _WIN.show()
+        WIN.show()
         # It's better to modify the window after show
         if self._is_maximized:
-            _WIN.maximize()
+            WIN.maximize()
         if self._is_fullscreen:
-            _WIN.set_fullscreen(desktop=True)
-        _WIN.focus()
+            WIN.set_fullscreen(desktop=True)
+        WIN.focus()
 
         pg.time.set_timer(_TIMED_UPDATE_1000, 1_000)
 
@@ -476,7 +470,7 @@ class _Dixel:
 
             "fps_cap_i": 2,  # 60 FPS
             "is_fps_counter_active": True,
-            "autosave_behavior_i": 1,  # Always
+            "autosave_mode_i": 1,  # Always
             "crash_save_dir": str(Path().resolve()),
             "is_zooming_inverted": False,
             "grid_history_max_size_i": 5,  # 512
@@ -491,14 +485,13 @@ class _Dixel:
             except FileNotFoundError:
                 break
             except (PermissionError, JSONDecodeError, LockError, FileError) as e:
-                errors_str: dict[type[Exception], str] = {
+                error_str = {
                     PermissionError: "Permission denied.",
                     JSONDecodeError: "Invalid json.",
                     LockError: "File locked.",
                     FileError: e.error_str if isinstance(e, FileError) else "",
-                }
+                }[type(e)]
 
-                error_str = errors_str[type(e)]
                 messagebox.showerror("Data Load Failed", error_str)
                 break
             except OSError as e:
@@ -544,10 +537,10 @@ class _Dixel:
             _GRID_UI.checkbox.set_checked(True)
 
         if data["orig_win_xy"] != self._orig_win_xy:
-            _WIN.position = self._orig_win_xy = data["orig_win_xy"]
+            WIN.position = self._orig_win_xy = data["orig_win_xy"]
         if data["orig_win_wh"] != self._orig_win_wh:
             # Triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
-            _WIN.size     = self._orig_win_wh = data["orig_win_wh"]
+            WIN.size     = self._orig_win_wh = data["orig_win_wh"]
         self._is_maximized  = data["is_maximized"]
         self._is_fullscreen = data["is_fullscreen"]
 
@@ -579,19 +572,18 @@ class _Dixel:
             except FileNotFoundError:
                 break
             except (PermissionError, JSONDecodeError, LockError, FileError) as e:
-                errors_str: dict[type[Exception], str] = {
+                error_str = {
                     PermissionError: "Permission denied.",
                     JSONDecodeError: "Invalid json.",
                     LockError: "File locked.",
                     FileError: e.error_str if isinstance(e, FileError) else "",
-                }
+                }[type(e)]
 
-                error_str = errors_str[type(e)]
                 errors_list.append(f"{data_path}: {error_str}")
                 break
             except OSError as e:
                 error_str, should_retry = handle_file_os_error(e)
-                if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
+                if should_retry and errors_list == [] and attempt_i != FILE_ATTEMPT_STOP_I:
                     pg.time.wait(2 ** attempt_i)
                     continue
 
@@ -607,7 +599,7 @@ class _Dixel:
         error_str: str | None
         data: dict[str, Any]
 
-        palettes_paths, error_str = try_get_paths(Path("assets", "data", "palettes"))
+        palettes_paths, error_str = try_get_paths(Path("assets", "data", "palettes"), "*.dixel")
         if error_str is not None:
             messagebox.showerror("Palettes Folder Load Failed", error_str)
 
@@ -645,7 +637,7 @@ class _Dixel:
         _PALETTES_MANAGER.refresh_palette()
         _PALETTES_MANAGER.refresh_dropdown()
 
-    def _parse_argv(self: Self) -> list[str]:
+    def _parse_argv(self: Self) -> tuple[str, ...]:
         """
         Gets the file path and flags from cmd args.
 
@@ -655,19 +647,19 @@ class _Dixel:
 
         self._file_str = ""
 
-        flags: list[str] = []
+        flags: tuple[str, ...] = ()
         should_parse_flags: bool = True
         for arg in argv[1:]:
             if arg == "--":
                 should_parse_flags = False
             elif should_parse_flags and arg.startswith("--"):
-                flags.append(arg.lower())
+                flags += (arg.lower(),)
             elif self._file_str == "":
                 self._file_str = arg
 
         return flags
 
-    def _try_create_argv(self: Self, flags: list[str]) -> pg.Surface | None:
+    def _try_create_argv(self: Self, flags: tuple[str, ...]) -> pg.Surface | None:
         """
         Creates a file if --mk-file is in the flags and a directory if --mk-dir is in the flags.
 
@@ -695,12 +687,15 @@ class _Dixel:
 
         img: pg.Surface | None = None
         if should_create:
-            img = _GRID_MANAGER.grid.try_save(self._file_str, should_ask_create_dir=False)
+            img = _GRID_MANAGER.grid.try_save(
+                self._file_str,
+                should_ask_create_dir=False, should_use_gui=False
+            )
         return img
 
     def _handle_argv_path(self: Self) -> pg.Surface:
         """
-        Handles file opening with cmd args with retries.
+        Handles the file opening with cmd args with retries.
 
         Returns:
             grid image
@@ -712,7 +707,7 @@ class _Dixel:
         error_str: str
         should_retry: bool
 
-        flags: list[str] = self._parse_argv()
+        flags: tuple[str, ...] = self._parse_argv()
         if "--help" in flags:
             print(
                 f"Usage: {argv[0]} <file path> <optional flag>\n"
@@ -722,33 +717,32 @@ class _Dixel:
                 f"\t--mk-file: create file ({argv[0]} new_file --mk-file)\n"
                 f"\t--mk-dir: create directory ({argv[0]} new_dir/new_file --mk-dir)"
             )
-            pg.quit()
-            raise SystemExit
+            stop(SystemExit())
 
         self._file_str = _ensure_valid_img_format(self._file_str)
 
         file_path: Path = Path(self._file_str)
-        img: pg.Surface | None = None
+        pg_img: pg.Surface | None = None
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
             try:
                 with file_path.open("rb") as f:
                     try_lock_file(f, is_shared=True)
-                    img_bytes: BytesIO = BytesIO(try_read_file(f))
-                    img = pg.image.load(img_bytes, namehint=file_path.name).convert_alpha()
+                    img_bytes_io: BytesIO = BytesIO(try_read_file(f))
+                    img: Image.Image = Image.open(img_bytes_io).convert("RGBA")
+                    pg_img = pg.image.frombytes(img.tobytes(), img.size, "RGBA").convert_alpha()
                 break
             except FileNotFoundError:
-                img = self._try_create_argv(flags)
+                pg_img = self._try_create_argv(flags)
                 break
             except (PermissionError, LockError, FileError, pg.error) as e:
-                errors_str: dict[type[Exception], str] = {
+                error_str = {
                     PermissionError: "Permission denied.",
                     LockError: "File locked.",
                     FileError: e.error_str if isinstance(e, FileError) else "",
                     pg.error: str(e),
-                }
+                }[type(e)]
 
-                error_str = errors_str[type(e)]
-                print(f"Image Load Failed.\n{file_path.name}\n{error_str}", file=stderr)
+                print(f"Image Load Failed.\n{file_path.name}: {error_str}", file=stderr)
                 break
             except OSError as e:
                 error_str, should_retry = handle_file_os_error(e)
@@ -756,13 +750,12 @@ class _Dixel:
                     pg.time.wait(2 ** attempt_i)
                     continue
 
-                print(f"Image Load Failed.\n{file_path.name}\n{error_str}" , file=stderr)
+                print(f"Image Load Failed.\n{file_path.name}: {error_str}" , file=stderr)
                 break
 
-        if img is None:
-            pg.quit()
-            raise SystemExit
-        return img
+        if pg_img is None:
+            stop(SystemExit())
+        return pg_img
 
     def _refresh_file_text_label(self: Self) -> None:
         """Refreshes the file text label with the shortened path or with New File."""
@@ -772,11 +765,11 @@ class _Dixel:
         else:
             _FILE_TEXT_LABEL.set_text(prettify_path(self._file_str))
 
-        _UNSAVED_ICON.rect.midleft = (
-            _FILE_TEXT_LABEL.rect.right + 4,
-            _FILE_TEXT_LABEL.rect.centery,
+        rec_move_rect(
+            _UNSAVED_ICON,
+            _FILE_TEXT_LABEL.rect.right + 4, _FILE_TEXT_LABEL.rect.centery,
+            win_w_ratio=1, win_h_ratio=1
         )
-        _UNSAVED_ICON.frame_rect.center = _UNSAVED_ICON.rect.center
 
     def _refresh_objs(self: Self, should_refresh_only_active_state: bool) -> None:
         """
@@ -797,9 +790,11 @@ class _Dixel:
             # Reverses to have sub objects before the main one
             # When resizing the main object can use their resized attributes
             full_active_state_info.reverse()
-            objs.states_info[self._state_i] = full_active_state_info
+            states_info_list: list[tuple[ObjInfo, ...]] = list(objs.states_info)
+            states_info_list[self._state_i] = tuple(full_active_state_info)
+            objs.states_info = tuple(states_info_list)
         else:
-            objs.states_info = []
+            objs.states_info = ()
             for state_info in _STATES_MAIN_OBJS_INFO:
                 full_state_info: list[ObjInfo] = list(state_info)
                 for info in full_state_info:
@@ -808,21 +803,21 @@ class _Dixel:
                 # Reverses to have sub objects before the main one
                 # When resizing the main object can use their resized attributes
                 full_state_info.reverse()
-                objs.states_info.append(full_state_info)
+                objs.states_info += (tuple(full_state_info),)
 
-        objs.state_active_objs = [
+        objs.state_active_objs = tuple([
             info.obj
             for info in objs.states_info[self._state_i] if info.is_active
-        ]
+        ])
 
     def _handle_draw(self: Self) -> None:
         """Gets every blit_sequence attribute and draws it to the screen."""
 
-        blittable_objs: list[UIElement] = objs.state_active_objs.copy()
-        if self._state_i != _STATE_I_MAIN:
-            blittable_objs.extend([
+        blittable_objs: tuple[UIElement, ...] = objs.state_active_objs
+        if self._state_i != STATE_I_MAIN:
+            blittable_objs += tuple([
                 info.obj
-                for info in objs.states_info[_STATE_I_MAIN] if info.is_active
+                for info in objs.states_info[STATE_I_MAIN] if info.is_active
             ])
 
         main_sequence: list[BlitInfo] = sorted(
@@ -830,9 +825,9 @@ class _Dixel:
             key=lambda blit_info: blit_info[2]
         )
 
-        _WIN_SURF.fill(BLACK)
-        _WIN_SURF.fblits([(img, rect) for img, rect, _layer in main_sequence])
-        _WIN.flip()
+        WIN_SURF.fill(BLACK)
+        WIN_SURF.fblits([(img, rect) for img, rect, _layer in main_sequence])
+        WIN.flip()
 
     def _change_state(self: Self) -> None:
         """Leaves, refreshes, enters and resizes every state active objects."""
@@ -842,10 +837,11 @@ class _Dixel:
         for obj in objs.state_active_objs:
             obj.leave()
 
-        objs.state_active_objs = [
+        objs.state_i = self._state_i
+        objs.state_active_objs = tuple([
             info.obj
-            for info in objs.states_info[self._state_i] if info.is_active
-        ]
+            for info in objs.states_info[objs.state_i] if info.is_active
+        ])
 
         for obj in objs.state_active_objs:
             obj.enter()
@@ -857,22 +853,21 @@ class _Dixel:
 
         info: ObjInfo
 
-        resizable_objs_info: list[ObjInfo] = objs.states_info[self._state_i].copy()
-        if self._state_i != _STATE_I_MAIN:
-            resizable_objs_info.extend(objs.states_info[_STATE_I_MAIN])
+        resizable_objs_info: tuple[ObjInfo, ...] = objs.states_info[self._state_i]
+        if self._state_i != STATE_I_MAIN:
+            resizable_objs_info += objs.states_info[STATE_I_MAIN]
 
-        win_w_ratio: float = _WIN_SURF.get_width()  / WIN_INIT_W
-        win_h_ratio: float = _WIN_SURF.get_height() / WIN_INIT_H
+        win_w_ratio: float = WIN_SURF.get_width()  / WIN_INIT_W
+        win_h_ratio: float = WIN_SURF.get_height() / WIN_INIT_H
         for info in resizable_objs_info:
             info.obj.resize(win_w_ratio, win_h_ratio)
 
-        _UNSAVED_ICON.rect.midleft = (
-            _FILE_TEXT_LABEL.rect.right + 4,
-            _FILE_TEXT_LABEL.rect.centery,
+        # Minimap and text keep ratio
+        rec_move_rect(
+            _UNSAVED_ICON,
+            _FILE_TEXT_LABEL.rect.right + 4, _FILE_TEXT_LABEL.rect.centery,
+            win_w_ratio=1, win_h_ratio=1
         )
-        _UNSAVED_ICON.frame_rect.center = _UNSAVED_ICON.rect.center
-
-        # Minimap keeps ratio
         rec_move_rect(
             _OPEN_SETTINGS,
             _GRID_MANAGER.grid.minimap_rect.x - 16, _GRID_MANAGER.grid.minimap_rect.y,
@@ -884,7 +879,7 @@ class _Dixel:
             did_restore: bool, did_move: bool, did_resize: bool
     ) -> tuple[bool, bool, bool]:
         """
-        Handles window-related events.
+        Handles the window-related events.
 
         Args:
             event_type, did restore flag, did move flag, did resize flag
@@ -917,35 +912,35 @@ class _Dixel:
         Args:
             key
         Raises:
-            KeyboardInterrupt: on escape
+            SystemExit: on escape
         """
 
-        if k == K_ESCAPE and self._state_i == _STATE_I_MAIN:
-            raise KeyboardInterrupt
+        if k == K_ESCAPE and self._state_i == STATE_I_MAIN:
+            self._save(_EXIT_INTERRUPT, should_ask_create_dir=False)
+            stop(SystemExit())
 
         # Modifying the size triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
         if   k == K_F1:
             if self._is_fullscreen:
-                _WIN.set_windowed()
+                WIN.set_windowed()
             if self._is_maximized:
-                _WIN.restore()
+                WIN.restore()
 
             self._is_maximized = self._is_fullscreen = False
-            _WIN.size = (WIN_INIT_W, WIN_INIT_H)
-            _WIN.position = pg.WINDOWPOS_CENTERED
-            self._orig_win_xy = _WIN.position
+            WIN.size, WIN.position = (WIN_INIT_W, WIN_INIT_H), pg.WINDOWPOS_CENTERED
+            self._orig_win_xy = WIN.position
         elif k == K_F11:
             self._is_fullscreen = not self._is_fullscreen
             if self._is_fullscreen:
-                _WIN.set_fullscreen(desktop=True)
+                WIN.set_fullscreen(desktop=True)
             else:
-                _WIN.set_windowed()
+                WIN.set_windowed()
 
         KEYBOARD.add(k)
 
     def _handle_device_event(self: Self, event: pg.Event) -> None:
         """
-        Handles device-related events.
+        Handles the device-related events.
 
         Args:
             event
@@ -958,11 +953,7 @@ class _Dixel:
         elif event.type == KEYUP:
             KEYBOARD.remove(event.key)
         elif event.type == KEYMAPCHANGED:
-            KEYBOARD.raws = KEYBOARD.pressed = KEYBOARD.released = KEYBOARD.timed = []
-            KEYBOARD.is_ctrl_on   = False
-            KEYBOARD.is_shift_on  = False
-            KEYBOARD.is_alt_on    = False
-            KEYBOARD.is_numpad_on = False
+            KEYBOARD.clear()
 
     def _refresh_unsaved_icon(self: Self, unsaved_color: pg.Color) -> None:
         """
@@ -1022,11 +1013,8 @@ class _Dixel:
             self._new_file_str = ""
         else:
             self._new_file_str = file_str
-            self._state_i = _STATE_I_GRID
-            _GRID_UI.set_info(
-                _GRID_MANAGER.grid.cols, _GRID_MANAGER.grid.rows,
-                get_pixels(new_file_img)
-            )
+            self._state_i = STATE_I_GRID
+            _GRID_UI.set_info(get_pixels(new_file_img), _GRID_MANAGER.grid)
 
             self._change_state()
 
@@ -1104,8 +1092,7 @@ class _Dixel:
         for event in pg.event.get():
             if event.type == WINDOWCLOSE:
                 self._save(_EXIT_OK, should_ask_create_dir=False)
-                pg.quit()
-                raise SystemExit
+                stop(SystemExit())
 
             # Handled after everything is processed to have the updated flags
             if event.type in _WIN_EVENTS:
@@ -1129,9 +1116,9 @@ class _Dixel:
 
         if not (self._is_maximized or self._is_fullscreen):
             if did_win_move:
-                self._orig_win_xy = _WIN.position
+                self._orig_win_xy = WIN.position
             if did_win_resize:
-                self._orig_win_wh = _WIN.size
+                self._orig_win_wh = WIN.size
 
     def _handle_resize_with_keys(self: Self) -> None:
         """Handles resizing the window with the keyboard."""
@@ -1149,27 +1136,28 @@ class _Dixel:
 
         if win_w != self._orig_win_wh[0] or win_h != self._orig_win_wh[1]:
             # Triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
-            _WIN.size = (win_w, win_h)
+            WIN.size = (win_w, win_h)
 
-    def _save_palette(self: Self, i: int, errors_list: list[str]) -> None:
+    def _save_palette(self: Self, palette_i: int, errors_list: list[str]) -> None:
         """
         Saves a palette to a separate file with retries.
 
         Args:
-            index, errors list
+            palette index, errors list
         """
 
         error_str: str | None
         should_retry: bool
 
         data: dict[str, Any] = {
-            "color_i"    : _PALETTES_MANAGER.clicked_indexes[i],
-            "offset_y"   : _PALETTES_MANAGER.offsets_y[i],
-            "drop-down_i": _PALETTES_MANAGER.dropdown_indexes[i],
-            "colors"     : _PALETTES_MANAGER.palettes[i],
+            "color_i"    : _PALETTES_MANAGER.clicked_indexes[palette_i],
+            "offset_y"   : _PALETTES_MANAGER.offsets_y[palette_i],
+            "drop-down_i": _PALETTES_MANAGER.dropdown_indexes[palette_i],
+            "colors"     : _PALETTES_MANAGER.palettes[palette_i],
         }
 
-        palette_path: Path = Path("assets", "data", "palettes", f"palette_{i}.json")
+        palette_path: Path = Path("assets", "data", "palettes", f"palette_{palette_i}.dixel")
+        temp_palette_path: Path = palette_path.with_suffix(".tmp")
         palette_json: str = json.dumps(data, ensure_ascii=False, indent=4)
         palette_bytes: bytes = palette_json.encode("utf-8", errors="ignore")
 
@@ -1181,33 +1169,37 @@ class _Dixel:
         ):
             try:
                 # If you open in write mode it will clear the file even if it's locked
-                with palette_path.open("ab") as f:
+                with temp_palette_path.open("ab") as f:
                     try_lock_file(f, is_shared=False)
                     try_write_file(f, palette_bytes)
+                try_replace_file(temp_palette_path, palette_path)
                 break
             except FileNotFoundError:
+                if errors_list != []:
+                    break
+
                 dir_creation_attempt_i += 1
                 error_str = try_create_dir(palette_path.parent, dir_creation_attempt_i)
                 if error_str is not None:
-                    errors_list.append(f"Directory {palette_path.parent}: {error_str}")
+                    errors_list.append(f"Directory {error_str}")
                     break
             except (PermissionError, LockError, FileError) as e:
-                errors_str: dict[type[Exception], str] = {
+                error_str = {
                     PermissionError: "Permission denied.",
                     LockError: "File locked.",
                     FileError: e.error_str if isinstance(e, FileError) else "",
-                }
+                }[type(e)]
 
-                error_str = errors_str[type(e)]
                 errors_list.append(f"{palette_path}: {error_str}")
                 break
             except OSError as e:
                 system_attempt_i += 1
                 error_str, should_retry = handle_file_os_error(e)
-                if should_retry and system_attempt_i != FILE_ATTEMPT_STOP_I:
+                if should_retry and errors_list == [] and system_attempt_i != FILE_ATTEMPT_STOP_I:
                     pg.time.wait(2 ** system_attempt_i)
                     continue
 
+                try_remove_file(temp_palette_path)
                 errors_list.append(f"{palette_path}: {error_str}")
                 break
 
@@ -1219,17 +1211,10 @@ class _Dixel:
         palette_path: Path
         palette_i: int
 
-        # Offsets by 1 because of placeholder option
-        active_palette_i: int = _PALETTES_MANAGER.palette_dropdown.option_i - 1
-        clicked_i: int = _PALETTES_MANAGER.colors_grid.clicked_i
-        offset_y: int = _PALETTES_MANAGER.colors_grid.offset_y
-        _PALETTES_MANAGER.clicked_indexes[ active_palette_i] = clicked_i
-        _PALETTES_MANAGER.offsets_y[       active_palette_i] = offset_y
-        _PALETTES_MANAGER.dropdown_indexes[active_palette_i] = _PALETTES_MANAGER.dropdown_i
-
-        palettes_paths, _error_str = try_get_paths(Path("assets", "data", "palettes"))
+        _PALETTES_MANAGER.refresh_palettes_info(_PALETTES_MANAGER.palette_dropdown.option_i)
+        palettes_paths, _error_str = try_get_paths(Path("assets", "data", "palettes"), "*.dixel")
         for palette_path in palettes_paths:
-            try_remove_element(palette_path)
+            try_remove_file(palette_path)
 
         errors_list: list[str] = []
         for palette_i in range(len(_PALETTES_MANAGER.palettes)):
@@ -1247,12 +1232,12 @@ class _Dixel:
         """
 
         if exit_type != _EXIT_NO:
-            autosave_behavior_i: int = _SETTINGS_UI.autosave_dropdown.option_i
-            autosave_behavior: int = _SETTINGS_UI.autosave_dropdown.values[autosave_behavior_i]
+            autosave_mode_i: int = _SETTINGS_UI.autosave_dropdown.option_i
+            autosave_mode: int = _SETTINGS_UI.autosave_dropdown.values[autosave_mode_i]
             if (
-                 autosave_behavior == AUTOSAVE_BEHAVIOR_NEVER or
-                (autosave_behavior == AUTOSAVE_BEHAVIOR_CRASH     and exit_type != _EXIT_CRASH) or
-                (autosave_behavior == AUTOSAVE_BEHAVIOR_INTERRUPT and exit_type == _EXIT_INTERRUPT)
+                 autosave_mode == AUTOSAVE_MODE_NEVER or
+                (autosave_mode == AUTOSAVE_MODE_CRASH     and exit_type != _EXIT_CRASH    ) or
+                (autosave_mode == AUTOSAVE_MODE_INTERRUPT and exit_type == _EXIT_INTERRUPT)
             ):
                 return
 
@@ -1311,13 +1296,15 @@ class _Dixel:
             "is_fullscreen": self._is_fullscreen,
 
             "fps_cap_i": _SETTINGS_UI.fps_dropdown.option_i,
-            "is_fps_counter_active": _FPS_TEXT_LABEL_OBJ_INFO.is_active,
-            "autosave_behavior_i": _SETTINGS_UI.autosave_dropdown.option_i,
+            "is_fps_counter_active": _SETTINGS_UI.show_fps.is_checked,
+            "autosave_mode_i": _SETTINGS_UI.autosave_dropdown.option_i,
             "crash_save_dir": _SETTINGS_UI.crash_save_dir_str,
             "is_zooming_inverted": _SETTINGS_UI.invert_zoom.is_checked,
             "grid_history_max_size_i": _SETTINGS_UI.history_dropdown.option_i,
         }
+
         data_path: Path = Path("assets", "data", "data.json")
+        temp_data_path: Path = data_path.with_suffix(".tmp")
         data_json: str = json.dumps(data, ensure_ascii=False, indent=4)
         data_bytes: bytes = data_json.encode("utf-8", errors="ignore")
 
@@ -1329,9 +1316,10 @@ class _Dixel:
         ):
             try:
                 # If you open in write mode it will clear the file even if it's locked
-                with data_path.open("ab") as f:
+                with temp_data_path.open("ab") as f:
                     try_lock_file(f, is_shared=False)
                     try_write_file(f, data_bytes)
+                try_replace_file(temp_data_path, data_path)
                 break
             except FileNotFoundError:
                 dir_creation_attempt_i += 1
@@ -1340,13 +1328,12 @@ class _Dixel:
                     messagebox.showerror("Data Directory Creation Failed", error_str)
                     break
             except (PermissionError, LockError, FileError) as e:
-                errors_str: dict[type[Exception], str] = {
+                error_str = {
                     PermissionError: "Permission denied.",
                     LockError: "File locked.",
                     FileError: e.error_str if isinstance(e, FileError) else "",
-                }
+                }[type(e)]
 
-                error_str = errors_str[type(e)]
                 messagebox.showerror("Data Save Failed", error_str)
                 break
             except OSError as e:
@@ -1356,6 +1343,7 @@ class _Dixel:
                     pg.time.wait(2 ** system_attempt_i)
                     continue
 
+                try_remove_file(temp_data_path)
                 messagebox.showerror("Data Save Failed", error_str)
                 break
 
@@ -1385,8 +1373,13 @@ class _Dixel:
                 file_str: str = filedialog.asksaveasfilename(
                     defaultextension=".png",
                     filetypes=(
-                        ("png Files"   , "*.png"),
+                        ("PNG Files"   , "*.png"),
+                        ("WebP Files"  , "*.webp"),
                         ("Bitmap Files", "*.bmp"),
+                        ("TIFF Files"  , "*.tiff"),
+                        ("DDS Files"   , "*.dds"),
+                        ("TGA Files"   , "*.tga"),
+                        ("Icon Files"  , "*.ico"),
                     ),
                     title="Save As",
                 )
@@ -1411,8 +1404,13 @@ class _Dixel:
                 file_str: str = filedialog.askopenfilename(
                     defaultextension=".png",
                     filetypes=(
-                        ("png Files"   , "*.png"),
+                        ("PNG Files"   , "*.png"),
+                        ("WebP Files"  , "*.webp"),
                         ("Bitmap Files", "*.bmp"),
+                        ("TIFF Files"  , "*.tiff"),
+                        ("DDS Files"   , "*.dds"),
+                        ("TGA Files"   , "*.tga"),
+                        ("Icon Files"  , "*.ico"),
                     ),
                     title="Open",
                 )
@@ -1445,22 +1443,19 @@ class _Dixel:
         is_add_color_clicked: bool = _ADD_COLOR.upt()
         is_ctrl_a_pressed: bool = KEYBOARD.is_ctrl_on and K_a in KEYBOARD.pressed
         if is_add_color_clicked or is_ctrl_a_pressed:
-            self._state_i = _STATE_I_COLOR
+            self._state_i = STATE_I_COLOR
             _COLOR_PICKER.set_color(HEX_BLACK, is_external_change=True)
 
         is_edit_grid_clicked: bool = _EDIT_GRID.upt()
         is_ctrl_g_pressed: bool = KEYBOARD.is_ctrl_on and K_g in KEYBOARD.pressed
         if is_edit_grid_clicked or is_ctrl_g_pressed:
-            self._state_i = _STATE_I_GRID
-            _GRID_UI.set_info(
-                _GRID_MANAGER.grid.cols, _GRID_MANAGER.grid.rows,
-                _GRID_MANAGER.grid.tiles
-            )
+            self._state_i = STATE_I_GRID
+            _GRID_UI.set_info(_GRID_MANAGER.grid.tiles, _GRID_MANAGER.grid)
 
         is_open_settings_clicked: bool = _OPEN_SETTINGS.upt()
         is_ctrl_comma_pressed: bool = KEYBOARD.is_ctrl_on and K_COMMA in KEYBOARD.pressed
         if is_open_settings_clicked or is_ctrl_comma_pressed:
-            self._state_i = _STATE_I_SETTINGS
+            self._state_i = STATE_I_SETTINGS
 
     def _handle_brush_dim_shortcuts(self: Self) -> None:
         """Selects a brush dimension if the user presses ctrl+b+dimension."""
@@ -1508,8 +1503,10 @@ class _Dixel:
             MOUSE.refresh_hovered_obj()
             _PALETTES_MANAGER.colors_grid.upt_checkboxes()
         if hex_color_to_edit is not None:
-            self._state_i = _STATE_I_COLOR
+            self._state_i = STATE_I_COLOR
             _COLOR_PICKER.set_color(hex_color_to_edit, is_external_change=True)
+        if _PALETTES_MANAGER.colors_grid.clicked_i != _PALETTES_MANAGER.colors_grid.prev_clicked_i:
+            _PALETTES_MANAGER.colors_grid.check(_PALETTES_MANAGER.colors_grid.clicked_i)
 
         tool_info: ToolInfo = _TOOLS_MANAGER.upt()
         if _TOOLS_MANAGER.tools_grid.clicked_i != _TOOLS_MANAGER.tools_grid.prev_clicked_i:
@@ -1533,9 +1530,9 @@ class _Dixel:
 
         did_exit, did_confirm, rgb_color = _COLOR_PICKER.upt()
         if did_exit:
-            self._state_i = _STATE_I_MAIN
+            self._state_i = STATE_I_MAIN
         elif did_confirm:
-            self._state_i = _STATE_I_MAIN
+            self._state_i = STATE_I_MAIN
 
             did_palette_change: bool = _PALETTES_MANAGER.try_add_color(rgb_color)
             if did_palette_change:
@@ -1547,13 +1544,22 @@ class _Dixel:
         did_exit: bool
         did_confirm: bool
         tiles: NDArray[uint8]
+        visible_cols: int
+        visible_rows: int
+        offset_x: int
+        offset_y: int
 
-        did_exit, did_confirm, tiles = _GRID_UI.upt()
+        (
+            did_exit, did_confirm, tiles,
+            visible_cols, visible_rows,
+            offset_x, offset_y
+        ) = _GRID_UI.upt()
+
         if did_exit:
             self._new_file_str = ""
-            self._state_i = _STATE_I_MAIN
+            self._state_i = STATE_I_MAIN
         elif did_confirm:
-            self._state_i = _STATE_I_MAIN
+            self._state_i = STATE_I_MAIN
 
             is_opening_new_img: bool = self._new_file_str != ""
             if is_opening_new_img:
@@ -1564,8 +1570,8 @@ class _Dixel:
 
             _GRID_MANAGER.grid.set_info(
                 tiles,
-                _GRID_MANAGER.grid.visible_cols, _GRID_MANAGER.grid.visible_rows,
-                _GRID_MANAGER.grid.offset_x, _GRID_MANAGER.grid.offset_y,
+                visible_cols, visible_rows,
+                offset_x, offset_y,
                 should_reset_history=is_opening_new_img
             )
             _GRID_MANAGER.grid.refresh_full()
@@ -1578,26 +1584,23 @@ class _Dixel:
     def _settings_ui(self: Self) -> None:
         """Handles the settings UI."""
 
-        did_exit: bool
-        did_confirm: bool
-        _extra_info: None
+        _did_exit: bool
+        _did_confirm: bool
 
-        did_exit, did_confirm, _extra_info = _SETTINGS_UI.upt()
-        if did_exit or did_confirm:
-            self._state_i = _STATE_I_MAIN
+        _did_exit, _did_confirm, self._state_i = _SETTINGS_UI.upt()
 
     def _handle_states(self: Self) -> None:
         """Handles updating and changing states."""
 
         prev_state_i: int = self._state_i
 
-        if   self._state_i == _STATE_I_MAIN:
+        if   self._state_i == STATE_I_MAIN:
             self._main_interface()
-        elif self._state_i == _STATE_I_COLOR:
+        elif self._state_i == STATE_I_COLOR:
             self._color_ui()
-        elif self._state_i == _STATE_I_GRID:
+        elif self._state_i == STATE_I_GRID:
             self._grid_ui()
-        elif self._state_i == _STATE_I_SETTINGS:
+        elif self._state_i == STATE_I_SETTINGS:
             self._settings_ui()
 
         if self._state_i != prev_state_i:
@@ -1632,9 +1635,9 @@ class _Dixel:
 
                 MOUSE.refresh_pos()
                 MOUSE.pressed = pg.mouse.get_pressed()
-                MOUSE.released = list(pg.mouse.get_just_released())
+                MOUSE.released = pg.mouse.get_just_released()
                 MOUSE.scroll_amount = 0
-                KEYBOARD.released = []
+                KEYBOARD.released = ()
 
                 self._handle_events()
 
@@ -1642,7 +1645,7 @@ class _Dixel:
                 MOUSE.refresh_type()
                 KEYBOARD.refresh_timed()
 
-                if KEYBOARD.timed != [] and not (self._is_maximized or self._is_fullscreen):
+                if KEYBOARD.timed != () and not (self._is_maximized or self._is_fullscreen):
                     self._handle_resize_with_keys()
 
                 self._handle_states()
@@ -1653,13 +1656,11 @@ class _Dixel:
                 MOUSE.prev_x, MOUSE.prev_y = MOUSE.x, MOUSE.y
         except KeyboardInterrupt:
             self._save(_EXIT_INTERRUPT, should_ask_create_dir=False)
-        except Exception:
+        except Exception as e:
             self._handle_crash()
-            print(format_exc(), file=stderr)
-
-        pg.quit()
+            stop(e)
 
 
 if __name__ == "__main__":
     _Dixel().run()
-    print_funcs_profiles()
+    stop(SystemExit())

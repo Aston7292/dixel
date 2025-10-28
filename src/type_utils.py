@@ -10,7 +10,7 @@ WH: TypeAlias = tuple[int, int]
 RGBColor: TypeAlias = tuple[int, int, int]
 HexColor: TypeAlias = str
 
-DropdownOptionsInfo: TypeAlias = list[tuple[str, str, Any]]
+DropdownOptionsInfo: TypeAlias = tuple[tuple[str, str, Any], ...]
 
 BlitInfo: TypeAlias = tuple[Surface, Rect, int]
 

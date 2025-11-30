@@ -17,7 +17,7 @@ from src.consts import WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I
 _ERRORS: Final[list[str]] = []
 _MISSING_IMG: Final[pg.Surface] = pg.Surface((64, 64))
 _MISSING_IMG.fill((255, 0, 0))
-pg.draw.rect(_MISSING_IMG, WHITE, _MISSING_IMG.get_rect(), 4)
+pg.draw.rect(_MISSING_IMG, WHITE, _MISSING_IMG.get_rect(), width=4)
 
 
 def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
@@ -39,7 +39,7 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
     for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             with file_path.open("rb") as f:
-                try_lock_file(f, is_shared=True)
+                try_lock_file(f, should_be_shared=True)
                 img_bytes_io: BytesIO = BytesIO(try_read_file(f))
                 img = pg.image.load(img_bytes_io, namehint=file_path.suffix)
             break
@@ -97,6 +97,7 @@ ADD_OFF_IMG: Final[pg.Surface] = _try_get_img("add_off.png", (32, 32))
 ADD_ON_IMG: Final[pg.Surface]  = _try_get_img("add_on.png" , (32, 32))
 
 PENCIL_IMG: Final[pg.Surface]      = _try_get_img("pencil.png"     , (64, 64))
+ERASER_IMG: Final[pg.Surface]      = _try_get_img("eraser.png"     , (64, 64))
 BUCKET_IMG: Final[pg.Surface]      = _try_get_img("bucket.png"     , (64, 64))
 EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper.png", (64, 64))
 LINE_IMG: Final[pg.Surface]        = _try_get_img("line.png"       , (64, 64))

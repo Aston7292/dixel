@@ -8,6 +8,8 @@ from typing import Self, Final
 import pygame as pg
 from pygame import SYSTEM_CURSOR_ARROW
 
+import src.obj_utils as objs
+import src.vars as my_vars
 from src.obj_utils import ObjInfo, resize_obj
 from src.file_utils import FileError, handle_file_os_error, try_read_file
 from src.lock_utils import LockError, try_lock_file
@@ -36,7 +38,7 @@ def _try_add_renderer(h: int) -> None:
     for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             with font_path.open("rb") as f:
-                try_lock_file(f, is_shared=True)
+                try_lock_file(f, should_be_shared=True)
                 font_bytes_io: BytesIO = BytesIO(try_read_file(f))
                 renderer = pg.font.Font(font_bytes_io, h)
             break
@@ -67,11 +69,11 @@ def _try_add_renderer(h: int) -> None:
 
 
 class TextLabel:
-    """Class to simplify multi-text rendering."""
+    """Class to simplify multi-line text rendering."""
 
     __slots__ = (
         "init_pos", "init_h", "_renderer",
-        "text", "_bg_color", "alpha",
+        "text", "_bg_color",
         "_imgs", "rect", "_rects",
         "hover_rects", "layer", "blit_sequence",
     )
@@ -82,7 +84,7 @@ class TextLabel:
     def __init__(
             self: Self, pos: RectPos, text: str,
             base_layer: int = BG_LAYER,
-            h: int = 25, bg_color: pg.Color | None = None, alpha: int = 255
+            h: int = 25, bg_color: pg.Color | None = None
     ) -> None:
         """
         Creates the text images, rects and full rect.
@@ -90,7 +92,7 @@ class TextLabel:
         Args:
             position, text,
             base_layer (default = BG_LAYER),
-            height (default = 25), background color (default = None), alpha (default = 255)
+            height (default = 25), background color (default = None)
         """
 
         self.init_pos: RectPos = pos
@@ -102,7 +104,6 @@ class TextLabel:
 
         self.text: str = text
         self._bg_color: pg.Color | None = bg_color
-        self.alpha: int = alpha
 
         self._imgs: tuple[pg.Surface, ...] = tuple([
             self._renderer.render(
@@ -119,7 +120,7 @@ class TextLabel:
         self.layer: int = base_layer + TEXT_LAYER
         self.blit_sequence: list[BlitInfo] = []
 
-        self._refresh_rects((self.init_pos.x, self.init_pos.y))
+        self.refresh_rects((self.init_pos.x, self.init_pos.y))
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -127,13 +128,8 @@ class TextLabel:
     def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
-        """
-        Resizes the object.
-
-        Args:
-            window width ratio, window height ratio
-        """
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
         xy: XY
         _w: int
@@ -141,9 +137,8 @@ class TextLabel:
 
         xy, (_w, h) = resize_obj(
             self.init_pos, init_w=0, init_h=self.init_h,
-            win_w_ratio=win_w_ratio, win_h_ratio=win_h_ratio, should_keep_wh_ratio=True
+            should_keep_wh_ratio=True
         )
-
         if h not in _RENDERERS_CACHE:
             _try_add_renderer(h)
         self._renderer = _RENDERERS_CACHE[h]
@@ -155,41 +150,39 @@ class TextLabel:
             ).convert_alpha()
             for line in self.text.split("\n")
         ])
-        self._refresh_rects(xy)
+        self.refresh_rects(xy)
 
-    def move_rect(
-            self: Self, init_x: int, init_y: int,
-            win_w_ratio: float, win_h_ratio: float
-    ) -> None:
+    def move_rect(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
         """
         Moves the rects and rect to a specific coordinate.
 
         Args:
-            initial x, initial y, window width ratio, window height ratio
+            initial x, initial y, scale flag
         """
 
         xy: XY
-        _wh: WH
         rect: pg.Rect
-
-        self.init_pos.x, self.init_pos.y = init_x, init_y  # More accurate
 
         prev_rect_x: int = self.rect.x
         prev_rect_y: int = self.rect.y
+        self.init_pos.x, self.init_pos.y = init_x, init_y  # More accurate
 
-        xy, _wh = resize_obj(
-            self.init_pos, init_w=0, init_h=0,
-            win_w_ratio=win_w_ratio, win_h_ratio=win_h_ratio
-        )
-
+        if should_scale:
+            xy = (
+                round(self.init_pos.x * my_vars.win_w_ratio),
+                round(self.init_pos.y * my_vars.win_h_ratio),
+            )
+        else:
+            xy = (self.init_pos.x, self.init_pos.y)
         setattr(self.rect, self.init_pos.coord_type, xy)
+
         change_x: int = self.rect.x - prev_rect_x
         change_y: int = self.rect.y - prev_rect_y
         for rect in self._rects:
             rect.x += change_x
             rect.y += change_y
 
-    def _refresh_rects(self: Self, xy: XY) -> None:
+    def refresh_rects(self: Self, xy: XY) -> None:
         """
         Refreshes the rects and full rect depending on coord_type.
 
@@ -243,21 +236,7 @@ class TextLabel:
         ])
 
         xy: XY = getattr(self.rect, self.init_pos.coord_type)
-        self._refresh_rects(xy)
-
-    def set_alpha(self: Self, a: int) -> None:
-        """
-        Sets the alpha value for all the images.
-
-        Args:
-            alpha
-        """
-
-        img: pg.Surface
-
-        self.alpha = min(a, 255)
-        for img in self._imgs:
-            img.set_alpha(self.alpha)
+        self.refresh_rects(xy)
 
     def get_x_at(self: Self, char_i: int) -> int:
         """
@@ -273,7 +252,7 @@ class TextLabel:
 
     def get_closest_to(self: Self, x: int) -> int:
         """
-        Calculates the index of the closest character to a given x (only for single line text).
+        Gets the index of the closest character to a given x (only for single line text).
 
         Args:
             x coordinate
@@ -281,15 +260,44 @@ class TextLabel:
             index (0 - len(text))
         """
 
-        i: int
         char: str
 
+        i: int = 0
         prev_x: int = self.rect.x
+        current_x: int = prev_x
         for i, char in enumerate(self.text):
-            current_x: int = prev_x + self._renderer.size(char)[0]
+            current_x = prev_x + self._renderer.size(char)[0]
             if x < current_x:
                 break
 
             prev_x = current_x
 
         return i if abs(x - prev_x) < abs(x - current_x) else i + 1
+
+    def start_animation(self: Self) -> None:
+        """Resets the alpha value and starts the fade-in animation."""
+
+        self._imgs[0].set_alpha(0)
+        objs.animating_objs.add(self)
+
+    def animate(self: Self, dt: float) -> None:
+        """
+        Plays a frame of the active animation.
+
+        Args:
+            delta time
+        """
+
+        img: pg.Surface
+
+        a: int | None = self._imgs[0].get_alpha()
+        if a is None:
+            a = 0
+
+        a = round(a + (8 * dt))
+        if a >= 255:
+            a = 255
+            objs.animating_objs.remove(self)
+
+        for img in self._imgs:
+            img.set_alpha(a)

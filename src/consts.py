@@ -1,21 +1,21 @@
 """Constants shared between files."""
 
-from typing import Literal, Final
+from typing import Final
 
 import numpy as np
 from pygame import Color, event
 from numpy import uint8
 from numpy.typing import NDArray
 
-from src.type_utils import RGBColor, HexColor
+from src.type_utils import HexColor
 
 
 BLACK: Final[Color]       = Color(0  , 0  , 0)
 WHITE: Final[Color]       = Color(255, 255, 255)
 DARKER_GRAY: Final[Color] = Color(50 , 50 , 50)
 
-_RGB_LIGHT_GRAY: Final[RGBColor] = (70, 70, 70)
-_RGB_DARK_GRAY: Final[RGBColor]  = (60, 60, 60)
+_RGB_LIGHT_GRAY: Final[tuple[int, int, int]] = (70, 70, 70)
+_RGB_DARK_GRAY: Final[tuple[int, int, int]]  = (60, 60, 60)
 HEX_BLACK: Final[HexColor] = "000000"
 
 # Flips rows and cols because, when making it a surface, pygame uses it like this
@@ -32,9 +32,10 @@ TILE_H: Final[int] = EMPTY_TILE_ARR.shape[1]
 FILE_ATTEMPT_START_I: Final[int] = 4
 FILE_ATTEMPT_STOP_I: Final[int]  = 9
 
-MOUSE_LEFT: Final[Literal[0]]  = 0
-MOUSE_WHEEL: Final[Literal[1]] = 1
-MOUSE_RIGHT: Final[Literal[2]] = 2
+MOUSE_LEFT: Final[int]  = 0
+MOUSE_WHEEL: Final[int] = 1
+MOUSE_RIGHT: Final[int] = 2
+CHR_LIMIT: Final[int] = 1_114_111
 
 STATE_I_MAIN: Final[int]     = 0
 STATE_I_COLOR: Final[int]    = 1

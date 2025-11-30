@@ -7,8 +7,12 @@ from pygame import Surface, Rect
 
 XY: TypeAlias = tuple[int, int]
 WH: TypeAlias = tuple[int, int]
-RGBColor: TypeAlias = tuple[int, int, int]
 HexColor: TypeAlias = str
+CoordType: TypeAlias = Literal[
+    "topleft", "midtop", "topright",
+    "midleft", "center", "midright",
+    "bottomleft", "midbottom", "bottomright",
+]
 
 DropdownOptionsInfo: TypeAlias = tuple[tuple[str, str, Any], ...]
 
@@ -26,8 +30,4 @@ class RectPos:
 
     x: int
     y: int
-    coord_type: Literal[
-        "topleft", "midtop", "topright",
-        "midleft", "center", "midright",
-        "bottomleft", "midbottom", "bottomright",
-    ]
+    coord_type: CoordType

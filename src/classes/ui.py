@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Self, Final, Any
 
-from pygame import Surface, Rect, transform, K_ESCAPE, K_RETURN, SYSTEM_CURSOR_ARROW
+from pygame import Surface, Rect, K_ESCAPE, K_RETURN, SYSTEM_CURSOR_ARROW
 
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
@@ -15,29 +15,12 @@ from src.consts import DARKER_GRAY, UI_LAYER
 from src.win import WIN_INIT_W, WIN_INIT_H
 from src.imgs import CLOSE_OFF_IMG, CLOSE_ON_IMG, BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
 
-_INTERFACE_IMG: Final[Surface] = Surface((512, 700))
-_INTERFACE_IMG.fill(DARKER_GRAY)
+INTERFACE_INIT_W: Final[int] = 500
+INTERFACE_INIT_H: Final[int] = 700
 
 
 class UI(ABC):
-    """
-    Abstract class to create a default UI with a title, confirm and exit buttons.
-
-    Includes:
-        hover_rects
-        layer
-        blit_sequence
-        cursor_type
-        objs_info
-
-        enter() -> None
-        leave() -> None
-        resize(window width ratio, window height ratio) -> None,
-        base_upt() -> tuple[exited, confirmed]
-
-    Children should include:
-        upt() -> tuple[exited, confirmed, extra info]
-    """
+    """Abstract class to create a default UI with a title, confirm and exit buttons."""
 
     __slots__ = (
         "_init_pos", "_rect",
@@ -57,7 +40,9 @@ class UI(ABC):
 
         self._init_pos: RectPos = RectPos(round(WIN_INIT_W / 2), round(WIN_INIT_H / 2), "center")
 
-        self._rect: Rect = Rect(0, 0, *_INTERFACE_IMG.get_size())
+        img: Surface = Surface((INTERFACE_INIT_W, INTERFACE_INIT_H))
+        img.fill(DARKER_GRAY)
+        self._rect: Rect = Rect(0, 0, *img.get_size())
         setattr(self._rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
         self._title_text_label: TextLabel = TextLabel(
@@ -79,7 +64,7 @@ class UI(ABC):
 
         self.hover_rects: tuple[Rect, ...] = ()
         self.layer: int = UI_LAYER
-        self.blit_sequence: list[BlitInfo] = [(_INTERFACE_IMG, self._rect, self.layer)]
+        self.blit_sequence: list[BlitInfo] = [(img, self._rect, self.layer)]
         self.objs_info: tuple[ObjInfo, ...] = (ObjInfo(self._title_text_label), ObjInfo(self._exit))
         if self._confirm is not None:
             self.objs_info += (ObjInfo(self._confirm),)
@@ -94,22 +79,14 @@ class UI(ABC):
 
         return
 
-    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
-        """
-        Resizes the object.
-
-        Args:
-            window width ratio, window height ratio
-        """
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
         xy: XY
 
-        xy, self._rect.size = resize_obj(
-            self._init_pos, *_INTERFACE_IMG.get_size(),
-            win_w_ratio, win_h_ratio
-        )
-
-        img: Surface = transform.scale(_INTERFACE_IMG, self._rect.size).convert()
+        xy, self._rect.size = resize_obj(self._init_pos, INTERFACE_INIT_W, INTERFACE_INIT_H)
+        img: Surface = Surface(self._rect.size)
+        img.fill(DARKER_GRAY)
         setattr(self._rect, self._init_pos.coord_type, xy)
 
         self.blit_sequence[0] = (img, self._rect, self.layer)

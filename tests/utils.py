@@ -19,10 +19,10 @@ class DummyUIElement():
 
     def __init__(self: Self, hover_rects: tuple[Rect, ...] = ()) -> None:
         """
-        Initializes the hover rectangles, the layer and objects info.
+        Initializes the hover rects, the layer and objects info.
 
         Args:
-            hover rectangles
+            hover rects
         """
 
         self.hover_rects: tuple[Rect, ...] = hover_rects
@@ -36,11 +36,8 @@ class DummyUIElement():
     def leave(self: Self) -> None:
         """Blank method to respect the UIElement protocol."""
 
-    def resize(self: Self, _win_w_ratio: float, _win_h_ratio: float) -> None:
+    def resize(self: Self) -> None:
         """Blank method to respect the UIElement protocol."""
 
-    def move_rect(
-            self: Self, _init_x: int, _init_y: int,
-            _win_w_ratio: float, _win_h_ratio: float
-    ) -> None:
+    def move_rect(self: Self, _init_x: int, _init_y: int) -> None:
         """Blank method to test the rec_move_rect method."""

@@ -36,19 +36,19 @@ _FPS_DROPDOWN_OPTIONS: Final[DropdownOptionsInfo] = (
     ("None", "(CTRL+C+5)", 0),
 )
 _AUTOSAVE_DROPDOWN_OPTIONS: Final[DropdownOptionsInfo] = (
-    ("Always"           , "(CTRL+A+1)", -1),  # Unused
+    ("Always"           , "(CTRL+A+1)", -1),
     ("Never"            , "(CTRL+A+2)", AUTOSAVE_MODE_NEVER),
     ("On Crash"         , "(CTRL+A+3)", AUTOSAVE_MODE_CRASH),
     ("Not on\nInterrupt", "(CTRL+A+4)", AUTOSAVE_MODE_INTERRUPT),
 )
 _HISTORY_DROPDOWN_OPTIONS: Final[DropdownOptionsInfo] = (
-    ("32"   , "(CTRL+1)", 32),
-    ("64"   , "(CTRL+2)", 64),
-    ("128"  , "(CTRL+3)", 128),
-    ("256"  , "(CTRL+4)", 256),
-    ("512"  , "(CTRL+5)", 512),
-    ("1'024", "(CTRL+6)", 1_024),
-    ("None" , "(CTRL+7)", None),
+    ("32"   , "(CTRL+H+1)", 32),
+    ("64"   , "(CTRL+H+2)", 64),
+    ("128"  , "(CTRL+H+3)", 128),
+    ("256"  , "(CTRL+H+4)", 256),
+    ("512"  , "(CTRL+H+5)", 512),
+    ("1'024", "(CTRL+H+6)", 1_024),
+    ("None" , "(CTRL+H+7)", None),
 )
 
 
@@ -196,6 +196,7 @@ class SettingsUI(UI):
         _is_confirming: bool
 
         state_i: int = STATE_I_SETTINGS
+        prev_history_dropdown_option_i: int = self.history_dropdown.option_i
 
         if KEYBOARD.is_ctrl_on and K_c in KEYBOARD.pressed:
             self._handle_fps_dropdown_shortcuts()
@@ -225,8 +226,6 @@ class SettingsUI(UI):
                 SETTINGS_ZOOM_DIRECTION_CHANGE,
                 {"value": -1 if self.invert_zoom.is_checked else 1}
             ))
-
-        prev_history_dropdown_option_i: int = self.history_dropdown.option_i
 
         if KEYBOARD.is_ctrl_on and K_h in KEYBOARD.pressed:
             self._handle_history_dropdown_shortcuts()

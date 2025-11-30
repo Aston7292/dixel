@@ -75,7 +75,7 @@ if platform == "win32":
 
         return file_handle
 
-    def try_lock_file(f: BinaryIO, is_shared: bool) -> None:
+    def try_lock_file(f: BinaryIO, should_be_shared: bool) -> None:
         """
         Locks a file either in an exclusive or shared way.
 
@@ -87,7 +87,8 @@ if platform == "win32":
 
         # file_handle is closed when the file is closed
         file_handle: int = _try_get_file_handle(f)
-        flag: int = (0 if is_shared else LOCKFILE_EXCLUSIVE_LOCK) | LOCKFILE_FAIL_IMMEDIATELY
+        flag: int = (0 if should_be_shared else LOCKFILE_EXCLUSIVE_LOCK)
+        flag |= LOCKFILE_FAIL_IMMEDIATELY
 
         system_attempt_i: int = FILE_ATTEMPT_START_I
         lock_attempt_i: int   = FILE_ATTEMPT_START_I
@@ -121,7 +122,7 @@ if platform == "win32":
 
                 raise FileError(e.strerror) from e
 elif fcntl is not None:
-    def try_lock_file(f: BinaryIO, is_shared: bool) -> None:
+    def try_lock_file(f: BinaryIO, should_be_shared: bool) -> None:
         """
         Locks a file either in an exclusive or shared way.
 
@@ -135,7 +136,7 @@ elif fcntl is not None:
         is_transient_system_failure: bool
 
         assert fcntl is not None
-        flag: int = (fcntl.LOCK_SH if is_shared else fcntl.LOCK_EX) | fcntl.LOCK_NB
+        flag: int = (fcntl.LOCK_SH if should_be_shared else fcntl.LOCK_EX) | fcntl.LOCK_NB
 
         system_attempt_i: int = FILE_ATTEMPT_START_I
         lock_attempt_i: int   = FILE_ATTEMPT_START_I
@@ -173,7 +174,7 @@ elif fcntl is not None:
 else:
     print(f"File locking not implemented for this operating system: {platform}.")
 
-    def try_lock_file(f: BinaryIO, is_shared: bool) -> None:
+    def try_lock_file(f: BinaryIO, should_be_shared: bool) -> None:
         """
         Locks a file either in an exclusive or shared way.
 

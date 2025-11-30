@@ -6,6 +6,9 @@ from typing import Self, Final
 import pygame as pg
 from pygame.locals import *
 
+from src.classes.checkbox_grid import (
+    checkbox_grid_get_rect, checkbox_grid_move_with_keys, checkbox_grid_upt_checkboxes
+)
 from src.classes.clickable import LockedCheckbox
 from src.classes.devices import MOUSE, KEYBOARD
 
@@ -30,12 +33,13 @@ def _get_color_checkbox_info(hex_color: HexColor) -> tuple[tuple[pg.Surface, ...
         checkbox images and hovering text
     """
 
-    color: pg.Color = pg.Color("#" + hex_color)
+    hex_color = "#" + hex_color
+    color: pg.Color = pg.Color(hex_color)
     _COLOR_IMG.fill(color)
 
     return (
         (add_border(_COLOR_IMG, DARKER_GRAY), add_border(_COLOR_IMG, WHITE)),
-        f"{color[:3]}\n{color.hex}"
+        f"{color[:3]}\n{hex_color}"
     )
 
 
@@ -45,8 +49,8 @@ class ColorsGrid:
     __slots__ = (
         "_init_pos",
         "colors", "visible_checkboxes", "_hovered_checkbox", "rect",
-        "clicked_i", "offset_y", "prev_clicked_i", "prev_offset_y",
-        "hover_rects", "layer", "blit_sequence", "_win_w_ratio", "_win_h_ratio",
+        "clicked_i", "offset_y", "prev_clicked_i",
+        "hover_rects", "layer", "blit_sequence",
     )
 
     cursor_type: int = SYSTEM_CURSOR_ARROW
@@ -69,13 +73,10 @@ class ColorsGrid:
         self.clicked_i: int = 0
         self.offset_y: int = 0
         self.prev_clicked_i: int = self.clicked_i
-        self.prev_offset_y: int = self.offset_y
 
         self.hover_rects: tuple[pg.Rect, ...] = (self.rect,)
         self.layer: int = base_layer
         self.blit_sequence: list[BlitInfo] = []
-        self._win_w_ratio: float = 1
-        self._win_h_ratio: float = 1
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -85,28 +86,10 @@ class ColorsGrid:
 
         self._hovered_checkbox = None
 
-    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
-        """
-        Resizes the object.
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
-        Args:
-            window width ratio, window height ratio
-        """
-
-        self._win_w_ratio, self._win_h_ratio = win_w_ratio, win_h_ratio
-
-        rects: list[pg.Rect] = [checkbox.rect for checkbox in self.visible_checkboxes]
-        rects_xs: list[int] = [rect.x for rect in rects]
-        rects_ys: list[int] = [rect.y for rect in rects]
-
-        self.rect.topleft = (
-            min(rects_xs),
-            min(rects_ys),
-        )
-        self.rect.size = (
-            (max(rects_xs) + rects[0].w) - self.rect.x,
-            (max(rects_ys) + rects[0].h) - self.rect.y,
-        )
+        checkbox_grid_get_rect(self.visible_checkboxes, self.rect)
 
     @property
     def objs_info(self: Self) -> tuple[ObjInfo, ...]:
@@ -135,14 +118,11 @@ class ColorsGrid:
             init_x: int = self._init_pos.x + (increment_x * (i %  NUM_COLS))
             init_y: int = self._init_pos.y + (increment_y * (i // NUM_COLS))
 
-            rec_move_rect(
-                self.visible_checkboxes[i], init_x, init_y,
-                self._win_w_ratio, self._win_h_ratio
-            )
+            rec_move_rect(self.visible_checkboxes[i], init_x, init_y)
             checkbox_objs: list[UIElement] = [self.visible_checkboxes[i]]
             while checkbox_objs != []:
                 obj: UIElement = checkbox_objs.pop()
-                obj.resize(self._win_w_ratio, self._win_h_ratio)
+                obj.resize()
                 checkbox_objs.extend([info.obj for info in obj.objs_info])
 
     def set_offset_y(self: Self, offset_y: int) -> None:
@@ -153,7 +133,7 @@ class ColorsGrid:
             y offset
         """
 
-        self.offset_y = self.prev_offset_y = offset_y
+        self.offset_y = offset_y
 
         visible_start_i: int =  self.offset_y                     * NUM_COLS
         visible_end_i: int   = (self.offset_y + NUM_VISIBLE_ROWS) * NUM_COLS
@@ -183,19 +163,7 @@ class ColorsGrid:
         self.colors = hex_colors
         self.clicked_i = clicked_i
         self.set_offset_y(offset_y)
-
-        rects: list[pg.Rect] = [checkbox.rect for checkbox in self.visible_checkboxes]
-        rects_xs: list[int] = [rect.x for rect in rects]
-        rects_ys: list[int] = [rect.y for rect in rects]
-
-        self.rect.topleft = (
-            min(rects_xs),
-            min(rects_ys),
-        )
-        self.rect.size = (
-            (max(rects_xs) + rects[0].w) - self.rect.x,
-            (max(rects_ys) + rects[0].h) - self.rect.y,
-        )
+        checkbox_grid_get_rect(self.visible_checkboxes, self.rect)
 
     def check(self: Self, clicked_i: int) -> None:
         """
@@ -224,18 +192,15 @@ class ColorsGrid:
 
         self.prev_clicked_i = self.clicked_i
 
-    def try_add(self: Self, hex_color: HexColor) -> bool:
+    def try_add(self: Self, hex_color: HexColor) -> None:
         """
         Adds a color if it's not present.
 
         Args:
             hexadecimal color
-        Returns:
-            success flag
         """
 
-        is_new: bool = hex_color not in self.colors
-        if is_new:
+        if hex_color not in self.colors:
             self.colors.append(hex_color)
 
             visible_start_i: int =  self.offset_y                     * NUM_COLS
@@ -248,21 +213,7 @@ class ColorsGrid:
                     )
                 ,)
                 self._move_section_to_last(start_i=len(self.visible_checkboxes) - 1)
-
-                rects: list[pg.Rect] = [checkbox.rect for checkbox in self.visible_checkboxes]
-                rects_xs: list[int] = [rect.x for rect in rects]
-                rects_ys: list[int] = [rect.y for rect in rects]
-
-                self.rect.topleft = (
-                    min(rects_xs),
-                    min(rects_ys),
-                )
-                self.rect.size = (
-                    (max(rects_xs) + rects[0].w) - self.rect.x,
-                    (max(rects_ys) + rects[0].h) - self.rect.y,
-                )
-
-        return is_new
+                checkbox_grid_get_rect(self.visible_checkboxes, self.rect)
 
     def edit(self: Self, edit_i: int, hex_color: HexColor) -> None:
         """
@@ -285,14 +236,9 @@ class ColorsGrid:
 
                 rel_edit_i: int = edit_i - visible_start_i
                 self.visible_checkboxes[rel_edit_i].init_imgs = imgs
-                self.visible_checkboxes[rel_edit_i].set_imgs(imgs)
+                self.visible_checkboxes[rel_edit_i].set_unscaled_imgs(imgs)
                 self.visible_checkboxes[rel_edit_i].hovering_text_label.set_text(hovering_text)
-
-                checkbox_objs: list[UIElement] = [self.visible_checkboxes[rel_edit_i]]
-                while checkbox_objs != []:
-                    obj: UIElement = checkbox_objs.pop()
-                    obj.resize(self._win_w_ratio, self._win_h_ratio)
-                    checkbox_objs.extend([info.obj for info in obj.objs_info])
+                self.visible_checkboxes[rel_edit_i].hovering_text_label.resize()
 
     def remove(self: Self, remove_i: int) -> None:
         """
@@ -307,27 +253,16 @@ class ColorsGrid:
         else:
             self.colors.pop(remove_i)
             if self.clicked_i > remove_i:
-                self.check(self.clicked_i - 1)
+                self.clicked_i = self.prev_clicked_i = self.clicked_i - 1
             elif self.clicked_i == remove_i:
-                self.check(min(self.clicked_i, len(self.colors) - 1))
+                self.clicked_i = self.prev_clicked_i = min(self.clicked_i, len(self.colors) - 1)
 
             num_above_rows: int = ceil(len(self.colors) / NUM_COLS) - self.offset_y
             if self.offset_y != 0 and num_above_rows < NUM_VISIBLE_ROWS:
                 self.offset_y -= 1
+
             self.set_offset_y(self.offset_y)
-
-            rects: list[pg.Rect] = [checkbox.rect for checkbox in self.visible_checkboxes]
-            rects_xs: list[int] = [rect.x for rect in rects]
-            rects_ys: list[int] = [rect.y for rect in rects]
-
-            self.rect.topleft = (
-                min(rects_xs),
-                min(rects_ys),
-            )
-            self.rect.size = (
-                (max(rects_xs) + rects[0].w) - self.rect.x,
-                (max(rects_ys) + rects[0].h) - self.rect.y,
-            )
+            checkbox_grid_get_rect(self.visible_checkboxes, self.rect)
 
     def _handle_shortcuts(self: Self) -> None:
         """Selects a color if the user presses ctrl+c+dimension."""
@@ -339,61 +274,19 @@ class ColorsGrid:
             if k in KEYBOARD.pressed:
                 self.clicked_i = k - K_1
 
-    def _handle_move_with_left_right(self: Self) -> None:
-        """Handles moving the selected checkbox with left and right keys."""
-
-        if K_RIGHT in KEYBOARD.timed:
-            if KEYBOARD.is_ctrl_on:
-                self.clicked_i -= self.clicked_i % NUM_COLS
-            else:
-                self.clicked_i = max(self.clicked_i - 1, 0)
-
-        if K_LEFT in KEYBOARD.timed:
-            if KEYBOARD.is_ctrl_on:
-                row_start: int = self.clicked_i - self.clicked_i % NUM_COLS
-                self.clicked_i = min(row_start + NUM_COLS - 1, len(self.colors) - 1)
-            else:
-                self.clicked_i = min(self.clicked_i + 1      , len(self.colors) - 1)
-
-    def _handle_move_with_up_down(self: Self) -> None:
-        """Handles moving the selected checkbox with up and down keys."""
-
-        if K_DOWN in KEYBOARD.timed:
-            can_sub_cols: bool = self.clicked_i - NUM_COLS >= 0
-            if KEYBOARD.is_ctrl_on:
-                self.clicked_i %= NUM_COLS
-            elif can_sub_cols:
-                self.clicked_i -= NUM_COLS
-
-        if K_UP in KEYBOARD.timed:
-            can_add_cols: bool = self.clicked_i + NUM_COLS < len(self.colors)
-            if KEYBOARD.is_ctrl_on:
-                col: int = self.clicked_i % NUM_COLS
-                last_col: int = len(self.colors) % NUM_COLS
-                num_rows: int = len(self.colors) // NUM_COLS
-                row_i: int = num_rows if col < last_col else num_rows - 1
-
-                self.clicked_i = (row_i * NUM_COLS) + col
-            elif can_add_cols:
-                self.clicked_i += NUM_COLS
-
     def upt_checkboxes(self: Self) -> None:
-        """Leaves the previous hovered checkbox and updates the current one."""
+        """Updates the checkboxes and sets the absolute clicked index."""
 
-        prev_hovered_checkbox: LockedCheckbox | None = self._hovered_checkbox
-        self._hovered_checkbox = None
-        if MOUSE.hovered_obj in self.visible_checkboxes:
-            assert isinstance(MOUSE.hovered_obj, LockedCheckbox)
-            self._hovered_checkbox = MOUSE.hovered_obj
+        did_check_hovered_checkbox: bool
 
-        if prev_hovered_checkbox is not None and self._hovered_checkbox != prev_hovered_checkbox:
-            prev_hovered_checkbox.leave()
-        if self._hovered_checkbox is not None:
-            did_check: bool = self._hovered_checkbox.upt()
-            if did_check:
-                visible_start_i: int = self.offset_y * NUM_COLS
-                rel_hovered_checkbox_i: int = self.visible_checkboxes.index(self._hovered_checkbox)
-                self.clicked_i = visible_start_i + rel_hovered_checkbox_i
+        self._hovered_checkbox, did_check_hovered_checkbox = checkbox_grid_upt_checkboxes(
+            self.visible_checkboxes, self._hovered_checkbox
+        )
+
+        if did_check_hovered_checkbox:
+            visible_start_i: int = self.offset_y * NUM_COLS
+            rel_hovered_checkbox_i: int = self.visible_checkboxes.index(self._hovered_checkbox)
+            self.clicked_i = visible_start_i + rel_hovered_checkbox_i
 
     def upt(self: Self) -> None:
         """Allows checking only one checkbox at a time."""
@@ -405,11 +298,18 @@ class ColorsGrid:
             (MOUSE.hovered_obj == self or self._hovered_checkbox is not None) and
             KEYBOARD.pressed != ()
         ):
-            self._handle_move_with_left_right()
-            self._handle_move_with_up_down()
-            if K_HOME in KEYBOARD.pressed:
-                self.clicked_i = 0
-            if K_END  in KEYBOARD.pressed:
-                self.clicked_i = len(self.colors) - 1
+            self.clicked_i = checkbox_grid_move_with_keys(
+                K_RIGHT, K_LEFT, K_DOWN, K_UP,
+                NUM_COLS, len(self.colors), self.clicked_i
+            )
 
         self.upt_checkboxes()
+
+        if self.clicked_i != self.prev_clicked_i:
+            visible_start_i: int = self.offset_y * NUM_COLS
+            visible_end_i: int = visible_start_i + len(self.visible_checkboxes)
+            if   self.clicked_i <  visible_start_i:
+                self.offset_y = self.clicked_i // NUM_COLS
+            elif self.clicked_i >= visible_end_i:
+                clicked_row: int = self.clicked_i // NUM_COLS
+                self.offset_y = clicked_row - NUM_VISIBLE_ROWS + 1

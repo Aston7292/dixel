@@ -8,10 +8,7 @@ import numpy as np
 from numpy import uint8
 from numpy.typing import NDArray
 
-from src.consts import (
-    BLACK,
-    EMPTY_TILE_ARR, TILE_W, TILE_H,
-)
+from src.consts import BLACK, EMPTY_TILE_ARR, TILE_W, TILE_H
 
 _FUNCS_NAMES: tuple[str, ...]       = ()
 _FUNCS_TOT_TIMES: tuple[float, ...] = ()
@@ -60,6 +57,28 @@ def print_funcs_profiles() -> None:
         print(f"{name}: {avg_time:.4f}ms | calls: {num_calls}")
 
 
+def get_brush_dim_checkbox_info(dim: int) -> tuple[pg.Surface, str]:
+    """
+    Gets the checkbox info for a brush dimension.
+
+    Args:
+        dimension
+    Returns:
+        image, hovering text
+    """
+
+    img_arr: NDArray[uint8] = np.tile(EMPTY_TILE_ARR, (8, 8, 1))
+    rect: pg.Rect = pg.Rect(0, 0, dim * TILE_W, dim * TILE_H)
+    rect.center = (
+        round(img_arr.shape[0] / 2),
+        round(img_arr.shape[1] / 2),
+    )
+
+    img: pg.Surface = pg.surfarray.make_surface(img_arr)
+    pg.draw.rect(img, BLACK, rect)
+    return pg.transform.scale_by(img, 4).convert(), f"{dim}px\n(CTRL+{dim})"
+
+
 def get_pixels(img: pg.Surface) -> NDArray[uint8]:
     """
     Gets the rgba values of the pixels in an image.
@@ -90,25 +109,3 @@ def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
     smallest_dim: int = min(new_img.get_size())
     pg.draw.rect(new_img, border_color, new_img.get_rect(), width=round(smallest_dim / 10))
     return new_img
-
-
-def get_brush_dim_checkbox_info(dim: int) -> tuple[pg.Surface, str]:
-    """
-    Gets the checkbox info for a brush dimension.
-
-    Args:
-        dimension
-    Returns:
-        image, hovering text
-    """
-
-    img_arr: NDArray[uint8] = np.tile(EMPTY_TILE_ARR, (8, 8, 1))
-    rect: pg.Rect = pg.Rect(0, 0, dim * TILE_W, dim * TILE_H)
-    rect.center = (
-        round(img_arr.shape[0] / 2),
-        round(img_arr.shape[1] / 2),
-    )
-
-    img: pg.Surface = pg.surfarray.make_surface(img_arr)
-    pg.draw.rect(img, BLACK, rect)
-    return pg.transform.scale_by(img, 4).convert(), f"{dim}px\n(CTRL+{dim})"

@@ -15,8 +15,9 @@ from src.classes.dropdown import Dropdown
 from src.classes.clickable import Button, LockedCheckbox, SpammableButton
 from src.classes.devices import MOUSE, KEYBOARD
 
-from src.obj_utils import UIElement, ObjInfo, resize_obj, rec_move_rect
-from src.type_utils import XY, RGBColor, HexColor, BlitInfo, RectPos
+import src.vars as my_vars
+from src.obj_utils import ObjInfo, resize_obj, rec_move_rect
+from src.type_utils import XY, HexColor, BlitInfo, RectPos
 from src.consts import (
     WHITE, DARKER_GRAY, HEX_BLACK,
     MOUSE_LEFT, MOUSE_RIGHT,
@@ -28,6 +29,8 @@ from src.imgs import (
     ADD_OFF_IMG, ADD_ON_IMG,
 )
 
+_SCROLLBAR_INIT_W: Final[int] = 16
+_SCROLLBAR_INIT_H: Final[int] = 128
 _SCROLLBAR_BORDER_DIM: Final[int] = 2
 
 
@@ -35,7 +38,7 @@ class _VerScrollbar:
     """Class to create a vertical scrollbar."""
 
     __slots__ = (
-        "_bar_init_pos", "_bar_rect", "_bar_init_w", "_bar_init_h",
+        "_bar_init_pos", "_bar_rect",
         "num_values", "value", "selected_value", "_unit_h",
         "_slider_rect", "_selected_value_rect",
         "_traveled_y", "_is_scrolling", "prev_num_values", "prev_value", "prev_selected_value",
@@ -60,9 +63,6 @@ class _VerScrollbar:
             self._bar_rect, self._bar_init_pos.coord_type,
             (self._bar_init_pos.x, self._bar_init_pos.y)
         )
-
-        self._bar_init_w: int = self._bar_rect.w
-        self._bar_init_h: int = self._bar_rect.h
 
         self.num_values: int = NUM_VISIBLE_ROWS
         self.value: int = 0
@@ -120,19 +120,13 @@ class _VerScrollbar:
         self._traveled_y = 0
         self._is_scrolling = False
 
-    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
-        """
-        Resizes the object.
-
-        Args:
-            window width ratio, window height ratio
-        """
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
         bar_xy: XY
 
         bar_xy, self._bar_rect.size = resize_obj(
-            self._bar_init_pos, self._bar_init_w, self._bar_init_h,
-            win_w_ratio, win_h_ratio
+            self._bar_init_pos, _SCROLLBAR_INIT_W, _SCROLLBAR_INIT_H
         )
         setattr(self._bar_rect, self._bar_init_pos.coord_type, bar_xy)
 
@@ -168,7 +162,7 @@ class _VerScrollbar:
         """
 
         bar_img: pg.Surface = pg.Surface(self._bar_rect.size)
-        pg.draw.rect(bar_img, WHITE, bar_img.get_rect(), _SCROLLBAR_BORDER_DIM)
+        pg.draw.rect(bar_img, WHITE, bar_img.get_rect(), width=_SCROLLBAR_BORDER_DIM)
         pg.draw.rect(bar_img, (100, 100, 100), self._slider_rect)
         pg.draw.rect(bar_img, DARKER_GRAY, self._selected_value_rect)
         return bar_img
@@ -178,7 +172,7 @@ class _VerScrollbar:
         Sets the value, selected value and values.
 
         Args:
-            values, value, selected value
+            number of values, value, selected value
         """
 
         self.num_values = self.prev_num_values = max(num_values, NUM_VISIBLE_ROWS)
@@ -276,7 +270,7 @@ class PalettesManager:
         "palettes", "clicked_indexes", "offsets_y", "colors_grid",
         "dropdown_indexes", "_dropdown_i", "_dropdown_offset_x", "_dropdown_offset_y", "_edit_i",
         "_scrollbar", "_add_palette_btn", "palette_dropdown", "_dropdown_options",
-        "hover_rects", "layer", "blit_sequence", "_win_w_ratio", "_win_h_ratio", "objs_info",
+        "hover_rects", "layer", "blit_sequence", "objs_info",
         "_dropdown_objs_info_start_i", "_dropdown_objs_info_end_i",
     )
 
@@ -295,8 +289,8 @@ class PalettesManager:
         self.offsets_y: list[int] = []
         self.colors_grid: ColorsGrid = ColorsGrid(pos, BG_LAYER)
 
-        self.dropdown_indexes: list[int | None] = []
-        self._dropdown_i: int | None = None
+        self.dropdown_indexes: list[int] = []
+        self._dropdown_i: int = -1
         self._dropdown_offset_x: int = 0
         self._dropdown_offset_y: int = 0
         self._edit_i: int | None = None
@@ -323,7 +317,7 @@ class PalettesManager:
             Button(
                 RectPos(0, 0, "topleft"),
                 (BUTTON_XS_OFF_IMG, BUTTON_XS_ON_IMG), text, hovering_text,
-                SPECIAL_LAYER, text_h=20
+                SPECIAL_LAYER, should_animate=False, text_h=20
             )
             for text, hovering_text in options_texts
         ])
@@ -331,15 +325,15 @@ class PalettesManager:
         self.hover_rects: tuple[pg.Rect, ...] = ()
         self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = []
-        self._win_w_ratio: float = 1
-        self._win_h_ratio: float = 1
         self.objs_info: tuple[ObjInfo, ...] = (
             ObjInfo(self.colors_grid), ObjInfo(self._scrollbar),
             ObjInfo(self._add_palette_btn), ObjInfo(self.palette_dropdown),
         )
 
         self._dropdown_objs_info_start_i: int = len(self.objs_info)
-        self.objs_info += tuple([ObjInfo(option) for option in self._dropdown_options])
+        self.objs_info += tuple(
+            [ObjInfo(option, should_follow_parent=False) for option in self._dropdown_options]
+        )
         self._dropdown_objs_info_end_i: int   = len(self.objs_info)
 
         dropdown_objs_info: tuple[ObjInfo, ...] = self.objs_info[
@@ -356,32 +350,39 @@ class PalettesManager:
     def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
-        """
-        Resizes the object.
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
-        Args:
-            window width ratio, window height ratio
-        """
+    def _snap_objs(self: Self) -> None:
+        """Snaps sub objects to the right position after the grid changes."""
 
-        self._win_w_ratio, self._win_h_ratio = win_w_ratio, win_h_ratio
+        rec_move_rect(
+            self._add_palette_btn,
+            round(self.colors_grid.rect.right    / my_vars.win_w_ratio),
+            round((self.colors_grid.rect.y - 10) / my_vars.win_h_ratio),
+        )
+        rec_move_rect(
+            self.palette_dropdown,
+            round((self._add_palette_btn.rect.x - 10) / my_vars.win_w_ratio),
+            round((self.colors_grid.rect.y - 10)      / my_vars.win_h_ratio),
+        )
 
-    def try_add_color(self: Self, rgb_color: RGBColor) -> bool:
+    def try_add_color(self: Self, hex_color: HexColor) -> bool:
         """
         Adds or edits a color if it's not present then checks it.
 
         Args:
-            rgb color
+            jex color
         Returns:
             changed flag
         """
 
-        did_change: bool = False
+        prev_num_colors: int = len(self.colors_grid.colors)
+        prev_offset_y: int = self.colors_grid.offset_y
         prev_colors_grid_y: int = self.colors_grid.rect.y
-        hex_color: HexColor = "{:02x}{:02x}{:02x}".format(*rgb_color)
 
         if self._edit_i is None:
-            did_change = self.colors_grid.try_add(hex_color)
+            self.colors_grid.try_add(hex_color)
         else:
             self.colors_grid.edit(self._edit_i, hex_color)
         self.colors_grid.check(self.colors_grid.colors.index(hex_color))
@@ -392,32 +393,28 @@ class PalettesManager:
             selected_value=self.colors_grid.clicked_i // NUM_COLS,
         )
 
+        did_change: bool = (
+            len(self.colors_grid.colors) != prev_num_colors or
+            self.colors_grid.offset_y != prev_offset_y
+        )
+
+        if did_change:
+            self.refresh_dropdown()
         if self.colors_grid.rect.y != prev_colors_grid_y:
-            rec_move_rect(
-                self._add_palette_btn,
-                round(self.colors_grid.rect.right    / self._win_w_ratio),
-                round((self.colors_grid.rect.y - 10) / self._win_h_ratio),
-                self._win_w_ratio, self._win_h_ratio
-            )
-            rec_move_rect(
-                self.palette_dropdown,
-                round((self._add_palette_btn.rect.x - 10) / self._win_w_ratio),
-                round((self.colors_grid.rect.y - 10)      / self._win_h_ratio),
-                self._win_w_ratio, self._win_h_ratio
-            )
+            self._snap_objs()
 
         return did_change
 
     def add_palette(
             self: Self, colors: list[HexColor], color_i: int, offset_y: int,
-            dropdown_i: int | None
+            dropdown_i: int
     ) -> None:
         """
         Adds a palette to the info arrays and the palette drop-down menu.
 
         Args:
             colors, clicked index, y offset,
-            drop-down menu index (can be None)
+            drop-down menu index
         """
 
         self.palettes.append(colors)
@@ -468,18 +465,7 @@ class PalettesManager:
         self.palette_dropdown.set_option_i(self.palette_dropdown.option_i)
 
         if self.colors_grid.rect.y != prev_colors_grid_y:
-            rec_move_rect(
-                self._add_palette_btn,
-                round(self.colors_grid.rect.right    / self._win_w_ratio),
-                round((self.colors_grid.rect.y - 10) / self._win_h_ratio),
-                self._win_w_ratio, self._win_h_ratio
-            )
-            rec_move_rect(
-                self.palette_dropdown,
-                round((self._add_palette_btn.rect.x - 10) / self._win_w_ratio),
-                round((self.colors_grid.rect.y - 10)      / self._win_h_ratio),
-                self._win_w_ratio, self._win_h_ratio
-            )
+            self._snap_objs()
 
     def refresh_dropdown(self: Self) -> None:
         """Refreshes the drop-down menu position and activeness."""
@@ -492,24 +478,21 @@ class PalettesManager:
         colors_grid_visible_end_i: int = colors_grid_visible_start_i + visible_checkboxes_len
 
         is_dropdown_on: bool = (
-            self._dropdown_i is not None and
             colors_grid_visible_start_i <= self._dropdown_i < colors_grid_visible_end_i
         )
         if is_dropdown_on:
-            assert self._dropdown_i is not None
             dropdown_rel_i: int = self._dropdown_i - colors_grid_visible_start_i
             dropdown_checkbox: LockedCheckbox = self.colors_grid.visible_checkboxes[dropdown_rel_i]
 
-            x: int = dropdown_checkbox.rect.x + self._dropdown_offset_x
-            y: int = dropdown_checkbox.rect.y + self._dropdown_offset_y
-            init_x: int = round(x / self._win_w_ratio)
-            init_y: int = round(y / self._win_h_ratio)
+            init_x: int = round(
+                (dropdown_checkbox.rect.x + self._dropdown_offset_x) / my_vars.win_w_ratio
+            )
+            init_y: int = round(
+                (dropdown_checkbox.rect.y + self._dropdown_offset_y) / my_vars.win_h_ratio
+            )
             option_h: int = self._dropdown_options[0].init_imgs[0].get_height()
             for i, option in enumerate(self._dropdown_options):
-                rec_move_rect(
-                    option, init_x, init_y + (i * option_h),
-                    self._win_w_ratio, self._win_h_ratio
-                )
+                rec_move_rect(option, init_x, init_y + (i * option_h))
 
         dropdown_objs_info: tuple[ObjInfo, ...] = self.objs_info[
             self._dropdown_objs_info_start_i:self._dropdown_objs_info_end_i
@@ -554,22 +537,11 @@ class PalettesManager:
 
             self.colors_grid.remove(self.colors_grid.clicked_i)
             self._scrollbar.num_values = ceil(len(self.colors_grid.colors) / NUM_COLS)
-            if self._dropdown_i is not None and self._dropdown_i > self.colors_grid.clicked_i:
+            if self._dropdown_i > self.colors_grid.clicked_i:
                 self._dropdown_i -= 1
 
             if self.colors_grid.rect.y != prev_colors_grid_y:
-                rec_move_rect(
-                    self._add_palette_btn,
-                    round(self.colors_grid.rect.right    / self._win_w_ratio),
-                    round((self.colors_grid.rect.y - 10) / self._win_h_ratio),
-                    self._win_w_ratio, self._win_h_ratio
-                )
-                rec_move_rect(
-                    self.palette_dropdown,
-                    round((self._add_palette_btn.rect.x - 10) / self._win_w_ratio),
-                    round((self.colors_grid.rect.y - 10)      / self._win_h_ratio),
-                    self._win_w_ratio, self._win_h_ratio
-                )
+                self._snap_objs()
 
     def _handle_dropdown_toggle(self: Self) -> None:
         """Toggles the drop-down menu if clicking the same checkboxes, it removes it if not."""
@@ -577,13 +549,14 @@ class PalettesManager:
         hovered_checkbox: LockedCheckbox | None = self.colors_grid._hovered_checkbox
         visible_checkboxes: tuple[LockedCheckbox, ...] = self.colors_grid.visible_checkboxes
         visible_start_i: int = self.colors_grid.offset_y * NUM_COLS
+        visible_end_i: int = visible_start_i + len(visible_checkboxes)
 
         is_hovering_dropdown_checkbox: bool = (
-            self._dropdown_i is not None and
+            visible_start_i <= self._dropdown_i < visible_end_i and
             hovered_checkbox == visible_checkboxes[self._dropdown_i - visible_start_i]
         )
         if hovered_checkbox is None or is_hovering_dropdown_checkbox:
-            self._dropdown_i = None
+            self._dropdown_i = -1
         else:
             self._dropdown_i = visible_start_i + visible_checkboxes.index(hovered_checkbox)
             self._dropdown_offset_x = MOUSE.x - hovered_checkbox.rect.x + 8
@@ -600,28 +573,16 @@ class PalettesManager:
         if is_remove_clicked:
             prev_colors_grid_y: int = self.colors_grid.rect.y
 
-            assert self._dropdown_i is not None
             self.colors_grid.remove(self._dropdown_i)
             self._scrollbar.num_values = ceil(len(self.colors_grid.colors) / NUM_COLS)
             self._dropdown_i = min(self._dropdown_i, len(self.colors_grid.colors) - 1)
 
             if self.colors_grid.rect.y != prev_colors_grid_y:
-                rec_move_rect(
-                    self._add_palette_btn,
-                    round(self.colors_grid.rect.right    / self._win_w_ratio),
-                    round((self.colors_grid.rect.y - 10) / self._win_h_ratio),
-                    self._win_w_ratio, self._win_h_ratio
-                )
-                rec_move_rect(
-                    self.palette_dropdown,
-                    round((self._add_palette_btn.rect.x - 10) / self._win_w_ratio),
-                    round((self.colors_grid.rect.y - 10)      / self._win_h_ratio),
-                    self._win_w_ratio, self._win_h_ratio
-                )
+                self._snap_objs()
 
     def _refresh(
             self: Self, prev_palette_i: int, prev_num_colors: int, prev_offset_y: int,
-            prev_dropdown_i: int | None
+            prev_dropdown_i: int
     ) -> bool:
         """
         Refreshes the grid, scrollbar and drop-down menu.
@@ -639,9 +600,8 @@ class PalettesManager:
 
         if did_palette_i_change:
             self.refresh_palettes_info(prev_palette_i)
-            self.refresh_palette()
-
-        if self.colors_grid.offset_y != self.colors_grid.prev_offset_y:
+            self.refresh_palette()  # Also refreshes offset_y
+        elif did_offset_y_change:
             self.colors_grid.set_offset_y(self.colors_grid.offset_y)
 
         if (
@@ -674,7 +634,7 @@ class PalettesManager:
         prev_palette_i: int = self.palette_dropdown.option_i
         prev_num_colors: int = len(self.colors_grid.colors)
         prev_offset_y: int = self.colors_grid.offset_y
-        prev_dropdown_i: int | None = self._dropdown_i
+        prev_dropdown_i: int = self._dropdown_i
 
         if MOUSE.scroll_amount != 0:
             self._handle_scroll()
@@ -692,7 +652,7 @@ class PalettesManager:
             K_p in KEYBOARD.timed
         )
         if is_add_palette_btn_clicked or is_ctrl_shift_p_pressed:
-            self.add_palette([HEX_BLACK], color_i=0, offset_y=0, dropdown_i=None)
+            self.add_palette([HEX_BLACK], color_i=0, offset_y=0, dropdown_i=-1)
             self.palette_dropdown.option_i = len(self.palettes)
 
         if KEYBOARD.is_ctrl_on and K_p in KEYBOARD.pressed:
@@ -704,14 +664,13 @@ class PalettesManager:
             self._handle_dropdown_shortcuts()
         if MOUSE.released[MOUSE_RIGHT]:
             self._handle_dropdown_toggle()
-        if self._dropdown_i is not None:
+        if self._dropdown_i != -1:
             self._upt_dropdown()
 
         did_change: bool = self._refresh(
             prev_palette_i, prev_num_colors, prev_offset_y,
             prev_dropdown_i
         )
-
         return (
             self.colors_grid.colors[self.colors_grid.clicked_i],
             did_change,

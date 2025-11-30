@@ -291,7 +291,7 @@ def try_create_dir(dir_path: Path, creation_attempt_i: int) -> str | None:
     should_retry: bool
 
     if creation_attempt_i == FILE_ATTEMPT_STOP_I:
-        return f"{dir_path.name}: repeated failure in creation."
+        return f"Directory {dir_path.name}: repeated failure in creation."
 
     error_str: str | None = None
     for system_attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
@@ -304,7 +304,7 @@ def try_create_dir(dir_path: Path, creation_attempt_i: int) -> str | None:
                 "File with the same name exists."
             )
 
-            error_str = f"{dir_path.name}: {base_error_str}"
+            error_str = f"Directory {dir_path.name}: {base_error_str}"
             break
         except OSError as e:
             base_error_str, should_retry = handle_file_os_error(e)
@@ -312,7 +312,7 @@ def try_create_dir(dir_path: Path, creation_attempt_i: int) -> str | None:
                 pg.time.wait(2 ** system_attempt_i)
                 continue
 
-            error_str = f"{dir_path.name}: {base_error_str}"
+            error_str = f"Directory {dir_path.name}: {base_error_str}"
             break
 
     return error_str

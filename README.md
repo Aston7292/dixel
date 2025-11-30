@@ -36,15 +36,18 @@ Check with ```python3 --version```.
 **Zooming**: Zoom in/out towards the mouse.\
 **Minimap**: See the current position on the grid with a minimap.\
 **Color Picker**: Select colors with a colorful and intuitive UI.\
-**Resizable Grid**: Modify the grid and have a preview of how it will look.\
+**Edit Grid**: Modify the grid and have a preview of how it will look.\
 **Auto Save**: If you're editing an existing image it will be saved on close,
 if the program crashes the image will always be saved.
 
 ### Tools
 
 **Pencil**: Change individual pixels\
+**Eraser**: Eraser individual pixels\
 **Bucket**: Fill a section or change the color of all matching pixels\
-**Eyedropper**: Pick a color from the image
+**Eyedropper**: Pick a color from the image\
+**Line**: Draw a line between two points\
+**Rectangle**: Draw a rectangle between two points
 
 ## Keyboard functionality
 
@@ -83,9 +86,11 @@ if the program crashes the image will always be saved.
 **CTRL Del**: delete selected color\
 
 **SHIFT P**: Select pencil tool\
+**SHIFT E**: Select eraser tool\
 **SHIFT B**: Select bucket tool\
-**SHIFT E**: Select eye dropper tool\
+**SHIFT I**: Select eye dropper tool\
 **SHIFT L**: Select line tool\
+**SHIFT R**: Select rectangle tool\
 **ALT**: Temporarily select eye dropper tool
 
 ### Grid
@@ -107,7 +112,6 @@ if the program crashes the image will always be saved.
 **Escape**: Close\
 **Enter**: Confirm\
 **arrows/tab/SHIFT tab**: Move selection\
-**CTRL left/right**: Go to end of text in input box\
 **+/-**: Increment/decrement in numerical input box\
 **CTRL +/-**: Reach limit in numerical input box\
 
@@ -118,7 +122,7 @@ if the program crashes the image will always be saved.
 
 ### Settings
 
-**CTRL F**: Show/hide fps counter in settings\
+**CTRL F**: Show/hide fps counter\
 **CTRL C 1-5**: Change fps cap\
 **CTRL A 1-4**: change autosave mode\
 **CTRL S**: Choose crash save directory\

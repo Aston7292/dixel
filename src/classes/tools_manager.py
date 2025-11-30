@@ -32,11 +32,11 @@ from src.type_utils import BlitInfo, RectPos
 from src.consts import BG_LAYER, SPECIAL_LAYER
 from src.imgs import (
     CHECKBOX_OFF_IMG, CHECKBOX_ON_IMG,
-    PENCIL_IMG, BUCKET_IMG, EYE_DROPPER_IMG, LINE_IMG, RECT_IMG,
+    PENCIL_IMG, ERASER_IMG, BUCKET_IMG, EYE_DROPPER_IMG, LINE_IMG, RECT_IMG,
 )
 
 
-ToolName: TypeAlias = Literal["pencil", "bucket", "eye_dropper", "line", "rectangle"]
+ToolName: TypeAlias = Literal["pencil", "eraser", "bucket", "eye_dropper", "line", "rect"]
 ToolInfo: TypeAlias = tuple[ToolName, dict[str, Any]]
 _ToolsInfo: TypeAlias = dict[ToolName, dict[str, Any]]
 _ToolExtraInfo: TypeAlias = tuple[dict[str, Any], ...]
@@ -46,6 +46,12 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
     "pencil": {
         "info": (PENCIL_IMG, "Pencil\n(SHIFT+P)"),
         "shortcut_k": K_p,
+        "extra_info": (),
+    },
+
+    "eraser": {
+        "info": (ERASER_IMG, "Eraser\n(SHIFT+E)"),
+        "shortcut_k": K_e,
         "extra_info": (),
     },
 
@@ -63,8 +69,8 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
     },
 
     "eye_dropper": {
-        "info": (EYE_DROPPER_IMG, "Eye Dropper\n(SHIFT+E)"),
-        "shortcut_k": K_e,
+        "info": (EYE_DROPPER_IMG, "Eye Dropper\n(SHIFT+I)"),
+        "shortcut_k": K_i,
         "extra_info": (),
     },
 
@@ -74,7 +80,7 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
         "extra_info": (),
     },
 
-    "rectangle": {
+    "rect": {
         "info": (RECT_IMG, "Rectangle\n(SHIFT+R)"),
         "shortcut_k": K_r,
         "extra_info": (
@@ -89,7 +95,7 @@ _TOOLS_INFO: Final[_ToolsInfo] = {
 }
 del _CHECKBOX_IMGS
 
-_EYE_DROPPER_I: Final[int] = 2
+_EYE_DROPPER_I: Final[int] = 3
 
 
 class ToolsManager:
@@ -133,14 +139,15 @@ class ToolsManager:
 
             raw_sub_tool_extra_info: dict[str, Any]
 
-            obj_x: int = self.tools_grid.rect.x + 16
+            obj_x: int = self.tools_grid.rect.x + 8
             extra_info: _ToolExtraInfo = ()
             for raw_sub_tool_extra_info in raw_extra_info:
                 obj: UIElement = raw_sub_tool_extra_info["type"](
                     RectPos(obj_x, self.tools_grid.rect.y - 16, "bottomleft"),
                     *raw_sub_tool_extra_info["init_args"], base_layer=SPECIAL_LAYER
                 )
-                assert hasattr(obj, "rect"), obj.__class__.__name__
+                assert hasattr(obj, "rect") and isinstance(obj.rect, pg.Rect), obj.__class__.__name__
+                assert hasattr(obj, "upt") and callable(obj.upt)             , obj.__class__.__name__
 
                 rect: pg.Rect = obj.rect
                 obj_x += rect.w + 16
@@ -185,13 +192,8 @@ class ToolsManager:
             self.check(self.saved_clicked_i)
             self.saved_clicked_i = None
 
-    def resize(self: Self, _win_w_ratio: float, _win_h_ratio: float) -> None:
-        """
-        Resizes the object.
-
-        Args:
-            window width ratio, window height ratio
-        """
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
     def check(self: Self, tool_i: int) -> None:
         """
@@ -203,17 +205,18 @@ class ToolsManager:
 
         obj_info: ObjInfo
 
-        prev_clicked_i: int = self.tools_grid.prev_clicked_i
-        prev_sub_tools_range_start_i: int = self._sub_tools_ranges[prev_clicked_i]           [0]
-        prev_sub_tools_range_end_i: int   = self._sub_tools_ranges[prev_clicked_i]           [1]
+        sub_tools_ranges: tuple[tuple[int, int], ...] = self._sub_tools_ranges
+
+        prev_sub_tools_range_start_i: int = sub_tools_ranges[self.tools_grid.prev_clicked_i][0]
+        prev_sub_tools_range_end_i: int   = sub_tools_ranges[self.tools_grid.prev_clicked_i][1]
         for obj_info in self.objs_info[prev_sub_tools_range_start_i:prev_sub_tools_range_end_i]:
             obj_info.rec_set_active(False)
 
         self.tools_grid.check(tool_i)
         self._tool_name = tuple(_TOOLS_INFO.keys())[self.tools_grid.clicked_i]
 
-        sub_tools_range_start_i: int      = self._sub_tools_ranges[self.tools_grid.clicked_i][0]
-        sub_tools_range_end_i: int        = self._sub_tools_ranges[self.tools_grid.clicked_i][1]
+        sub_tools_range_start_i: int      = sub_tools_ranges[self.tools_grid.clicked_i     ][0]
+        sub_tools_range_end_i: int        = sub_tools_ranges[self.tools_grid.clicked_i     ][1]
         for obj_info in self.objs_info[sub_tools_range_start_i:sub_tools_range_end_i]:
             obj_info.rec_set_active(True)
 
@@ -268,8 +271,9 @@ class ToolsManager:
         self.tools_grid.upt()
 
         if KEYBOARD.is_alt_on:
-            self.saved_clicked_i = self.tools_grid.clicked_i
-            self.tools_grid.clicked_i = _EYE_DROPPER_I
+            if self.saved_clicked_i is None:
+                self.saved_clicked_i = self.tools_grid.clicked_i
+                self.tools_grid.clicked_i = _EYE_DROPPER_I
         elif self.saved_clicked_i is not None:
             self.tools_grid.clicked_i = self.saved_clicked_i
             self.saved_clicked_i = None

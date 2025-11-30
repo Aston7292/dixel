@@ -1,21 +1,29 @@
 """Class to indicate an unsaved file."""
 
-from typing import Self
+from math import ceil
+from typing import Self, Final
 
 from pygame import Surface, Rect, Color, draw, SYSTEM_CURSOR_ARROW
 
+import src.obj_utils as objs
 import src.vars as my_vars
 from src.obj_utils import ObjInfo, resize_obj
 from src.type_utils import XY, WH, BlitInfo, RectPos
-from src.consts import WHITE, BG_LAYER, ELEMENT_LAYER, ANIMATION_GROW, ANIMATION_SHRINK
+from src.consts import (
+    WHITE,
+    BG_LAYER, ELEMENT_LAYER,
+    ANIMATION_GROW, ANIMATION_SHRINK
+)
+
+INIT_DIM: Final[int] = 16
 
 
 class UnsavedIcon:
     """Class to indicate an unsaved file."""
 
     __slots__ = (
-        "init_pos", "init_radius",
-        "_normal_radius", "_radius", "_min_radius", "_max_radius",
+        "init_pos",
+        "_scale", "_min_scale", "_max_scale",
         "_rect", "_frame_rect",
         "_color", "_animation_i",
         "hover_rects", "layer", "blit_sequence",
@@ -28,29 +36,25 @@ class UnsavedIcon:
         """Creates image and rect."""
 
         self.init_pos: RectPos = RectPos(0, 0, "midleft")
-        self.init_radius: int = 8
 
-        self._normal_radius: float = self.init_radius
-        self._radius: float = 0
-        self._min_radius: float = self._normal_radius
-        self._max_radius: float = self._normal_radius * 1.5
+        self._scale: float = 1
+        self._min_scale: float = 1
+        self._max_scale: float = 1.15
 
         img: Surface = Surface((
-            # Prevents cutoffs
-            round((self._radius * 2) + 1),
-            round((self._radius * 2) + 1),
+            ceil(INIT_DIM * self._scale * my_vars.min_win_ratio),
+            ceil(INIT_DIM * self._scale * my_vars.min_win_ratio),
         ))
         self._rect: Rect = Rect(
             0, 0,
-            # Prevents cutoffs
-            round((self._max_radius * 2) + 1),
-            round((self._max_radius * 2) + 1)
+            ceil(INIT_DIM * self._max_scale * my_vars.min_win_ratio),
+            ceil(INIT_DIM * self._max_scale * my_vars.min_win_ratio),
         )
         self._frame_rect: Rect = Rect(0, 0, *img.get_size())
         self._frame_rect.center = self._rect.center
 
         self._color: Color = WHITE
-        self._animation_i: int | None = None
+        self._animation_i: int = ANIMATION_GROW
 
         self.hover_rects: tuple[Rect, ...] = ()
         self.layer: int = BG_LAYER
@@ -62,79 +66,57 @@ class UnsavedIcon:
     def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
-        """
-        Resizes the object.
-
-        Args:
-            window width ratio, window height ratio
-        """
-
-        _xy: XY
-
-        radius_ratio: float     = self._radius     / self._normal_radius
-        min_radius_ratio: float = self._min_radius / self._normal_radius
-        max_radius_ratio: float = self._max_radius / self._normal_radius
-
-        # Position is set manually after resize
-        _xy, (self._normal_radius, self._normal_radius) = resize_obj(
-            RectPos(0, 0, "topleft"), self.init_radius, self.init_radius,
-            win_w_ratio, win_h_ratio, should_keep_wh_ratio=True
-        )
-
-        self._min_radius = self._normal_radius * min_radius_ratio
-        self._max_radius = self._normal_radius * max_radius_ratio
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
         self._rect.size = (
-            # Prevents cutoffs
-            round((self._max_radius * 2) + 1),
-            round((self._max_radius * 2) + 1),
+            ceil(INIT_DIM * self._max_scale * my_vars.min_win_ratio),
+            ceil(INIT_DIM * self._max_scale * my_vars.min_win_ratio),
         )
-        self.set_radius(self._normal_radius * radius_ratio)
+        self.set_scale(self._scale)
 
-    def move_rect(
-            self: Self, init_x: int, init_y: int,
-            win_w_ratio: float, win_h_ratio: float
-    ) -> None:
+    def move_rect(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
         """
         Moves the rect and frame_rect to a specific coordinate.
 
         Args:
-            initial x, initial y, window width ratio, window height ratio
+            initial x, initial y, scale flag
         """
 
         xy: XY
-        _wh: WH
 
         self.init_pos.x, self.init_pos.y = init_x, init_y  # More accurate
-        xy, _wh = resize_obj(
-            self.init_pos, init_w=0, init_h=0,
-            win_w_ratio=win_w_ratio, win_h_ratio=win_h_ratio
-        )
 
+        if should_scale:
+            xy = (
+                round(self.init_pos.x * my_vars.win_w_ratio),
+                round(self.init_pos.y * my_vars.win_h_ratio),
+            )
+        else:
+            xy = (self.init_pos.x, self.init_pos.y)
         setattr(self._rect, self.init_pos.coord_type, xy)
         self._frame_rect.center = self._rect.center
 
-    def set_radius(self: Self, radius: float) -> None:
+    def set_scale(self: Self, scale: float) -> None:
         """
-        Sets the radius and refreshes image and rect.
+        Sets the scale and refreshes image and rect.
 
         Args:
-            radius
+            scale
         """
 
-        self._radius = radius
+        self._scale = scale
 
         img: Surface = Surface((
-            # Prevents cutoffs
-            round((self._radius * 2) + 1),
-            round((self._radius * 2) + 1),
+            ceil(INIT_DIM * self._scale * my_vars.min_win_ratio),
+            ceil(INIT_DIM * self._scale * my_vars.min_win_ratio),
         ))
         self._frame_rect.size = img.get_size()
         self._frame_rect.center = self._rect.center
+
         draw.aacircle(
             img, self._color,
-            (self._frame_rect.w / 2, self._frame_rect.h / 2), self._radius
+            (self._frame_rect.w / 2, self._frame_rect.h / 2), (img.get_width() - 1) / 2
         )
 
         self.blit_sequence = (
@@ -152,29 +134,33 @@ class UnsavedIcon:
 
         self._animation_i = animation_i
         self._color = color
-        self._min_radius = 0 if should_go_to_0 else self._normal_radius
+        self._min_scale = 0 if should_go_to_0 else 1
+        objs.animating_objs.add(self)
 
-    def animate(self: Self) -> None:
-        """Plays either the grow or shrink animation."""
+    def animate(self: Self, dt: float) -> None:
+        """
+        Plays a frame of the active animation.
 
-        prev_radius: float = self._radius
+        Args:
+            delta time
+        """
+
+        prev_scale: float = self._scale
 
         # The animation is fast at the start and slow at the end
         if self._animation_i == ANIMATION_GROW:
-            grow_progress: float   = (self._max_radius - self._radius    ) / self._max_radius
-            self._radius += (0.25 + grow_progress  ) * my_vars.dt
-
-            if self._radius >= self._max_radius:
-                self._radius = self._max_radius
+            grow_progress: float = (self._max_scale - self._scale) / self._max_scale
+            self._scale += (0.02 + (grow_progress * 0.2)) * dt
+            if self._scale >= self._max_scale:
+                self._scale = self._max_scale
                 self._animation_i = ANIMATION_SHRINK
         elif self._animation_i == ANIMATION_SHRINK:
-            shrink_progress: float = (self._radius     - self._min_radius) / self._max_radius
-            self._radius -= (0.25 + shrink_progress) * my_vars.dt
-
-            if self._radius <= self._min_radius:
-                self._radius = self._min_radius
+            shrink_progress: float = (self._scale - self._min_scale) / self._max_scale
+            self._scale -= (0.02 + (shrink_progress * 0.2)) * dt
+            if self._scale <= self._min_scale:
+                self._scale = self._min_scale
                 self._color = WHITE
-                self._animation_i = None
+                objs.animating_objs.remove(self)
 
-        if self._radius != prev_radius:
-            self.set_radius(self._radius)
+        if self._scale != prev_scale:
+            self.set_scale(self._scale)

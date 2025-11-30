@@ -75,7 +75,7 @@ class TestTextLabel(TestCase):
 
         self.assertListEqual(text_label.blit_sequence, expected_sequence)
 
-    @mock.patch.object(TextLabel, "_refresh_rects", autospec=True, wraps=TextLabel._refresh_rects)
+    @mock.patch.object(TextLabel, "_refresh_rects", autospec=True, wraps=TextLabel.refresh_rects)
     def test_resize(self, mock_refresh_rects: Mock) -> None:
         """Tests the resize method, mocks TextLabel.refresh_rects."""
 
@@ -116,7 +116,7 @@ class TestTextLabel(TestCase):
         img: pg.Surface
 
         text_label: TextLabel = self._make_text_label()
-        text_label._refresh_rects((2, 3))
+        text_label.refresh_rects((2, 3))
 
         expected_rect: pg.Rect = pg.Rect()
         expected_rect.size = (
@@ -162,7 +162,7 @@ class TestTextLabel(TestCase):
             self.assertTupleEqual(rect.center, expected_xy)
             expected_line_init_pos.y += rect.h
 
-    @mock.patch.object(TextLabel, "_refresh_rects", autospec=True, wraps=TextLabel._refresh_rects)
+    @mock.patch.object(TextLabel, "_refresh_rects", autospec=True, wraps=TextLabel.refresh_rects)
     def test_set_text(self, mock_refresh_rects: Mock) -> None:
         """Tests the set_text method, mocks TextLabel.refresh_rects."""
 

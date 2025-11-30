@@ -8,6 +8,7 @@ from pygame.locals import *
 import src.obj_utils as objs
 import src.vars as my_vars
 from src.obj_utils import UIElement
+from src.consts import CHR_LIMIT
 
 _NUMPAD_FIRST_K: Final[int] = K_KP_1
 _NUMPAD_LAST_K: Final[int]  = K_KP_PERIOD
@@ -78,10 +79,7 @@ class _Mouse:
             for rect in obj.hover_rects
             if rect.x <= self.x < (rect.x + rect.w) and rect.y <= self.y < (rect.y + rect.h)
         ]
-        self.hovered_obj = (
-            None if hovered_objs == [] else
-            sorted(hovered_objs, key=lambda obj: -obj.layer)[0]
-        )
+        self.hovered_obj = max(hovered_objs, default=None, key=lambda obj: obj.layer)
 
 
 class _Keyboard:
@@ -110,20 +108,6 @@ class _Keyboard:
         self._prev_timed_refresh: int = -self._timed_interval
         self._alt_k: str = ""
 
-    def refresh_timed(self: Self) -> None:
-        """Fills the timed keys once every 128ms + acceleration and adds the alt_k if needed."""
-
-        if self.pressed == () or (my_vars.ticks - self._prev_timed_refresh < self._timed_interval):
-            self.timed = ()
-        else:
-            self.timed = self.pressed
-            self._timed_interval = max(self._timed_interval - 8, 64)
-            self._prev_timed_refresh = my_vars.ticks
-
-        if self._alt_k != "" and not self.is_alt_on:
-            self.timed += (int(self._alt_k),)
-            self._alt_k = ""
-
     def add(self: Self, k: int) -> None:
         """
         Adds a converted key to the pressed keys if it's not using alt.
@@ -145,7 +129,7 @@ class _Keyboard:
 
         if self.is_alt_on and K_0 <= converted_k <= K_9:
             self._alt_k += chr(converted_k)
-            if int(self._alt_k) > 1_114_111:
+            if int(self._alt_k) > CHR_LIMIT:
                 self._alt_k = self._alt_k[-1]
 
             self._alt_k = self._alt_k.lstrip("0")
@@ -199,6 +183,21 @@ class _Keyboard:
 
         self._raws = self.pressed = self.released = self.timed = ()
         self.is_ctrl_on = self.is_shift_on = self.is_alt_on = self.is_numpad_on = False
+
+    def refresh_timed(self: Self) -> None:
+        """Fills the timed keys once every 128ms + acceleration and adds the alt_k if needed."""
+
+        if self.pressed == () or (my_vars.ticks - self._prev_timed_refresh < self._timed_interval):
+            self.timed = ()
+        else:
+            self.timed = self.pressed
+            self._timed_interval = max(self._timed_interval - 8, 64)
+            self._prev_timed_refresh = my_vars.ticks
+
+        if self._alt_k != "" and not self.is_alt_on:
+            self.timed += (int(self._alt_k),)
+            self._alt_k = ""
+
 
 
 MOUSE: Final[_Mouse] = _Mouse()

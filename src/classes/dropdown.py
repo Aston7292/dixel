@@ -19,8 +19,8 @@ class Dropdown:
 
     __slots__ = (
         "init_pos",
-        "_option_base_layer", "_options", "values", "option_i", "_is_fully_visible",
-        "hover_rects", "layer", "blit_sequence", "_win_w_ratio", "_win_h_ratio", "objs_info",
+        "_options", "values", "option_i", "_is_fully_visible",
+        "hover_rects", "layer", "blit_sequence", "objs_info",
         "_options_objs_info_start_i", "_options_objs_info_end_i",
     )
 
@@ -28,7 +28,8 @@ class Dropdown:
 
     def __init__(
             self: Self, pos: RectPos, info: DropdownOptionsInfo, text: str,
-            base_layer: int = BG_LAYER, text_h: int = 25, is_text_above: bool = True
+            base_layer: int = BG_LAYER,
+            text_h: int = 25, is_text_above: bool = True
     ) -> None:
         """
         Creates all the buttons.
@@ -44,12 +45,12 @@ class Dropdown:
         # For placeholder button (changed to copy selected option when fully visible)
         info = (("", "", None),) + info
 
-        self._option_base_layer: int = base_layer + TOP_LAYER - ELEMENT_LAYER
+        option_base_layer: int = base_layer + TOP_LAYER - ELEMENT_LAYER
         self._options: list[Button] = [
             Button(
                 RectPos(self.init_pos.x, self.init_pos.y, self.init_pos.coord_type),
                 (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG), text, hovering_text,
-                self._option_base_layer, text_h
+                option_base_layer, should_animate=False, text_h=text_h
             )
             for text, hovering_text, _value in info
         ]
@@ -71,8 +72,6 @@ class Dropdown:
         self.hover_rects: tuple[Rect, ...] = ()
         self.layer: int = BG_LAYER
         self.blit_sequence: list[BlitInfo] = []
-        self._win_w_ratio: float = 1
-        self._win_h_ratio: float = 1
         self.objs_info: tuple[ObjInfo, ...] = (ObjInfo(text_label),)
 
         self._options_objs_info_start_i: int = len(self.objs_info)
@@ -87,25 +86,15 @@ class Dropdown:
 
         self._set_full_visibility(False)
 
-    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
-        """
-        Resizes the object.
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
-        Args:
-            window width ratio, window height ratio
-        """
-
-        self._win_w_ratio, self._win_h_ratio = win_w_ratio, win_h_ratio
-
-    def move_rect(
-            self: Self, init_x: int, init_y: int,
-            _win_w_ratio: float, _win_h_ratio: float
-    ) -> None:
+    def move_rect(self: Self, init_x: int, init_y: int, _should_scale: bool) -> None:
         """
         Moves the rect to a specific coordinate.
 
         Args:
-            initial x, initial y, window width ratio, window height ratio
+            initial x, initial y, scale flag
         """
 
         self.init_pos.x, self.init_pos.y = init_x, init_y  # More accurate
@@ -130,11 +119,7 @@ class Dropdown:
         for obj_info in dropdown_objs_info:
             obj_info.rec_set_active(obj_info == selected_obj_info)
 
-        rec_move_rect(
-            self.objs_info[self._options_objs_info_start_i + self.option_i].obj,
-            self.init_pos.x, self.init_pos.y,
-            self._win_w_ratio, self._win_h_ratio
-        )
+        rec_move_rect(self._options[self.option_i], self.init_pos.x, self.init_pos.y)
 
     def add(self: Self, text: str, hovering_text: str, value: Any) -> None:
         """
@@ -146,15 +131,17 @@ class Dropdown:
 
         assert self._options[0].text_label is not None
 
+        option_base_layer: int = self._options[0].layer + TOP_LAYER - ELEMENT_LAYER
         option: Button = Button(
             RectPos(self.init_pos.x, self.init_pos.y, self.init_pos.coord_type),
             (BUTTON_S_OFF_IMG, BUTTON_S_ON_IMG), text, hovering_text,
-            self._option_base_layer, self._options[0].text_label.init_h
+            option_base_layer, should_animate=False, text_h=self._options[0].text_label.init_h
         )
+
         option_objs: list[UIElement] = [option]
         while option_objs != []:
             obj: UIElement = option_objs.pop()
-            obj.resize(self._win_w_ratio, self._win_h_ratio)
+            obj.resize()
             option_objs.extend([info.obj for info in obj.objs_info])
 
         self._options.append(option)
@@ -182,33 +169,25 @@ class Dropdown:
         self._is_fully_visible = is_fully_visible
 
         if self._is_fully_visible:
-            placeholder_option_text_label: TextLabel | None = self._options[0].text_label
             selected_option_text_label: TextLabel | None = self._options[self.option_i].text_label
-
-            assert placeholder_option_text_label is not None
+            hovering_text: str = self._options[self.option_i].hovering_text_label.text
+            assert self._options[0].text_label is not None
             assert selected_option_text_label is not None
-            placeholder_option_text_label.set_text(selected_option_text_label.text)
-            self._options[0].hovering_text_label = self._options[self.option_i].hovering_text_label
+            self._options[0].text_label.set_text(selected_option_text_label.text)
+            self._options[0].hovering_text_label.set_text(hovering_text)
 
             option_h: int = self._options[0].init_imgs[0].get_height()
             for i, option in enumerate(self._options):
-                rec_move_rect(
-                    option, self.init_pos.x, self.init_pos.y + (i * option_h),
-                    self._win_w_ratio, self._win_h_ratio
-                )
+                rec_move_rect(option, self.init_pos.x, self.init_pos.y + (i * option_h))
         else:
-            rec_move_rect(
-                self._options[self.option_i], self.init_pos.x, self.init_pos.y,
-                self._win_w_ratio, self._win_h_ratio
-            )
+            rec_move_rect(self._options[self.option_i], self.init_pos.x, self.init_pos.y)
 
         dropdown_objs_info: tuple[ObjInfo, ...] = self.objs_info[
             self._options_objs_info_start_i:self._options_objs_info_end_i
         ]
         selected_obj_info: ObjInfo = dropdown_objs_info[self.option_i]
         for obj_info in dropdown_objs_info:
-            if obj_info != selected_obj_info:
-                obj_info.rec_set_active(self._is_fully_visible)
+            obj_info.rec_set_active(self._is_fully_visible or obj_info == selected_obj_info)
 
     def _upt_all(self: Self) -> None:
         """Updates all options, if one is clicked it selects it and hides all others."""

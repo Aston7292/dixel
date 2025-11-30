@@ -34,7 +34,7 @@ from src.file_utils import (
     try_write_file, try_replace_file, try_remove_file, try_create_dir
 )
 from src.lock_utils import LockError, try_lock_file
-from src.type_utils import XY, RGBColor, HexColor, BlitInfo, RectPos
+from src.type_utils import XY, HexColor, BlitInfo, RectPos
 from src.consts import (
     BLACK,
     EMPTY_TILE_ARR, TILE_H, TILE_W,
@@ -45,6 +45,7 @@ from src.consts import (
 
 
 _HistorySnapshot: TypeAlias = tuple[int, int, bytes]
+_ToolsFuncs: TypeAlias = dict[ToolName, Callable[[dict[str, Any]], None]]
 
 _GRID_DIM_CAP: Final[int] = 600
 _GRID_TRANSITION_START: Final[int] = 30
@@ -54,7 +55,7 @@ _MINIMAP_TRANSITION_START: Final[int] = 25
 _MINIMAP_TRANSITION_END: Final[int]   = 130
 
 
-def _dec_mouse_tile(rel_mouse_coord: int, step: int, offset: int) -> XY:
+def _dec_mouse_tile(rel_mouse_coord: int, step: int, offset: int) -> tuple[int, int]:
     """
     Decreases a coordinate of the mouse tile.
 
@@ -79,7 +80,7 @@ def _dec_mouse_tile(rel_mouse_coord: int, step: int, offset: int) -> XY:
 def _inc_mouse_tile(
         rel_mouse_coord: int, step: int, offset: int,
         visible_side: int, side: int
-) -> XY:
+) -> tuple[int, int]:
     """
     Increases a coordinate of the mouse tile.
 
@@ -101,7 +102,6 @@ def _inc_mouse_tile(
 
     return rel_mouse_coord, offset
 
-
 def _get_tiles_in_line(x_1: int, y_1: int, x_2: int, y_2: int) -> NDArray[int32]:
     """
     Gets the tiles that touch a line using Bresenham's Line Algorithm.
@@ -112,13 +112,13 @@ def _get_tiles_in_line(x_1: int, y_1: int, x_2: int, y_2: int) -> NDArray[int32]
         tiles
     """
 
-    tiles: list[XY] = []
     delta_x: int = abs(x_2 - x_1)
     delta_y: int = abs(y_2 - y_1)
-    err: int = delta_x - delta_y
     step_x: Literal[-1, 1] = 1 if x_1 < x_2 else -1
     step_y: Literal[-1, 1] = 1 if y_1 < y_2 else -1
+    err: int = delta_x - delta_y
 
+    tiles: list[XY] = []
     while True:
         tiles.append((x_1, y_1))
         if x_1 == x_2 and y_1 == y_2:
@@ -144,7 +144,7 @@ class Grid:
         "grid_rect",
         "tiles", "selected_tiles", "brush_dim", "zoom_direction", "history", "history_i",
         "_minimap_init_pos", "minimap_rect", "_unscaled_minimap_img",
-        "hover_rects", "layer", "blit_sequence", "_win_w_ratio", "_win_h_ratio",
+        "hover_rects", "layer", "blit_sequence",
     )
 
     cursor_type: int = SYSTEM_CURSOR_CROSSHAIR
@@ -207,8 +207,6 @@ class Grid:
             (grid_img   , self.grid_rect   , self.layer),
             (minimap_img, self.minimap_rect, self.layer),
         ]
-        self._win_w_ratio: float = 1
-        self._win_h_ratio: float = 1
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -219,15 +217,9 @@ class Grid:
         self.selected_tiles.fill(False)
         self.refresh_grid_img()
 
-    def resize(self: Self, win_w_ratio: float, win_h_ratio: float) -> None:
-        """
-        Resizes the object.
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
-        Args:
-            window width ratio, window height ratio
-        """
-
-        self._win_w_ratio, self._win_h_ratio = win_w_ratio, win_h_ratio
         self.refresh_grid_img()
         self._refresh_minimap_rect()
         self.refresh_minimap_img()
@@ -246,8 +238,10 @@ class Grid:
 
         self.tiles = tiles
         self.cols, self.rows = self.tiles.shape[0], self.tiles.shape[1]
-        self.visible_cols, self.visible_rows = visible_cols, visible_rows
-        self.offset_x, self.offset_y = offset_x, offset_y
+        self.visible_cols = min(visible_cols, self.cols)
+        self.visible_rows = min(visible_rows, self.rows)
+        self.offset_x = min(offset_x, self.cols - self.visible_cols)
+        self.offset_y = min(offset_y, self.rows - self.visible_rows)
 
         self.selected_tiles = np.zeros((self.cols, self.rows), bool_)
         if should_reset_history:
@@ -269,11 +263,11 @@ class Grid:
         img: pg.Surface
 
         init_tile_dim: float = _GRID_DIM_CAP / max(self.visible_cols, self.visible_rows)
-        self.grid_tile_dim = init_tile_dim * min(self._win_w_ratio, self._win_h_ratio)
+        self.grid_tile_dim = init_tile_dim * my_vars.min_win_ratio
         xy, (w, h) = resize_obj(
             self._grid_init_pos,
             self.visible_cols * init_tile_dim, self.visible_rows * init_tile_dim,
-            self._win_w_ratio, self._win_h_ratio, should_keep_wh_ratio=True
+            should_keep_wh_ratio=True
         )
 
         max_visible_dim: int = max(self.visible_cols, self.visible_rows)
@@ -360,9 +354,8 @@ class Grid:
         xy, self.minimap_rect.size = resize_obj(
             self._minimap_init_pos,
             self.cols * init_tile_dim, self.rows * init_tile_dim,
-            self._win_w_ratio, self._win_h_ratio, should_keep_wh_ratio=True
+            should_keep_wh_ratio=True
         )
-
         setattr(self.minimap_rect, self._minimap_init_pos.coord_type, xy)
 
     def _resize_minimap_img(self: Self) -> None:
@@ -488,19 +481,6 @@ class Grid:
 
         self.refresh_full()
 
-    def add_to_history(self: Self) -> None:
-        """Adds the current info to the history if different from the last snapshot."""
-
-        snapshot: _HistorySnapshot = (self.cols, self.rows, compress(self.tiles.tobytes()))
-        if snapshot != self.history[self.history_i]:
-            if self.history_i != (len(self.history) - 1):
-                stop_i: int = self.history_i + 1
-                history_sl: tuple[_HistorySnapshot, ...] = tuple(islice(self.history, stop_i))
-                self.history.clear()
-                self.history.extend(history_sl)
-            self.history.append(snapshot)
-            self.history_i = min(self.history_i + 1, len(self.history) - 1)
-
     def handle_move_with_keys(self: Self, rel_mouse_col: int, rel_mouse_row: int) -> XY:
         """
         Handles moving the mouse tile with the keyboard.
@@ -551,9 +531,13 @@ class Grid:
                     relative coordinate
                 """
 
-                half_tile_dim: float = self.grid_tile_dim / 2
-                rel_coord: int      = round((grid_coord      * self.grid_tile_dim) + half_tile_dim)
-                prev_rel_coord: int = round((prev_grid_coord * self.grid_tile_dim) + half_tile_dim)
+                rel_coord: int = round(
+                    (grid_coord      * self.grid_tile_dim) + self.grid_tile_dim / 2
+                )
+                prev_rel_coord: int = round(
+                    (prev_grid_coord * self.grid_tile_dim) + self.grid_tile_dim / 2
+                )
+
                 # Grid is so large that coord stays the same
                 if grid_coord != prev_grid_coord and rel_coord == prev_rel_coord:
                     direction: Literal[-1, 1] = 1 if grid_coord > prev_grid_coord else -1
@@ -659,7 +643,7 @@ class Grid:
 
             self._zoom_visible_area(amount, should_reach_min_limit, should_reach_max_limit)
             init_tile_dim: float = _GRID_DIM_CAP / max(self.visible_cols, self.visible_rows)
-            self.grid_tile_dim = init_tile_dim * min(self._win_w_ratio, self._win_h_ratio)
+            self.grid_tile_dim = init_tile_dim * my_vars.min_win_ratio
 
             mouse_col: int      = int((MOUSE.x - self.grid_rect.x) / self.grid_tile_dim)
             mouse_row: int      = int((MOUSE.y - self.grid_rect.y) / self.grid_tile_dim)
@@ -728,6 +712,19 @@ class Grid:
                 unscaled_img_arr[selected_1d_indexes] = rgba_color[:3]
 
         return did_draw
+
+    def add_to_history(self: Self) -> None:
+        """Adds the current info to the history if different from the last snapshot."""
+
+        snapshot: _HistorySnapshot = (self.cols, self.rows, compress(self.tiles.tobytes()))
+        if snapshot != self.history[self.history_i]:
+            if self.history_i != (len(self.history) - 1):
+                stop_i: int = self.history_i + 1
+                history_sl: tuple[_HistorySnapshot, ...] = tuple(islice(self.history, stop_i))
+                self.history.clear()
+                self.history.extend(history_sl)
+            self.history.append(snapshot)
+            self.history_i = min(self.history_i + 1, len(self.history) - 1)
 
     def try_save(
             self: Self, file_str: str,
@@ -801,7 +798,7 @@ class Grid:
             try:
                 # If you open in write mode it will empty the file even if it's locked
                 with temp_file_path.open("ab") as f:
-                    try_lock_file(f, is_shared=False)
+                    try_lock_file(f, should_be_shared=False)
                     try_write_file(f, img_bytes)
                 try_replace_file(temp_file_path, file_path)
                 did_succeed = True
@@ -838,12 +835,12 @@ class GridManager:
     """Class to create and edit a grid of pixels."""
 
     __slots__ = (
-        "_is_hovering", "_can_leave", "_prev_hovered_obj", "_last_mouse_move_time",
+        "_is_hovering", "_prev_hovered_obj", "_last_mouse_move_time",
         "_prev_mouse_col", "_prev_mouse_row", "_mouse_col", "_mouse_row",
         "_traveled_x", "_traveled_y",
         "_is_erasing", "_is_coloring", "_did_stop_erasing", "_did_stop_coloring",
-        "is_x_mirror_on", "is_y_mirror_on", "_can_add_to_history",
-        "eye_dropped_color", "saved_col", "saved_row",
+        "is_x_mirror_on", "is_y_mirror_on", "_can_leave", "_can_add_to_history",
+        "_tools_funcs", "rgb_eye_dropped_color", "saved_col", "saved_row",
         "grid", "_hovering_text_label", "_hovering_text_label_obj_info",
         "hover_rects", "layer", "blit_sequence", "objs_info",
     )
@@ -859,7 +856,6 @@ class GridManager:
         """
 
         self._is_hovering: bool = False
-        self._can_leave: bool = False
         self._prev_hovered_obj: UIElement | None = MOUSE.hovered_obj
         self._last_mouse_move_time: int = my_vars.ticks
 
@@ -880,9 +876,18 @@ class GridManager:
         self.is_x_mirror_on: bool = False
         self.is_y_mirror_on: bool = False
 
+        self._can_leave: bool = False
         self._can_add_to_history: bool = False
 
-        self.eye_dropped_color: RGBColor | None = None
+        self._tools_funcs: _ToolsFuncs = {
+            "pencil": self._pencil,
+            "eraser": self._eraser,
+            "bucket": self._bucket,
+            "eye_dropper": self._eye_dropper,
+            "line": self._line,
+            "rect": self._rect,
+        }
+        self.rgb_eye_dropped_color: tuple[int, int, int] | None = None
         # Used for line, rect, etc.
         self.saved_col: int | None = None
         self.saved_row: int | None = None
@@ -892,9 +897,11 @@ class GridManager:
         self._hovering_text_label: TextLabel = TextLabel(
             RectPos(MOUSE.x, MOUSE.y, "topleft"),
             "Enter\nBackspace", BG_LAYER + TOP_LAYER - TEXT_LAYER,
-            h=12, bg_color=BLACK, alpha=0
+            h=12, bg_color=BLACK
         )
-        self._hovering_text_label_obj_info: ObjInfo = ObjInfo(self._hovering_text_label)
+        self._hovering_text_label_obj_info: ObjInfo = ObjInfo(
+            self._hovering_text_label, should_follow_parent=False
+        )
         self._hovering_text_label_obj_info.rec_set_active(False)
 
         self.hover_rects: tuple[pg.Rect, ...] = ()
@@ -912,27 +919,18 @@ class GridManager:
     def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-        self._is_hovering = False
         self._prev_hovered_obj = None
-        self._can_leave = False
         self._traveled_x = self._traveled_y = 0
-        self.eye_dropped_color = self.saved_col = self.saved_row = None
+        self.rgb_eye_dropped_color = self.saved_col = self.saved_row = None
 
         if self._can_add_to_history:
             self.grid.add_to_history()
             self._can_add_to_history = False
 
-        if self._hovering_text_label_obj_info.is_active:
-            self._hovering_text_label.alpha = 0
-            self._hovering_text_label_obj_info.rec_set_active(False)
+        self._hovering_text_label_obj_info.rec_set_active(False)
 
-    def resize(self: Self, _win_w_ratio: float, _win_h_ratio: float) -> None:
-        """
-        Resizes the object.
-
-        Args:
-            window width ratio, window height ratio
-        """
+    def resize(self: Self) -> None:
+        """Resizes the object."""
 
     def _handle_move(self: Self) -> None:
         """Handles moving the visible section."""
@@ -1002,7 +1000,7 @@ class GridManager:
         return self.grid.history_i != prev_history_i
 
     def _handle_tile_info(self: Self) -> None:
-        """Calculates previous and current mouse tiles and handles keyboard movement."""
+        """Gets the previous and current mouse tiles and handles keyboard movement."""
 
         grid_tile_dim: float = self.grid.grid_tile_dim
         prev_rel_mouse_col: int = int((MOUSE.prev_x - self.grid.grid_rect.x) / grid_tile_dim)
@@ -1021,8 +1019,13 @@ class GridManager:
         self._mouse_col      = rel_mouse_col      + self.grid.offset_x
         self._mouse_row      = rel_mouse_row      + self.grid.offset_y
 
-    def _pencil(self: Self) -> None:
-        """Handles the pencil tool."""
+    def _pencil(self: Self, _extra_info: dict[str, Any]) -> None:
+        """
+        Handles the pencil tool.
+
+        Args:
+            extra info
+        """
 
         # Centers tiles to the cursor
         selected_tiles_coords: NDArray[int32] = _get_tiles_in_line(
@@ -1055,6 +1058,18 @@ class GridManager:
         if self.is_y_mirror_on:
             self.grid.selected_tiles |= self.grid.selected_tiles[:, ::-1]
 
+    def _eraser(self: Self, extra_info: dict[str, Any]) -> None:
+        """
+        Handles the eraser tool.
+
+        Args:
+            extra info
+        """
+
+        self._pencil(extra_info)
+        self._is_erasing = self._is_erasing or self._is_coloring
+        self._is_coloring = False
+
     def _init_bucket_stack(self: Self, mask: NDArray[bool_]) -> list[tuple[intp, uint16, uint16]]:
         """
         Initializes the stack for the bucket tool.
@@ -1066,11 +1081,11 @@ class GridManager:
         """
 
         up_tiles: NDArray[bool_] = mask[self._mouse_col, :self._mouse_row + 1]
-        up_stop: int | intp = up_tiles[::-1].argmin() or up_tiles.size
+        up_stop: intp | int = up_tiles[::-1].argmin() or up_tiles.size
         first_y: uint16 = uint16(self._mouse_row - up_stop   + 1)
 
         down_tiles: NDArray[bool_] = mask[self._mouse_col, self._mouse_row:]
-        down_stop: int | intp = down_tiles.argmin() or down_tiles.size
+        down_stop: intp | int = down_tiles.argmin() or down_tiles.size
         last_y: uint16  = uint16(self._mouse_row + down_stop - 1)
 
         return [(intp(self._mouse_col), first_y, last_y)]
@@ -1128,7 +1143,7 @@ class GridManager:
             selected_tiles[ x    , start_y:end_y + 1] = True
             visitable_tiles[x + 1, start_y:end_y + 1] = False
 
-            if visitable_tiles[x, start_y] or visitable_tiles[x, + end_y]:
+            if visitable_tiles[x, start_y] or visitable_tiles[x, end_y]:
                 np_logical_and(mask[x - 1], visitable_tiles[x], out=temp_mask)
                 span_starts = indexes[temp_mask & ~right_shifted_cols_mask[x - 1]]
                 span_ends   = indexes[temp_mask & ~left_shifted_cols_mask[ x - 1]]
@@ -1145,19 +1160,29 @@ class GridManager:
                 xs = (x + 1,) * valid_spans_mask.size
                 stack_extend(local_zip(xs, span_starts[valid_spans_mask], span_ends[valid_spans_mask]))
 
-    def _eye_dropper(self: Self) -> None:
-        """Handles the eye dropper tool."""
+    def _eye_dropper(self: Self, _extra_info: dict[str, Any]) -> None:
+        """
+        Handles the eye dropper tool.
+
+        Args:
+            extra info
+        """
 
         if not self._is_hovering:
             return
 
         self.grid.selected_tiles[self._mouse_col, self._mouse_row] = True
         if self._is_coloring:
-            self.eye_dropped_color = self.grid.tiles[self._mouse_col, self._mouse_row][:3]
+            self.rgb_eye_dropped_color = self.grid.tiles[self._mouse_col, self._mouse_row][:3]
         self._is_erasing = self._is_coloring = False
 
-    def _line(self: Self) -> None:
-        """Handles the line tool."""
+    def _line(self: Self, _extra_info: dict[str, Any]) -> None:
+        """
+        Handles the line tool.
+
+        Args:
+            extra info
+        """
 
         if not self._is_hovering:
             return
@@ -1215,9 +1240,9 @@ class GridManager:
         if self.is_y_mirror_on:
             self.grid.selected_tiles |= self.grid.selected_tiles[:, ::-1]
 
-    def _rectangle(self: Self, extra_info: dict[str, Any]) -> None:
+    def _rect(self: Self, extra_info: dict[str, Any]) -> None:
         """
-        Handles the rectangle tool.
+        Handles the rect tool.
 
         Args:
             extra info (fill)
@@ -1244,11 +1269,6 @@ class GridManager:
             end_x: int   = max(self.saved_col, self._mouse_col) + 1
             end_y: int   = max(self.saved_row, self._mouse_row) + 1
 
-            # Better UX
-            if self._mouse_col < self.saved_col:
-                end_x += self.grid.brush_dim - 1
-            if self._mouse_row < self.saved_row:
-                end_y += self.grid.brush_dim - 1
             # Rect can't be smaller than brush_dim
             end_x = max(end_x, start_x + self.grid.brush_dim)
             end_y = max(end_y, start_y + self.grid.brush_dim)
@@ -1304,16 +1324,7 @@ class GridManager:
 
         tool_name: ToolName             = tool_info[0]
         tool_extra_info: dict[str, Any] = tool_info[1]
-        if   tool_name == "pencil":
-            self._pencil()
-        elif tool_name == "bucket":
-            self._bucket(tool_extra_info)
-        elif tool_name == "eye_dropper":
-            self._eye_dropper()
-        elif tool_name == "line":
-            self._line()
-        elif tool_name == "rectangle":
-            self._rectangle(tool_extra_info)
+        self._tools_funcs[tool_name](tool_extra_info)
 
         selected_tiles_bytes: bytes = np.packbits(self.grid.selected_tiles).tobytes()
         if self._is_erasing or self._is_coloring:
@@ -1323,22 +1334,6 @@ class GridManager:
 
         # Comparing bytes in this situation is faster
         return did_draw, selected_tiles_bytes != prev_selected_tiles_bytes
-
-    def _refresh_hovering_text_label(self: Self) -> None:
-        """Increases the alpha value gradually if hovering still and resets it otherwise."""
-
-        if self._is_hovering and (my_vars.ticks - self._last_mouse_move_time >= 750):
-            if not self._hovering_text_label_obj_info.is_active:
-                self._hovering_text_label_obj_info.rec_set_active(True)
-            rec_move_rect(
-                self._hovering_text_label, MOUSE.x + 4, MOUSE.y,
-                win_w_ratio=1, win_h_ratio=1
-            )
-
-            if self._hovering_text_label.alpha != 255:
-                self._hovering_text_label.set_alpha(
-                    round(self._hovering_text_label.alpha + (8 * my_vars.dt))
-                )
 
     def _refresh(
             self: Self, did_draw: bool,
@@ -1356,10 +1351,12 @@ class GridManager:
 
         if not self._is_hovering or (MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y):
             self._last_mouse_move_time = my_vars.ticks
-            if self._hovering_text_label_obj_info.is_active:
-                self._hovering_text_label.alpha = 0
-                self._hovering_text_label_obj_info.rec_set_active(False)
-        self._refresh_hovering_text_label()
+            self._hovering_text_label_obj_info.rec_set_active(False)
+        if self._is_hovering and (my_vars.ticks - self._last_mouse_move_time >= 750):
+            rec_move_rect(self._hovering_text_label, MOUSE.x + 4, MOUSE.y, should_scale=False)
+            if not self._hovering_text_label_obj_info.is_active:
+                self._hovering_text_label.start_animation()
+                self._hovering_text_label_obj_info.rec_set_active(True)
 
         if (
             did_draw or
@@ -1416,15 +1413,14 @@ class GridManager:
                 self._traveled_x = self._traveled_y = 0
 
         if self._is_hovering or self._prev_hovered_obj == self.grid:  # Extra frame to draw
-            self.eye_dropped_color = None
+            self.rgb_eye_dropped_color = None
             did_draw, did_selected_tiles_change = self._handle_draw(hex_color, tool_info)
-            self._can_leave = True
 
+            self._can_leave = True
             if did_draw:
                 self._can_add_to_history = True
         elif self._can_leave:
             self.grid.leave()
-            self.saved_col = self.saved_row = None
             self._can_leave = False
 
         if (

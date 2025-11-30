@@ -66,7 +66,7 @@ Window resizing:
 
 Interacting with elements:
     Interaction is possible with an upt method,
-    it contains a high level implementation of it's behavior.
+    it contains a high level implementation of its behavior.
 
 ----------TODO----------
 - text with hovering text
@@ -81,11 +81,8 @@ Interacting with elements:
 - gif?
 - touch and pen support
 
-- COLOR_PICKER:
-    - hex_text as input box
-
 - GRID_UI:
-    - separate minimap from grid and place minimap in grid UI
+    - separate minimap logic from grid and use also in grid UI
     - move image
 
 - TOOLS_MANAGER:
@@ -96,9 +93,6 @@ Interacting with elements:
     - move, flip or rotate section
     - change brightness of tile/area
     - scale section
-
-optimizations:
-    - profile
 """
 
 import os
@@ -108,6 +102,7 @@ from threading import Thread
 from pathlib import Path
 from json import JSONDecodeError
 from collections import deque
+from collections.abc import Callable
 from sys import argv, stderr
 from io import BytesIO
 from typing import NoReturn, Self, TypeAlias, Final, Any
@@ -142,14 +137,14 @@ from src.classes.devices import MOUSE, KEYBOARD
 import src.obj_utils as objs
 import src.vars as my_vars
 from src.utils import get_pixels, get_brush_dim_checkbox_info, print_funcs_profiles
-from src.obj_utils import UIElement, ObjInfo, rec_move_rect
+from src.obj_utils import UIElement, AnimatableElement, ObjInfo, rec_move_rect
 from src.file_utils import (
     FileError, prettify_path, handle_file_os_error,
     try_read_file, try_write_file, try_replace_file, try_remove_file,
     try_get_paths, try_create_dir,
 )
 from src.lock_utils import LockError, try_lock_file
-from src.type_utils import XY, WH, RGBColor, HexColor, BlitInfo, RectPos
+from src.type_utils import XY, WH, HexColor, BlitInfo, RectPos
 from src.consts import (
     BLACK, WHITE, HEX_BLACK,
     FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I,
@@ -338,7 +333,7 @@ def _try_get_grid_img(file_str: str, ignored_exceptions: _IgnoredExceptions) -> 
     for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             with file_path.open("rb") as f:
-                try_lock_file(f, is_shared=True)
+                try_lock_file(f, should_be_shared=True)
                 img_bytes_io: BytesIO = BytesIO(try_read_file(f))
                 img: Image.Image = Image.open(img_bytes_io).convert("RGBA")
                 pg_img = pg.image.frombytes(img.tobytes(), img.size, "RGBA").convert_alpha()
@@ -375,7 +370,7 @@ class _Dixel:
         "_orig_win_xy", "_orig_win_wh", "_is_minimized", "_is_maximized", "_is_fullscreen",
         "_file_str", "_new_file_str", "_is_saved",
         "_is_asking_file_save_as", "_is_asking_file_open", "_is_asking_crash_save_dir",
-        "_state_i",
+        "_states_funcs", "_state_i",
     )
 
     def __init__(self: Self) -> None:
@@ -397,6 +392,12 @@ class _Dixel:
         self._is_asking_file_open: bool      = False
         self._is_asking_crash_save_dir: bool = False
 
+        self._states_funcs: dict[int, Callable[[], None]] = {
+            STATE_I_MAIN: self._main_interface,
+            STATE_I_COLOR: self._color_ui,
+            STATE_I_GRID: self._grid_ui,
+            STATE_I_SETTINGS: self._settings_ui,
+        }
         self._state_i: int = STATE_I_MAIN  # Used to sync objs.state_i when state changes
 
         self._load_data()
@@ -411,14 +412,14 @@ class _Dixel:
         self._is_saved = img is not None
         if self._is_saved:
             _GRID_MANAGER.grid.set_tiles(img)
-            _UNSAVED_ICON.set_radius(0)
+            _UNSAVED_ICON.set_scale(0)
         else:
             self._file_str = ""
             _GRID_MANAGER.grid.refresh_full()
-            _UNSAVED_ICON.set_radius(_UNSAVED_ICON.init_radius)
+            _UNSAVED_ICON.set_scale(1)
         self._refresh_file_text_label()
 
-        self._refresh_objs(should_refresh_only_active_state=False)
+        self._refresh_all_objs()
         for obj in objs.state_active_objs:
             obj.enter()
 
@@ -479,7 +480,7 @@ class _Dixel:
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
             try:
                 with data_path.open("rb") as f:
-                    try_lock_file(f, is_shared=True)
+                    try_lock_file(f, should_be_shared=True)
                     data = json.loads(try_read_file(f))
                 break
             except FileNotFoundError:
@@ -532,15 +533,15 @@ class _Dixel:
             _Y_MIRROR.set_checked(True)
             _GRID_MANAGER.is_y_mirror_on = True
 
-        if data["grid_ratio"] is not None:
+        _GRID_UI.is_keeping_wh_ratio = data["grid_ratio"] is not None
+        if _GRID_UI.is_keeping_wh_ratio:
             _GRID_UI.w_ratio, _GRID_UI.h_ratio = data["grid_ratio"]
-            _GRID_UI.checkbox.set_checked(True)
 
         if data["orig_win_xy"] != self._orig_win_xy:
             WIN.position = self._orig_win_xy = data["orig_win_xy"]
         if data["orig_win_wh"] != self._orig_win_wh:
-            # Triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
-            WIN.size     = self._orig_win_wh = data["orig_win_wh"]
+            # Triggers a WINDOWSIZECHANGED event
+            WIN.size = data["orig_win_wh"]
         self._is_maximized  = data["is_maximized"]
         self._is_fullscreen = data["is_fullscreen"]
 
@@ -566,7 +567,7 @@ class _Dixel:
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
             try:
                 with data_path.open("rb") as f:
-                    try_lock_file(f, is_shared=True)
+                    try_lock_file(f, should_be_shared=True)
                     data = json.loads(try_read_file(f))
                 break
             except FileNotFoundError:
@@ -618,12 +619,11 @@ class _Dixel:
             valid_data = [{
                 "color_i": 0,
                 "offset_y": 0,
-                "drop-down_i": None,
+                "drop-down_i": -1,
                 "colors": ["000000"],
             }]
 
-            _PALETTES_MANAGER.palette_dropdown.option_i = 1
-        elif all_data[palette_i - 1] is None:
+        if all_data == [] or all_data[palette_i - 1] is None:
             _PALETTES_MANAGER.palette_dropdown.option_i = 1
         else:
             palette_i_offset: int = all_data[:palette_i].count(None)
@@ -714,8 +714,8 @@ class _Dixel:
                 f"Example: {argv[0]} test (.png is default)\n"
 
                 "FLAGS:\n"
-                f"\t--mk-file: create file ({argv[0]} new_file --mk-file)\n"
-                f"\t--mk-dir: create directory ({argv[0]} new_dir/new_file --mk-dir)"
+                f"    --mk-file: create file ({argv[0]} new_file --mk-file)\n"
+                f"    --mk-dir: create directory ({argv[0]} new_dir/new_file --mk-dir)"
             )
             stop(SystemExit())
 
@@ -726,7 +726,7 @@ class _Dixel:
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
             try:
                 with file_path.open("rb") as f:
-                    try_lock_file(f, is_shared=True)
+                    try_lock_file(f, should_be_shared=True)
                     img_bytes_io: BytesIO = BytesIO(try_read_file(f))
                     img: Image.Image = Image.open(img_bytes_io).convert("RGBA")
                     pg_img = pg.image.frombytes(img.tobytes(), img.size, "RGBA").convert_alpha()
@@ -768,42 +768,46 @@ class _Dixel:
         rec_move_rect(
             _UNSAVED_ICON,
             _FILE_TEXT_LABEL.rect.right + 4, _FILE_TEXT_LABEL.rect.centery,
-            win_w_ratio=1, win_h_ratio=1
+            should_scale=False
         )
 
-    def _refresh_objs(self: Self, should_refresh_only_active_state: bool) -> None:
-        """
-        Gets every object with an objs_info attribute from either the active or all states.
+    def _refresh_active_state_objs(self: Self) -> None:
+        """Gets every object with an objs_info attribute from the active state."""
 
-        Args:
-            refresh only active state flag
-        """
+        info: ObjInfo
+
+        full_active_state_info: list[ObjInfo] = list(_STATES_MAIN_OBJS_INFO[self._state_i])
+        for info in full_active_state_info:
+            full_active_state_info.extend(info.obj.objs_info)
+
+        # Reverses to have sub objects before the main one
+        # When resizing the main object can use their resized attributes
+        full_active_state_info.reverse()
+        states_info_list: list[tuple[ObjInfo, ...]] = list(objs.states_info)
+        states_info_list[self._state_i] = tuple(full_active_state_info)
+        objs.states_info = tuple(states_info_list)
+
+        objs.state_active_objs = tuple([
+            info.obj
+            for info in objs.states_info[self._state_i] if info.is_active
+        ])
+
+    def _refresh_all_objs(self: Self) -> None:
+        """Gets every object with an objs_info attribute from all the states."""
 
         state_info: tuple[ObjInfo, ...]
         info: ObjInfo
 
-        if should_refresh_only_active_state:
-            full_active_state_info: list[ObjInfo] = list(_STATES_MAIN_OBJS_INFO[self._state_i])
-            for info in full_active_state_info:
-                full_active_state_info.extend(info.obj.objs_info)
+        objs.states_info = ()
+        for state_info in _STATES_MAIN_OBJS_INFO:
+            full_state_info: list[ObjInfo] = list(state_info)
+            for info in full_state_info:
+                full_state_info.extend(info.obj.objs_info)
 
             # Reverses to have sub objects before the main one
             # When resizing the main object can use their resized attributes
-            full_active_state_info.reverse()
-            states_info_list: list[tuple[ObjInfo, ...]] = list(objs.states_info)
-            states_info_list[self._state_i] = tuple(full_active_state_info)
-            objs.states_info = tuple(states_info_list)
-        else:
-            objs.states_info = ()
-            for state_info in _STATES_MAIN_OBJS_INFO:
-                full_state_info: list[ObjInfo] = list(state_info)
-                for info in full_state_info:
-                    full_state_info.extend(info.obj.objs_info)
-
-                # Reverses to have sub objects before the main one
-                # When resizing the main object can use their resized attributes
-                full_state_info.reverse()
-                objs.states_info += (tuple(full_state_info),)
+            full_state_info.reverse()
+            objs.states_info += (tuple(full_state_info),)
 
         objs.state_active_objs = tuple([
             info.obj
@@ -857,21 +861,22 @@ class _Dixel:
         if self._state_i != STATE_I_MAIN:
             resizable_objs_info += objs.states_info[STATE_I_MAIN]
 
-        win_w_ratio: float = WIN_SURF.get_width()  / WIN_INIT_W
-        win_h_ratio: float = WIN_SURF.get_height() / WIN_INIT_H
+        my_vars.win_w_ratio = WIN_SURF.get_width()  / WIN_INIT_W
+        my_vars.win_h_ratio = WIN_SURF.get_height() / WIN_INIT_H
+        my_vars.min_win_ratio = min(my_vars.win_w_ratio, my_vars.win_h_ratio)
         for info in resizable_objs_info:
-            info.obj.resize(win_w_ratio, win_h_ratio)
+            info.obj.resize()
 
         # Minimap and text keep ratio
         rec_move_rect(
             _UNSAVED_ICON,
             _FILE_TEXT_LABEL.rect.right + 4, _FILE_TEXT_LABEL.rect.centery,
-            win_w_ratio=1, win_h_ratio=1
+            should_scale=False
         )
         rec_move_rect(
             _OPEN_SETTINGS,
             _GRID_MANAGER.grid.minimap_rect.x - 16, _GRID_MANAGER.grid.minimap_rect.y,
-            win_w_ratio=1, win_h_ratio=1
+            should_scale=False
         )
 
     def _handle_win_event(
@@ -919,14 +924,15 @@ class _Dixel:
             self._save(_EXIT_INTERRUPT, should_ask_create_dir=False)
             stop(SystemExit())
 
-        # Modifying the size triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
+        # Modifying the size triggers a WINDOWSIZECHANGED event
         if   k == K_F1:
             if self._is_fullscreen:
                 WIN.set_windowed()
+                self._is_fullscreen = False
             if self._is_maximized:
                 WIN.restore()
+                self._is_maximized = False
 
-            self._is_maximized = self._is_fullscreen = False
             WIN.size, WIN.position = (WIN_INIT_W, WIN_INIT_H), pg.WINDOWPOS_CENTERED
             self._orig_win_xy = WIN.position
         elif k == K_F11:
@@ -954,28 +960,6 @@ class _Dixel:
             KEYBOARD.remove(event.key)
         elif event.type == KEYMAPCHANGED:
             KEYBOARD.clear()
-
-    def _refresh_unsaved_icon(self: Self, unsaved_color: pg.Color) -> None:
-        """
-        Checks if the image is unsaved and refreshes the unsaved icon.
-
-        Args:
-            unsaved color
-        """
-
-        img: pg.Surface | None = _try_get_grid_img(self._file_str, ignored_exceptions=None)
-        if img is None:
-            if self._is_saved:
-                yellow: pg.Color = pg.Color(255, 255, 0)
-                _UNSAVED_ICON.set_animation(ANIMATION_GROW  , yellow       , should_go_to_0=False)
-                self._is_saved = False
-        elif np.array_equal(_GRID_MANAGER.grid.tiles, get_pixels(img)):
-            if not self._is_saved:
-                _UNSAVED_ICON.set_animation(ANIMATION_SHRINK, WHITE        , should_go_to_0=True)
-                self._is_saved = True
-        elif self._is_saved:
-                _UNSAVED_ICON.set_animation(ANIMATION_GROW  , unsaved_color, should_go_to_0=False)
-                self._is_saved = False
 
     def _finish_ask_save_as(self: Self, file_str: str) -> None:
         """
@@ -1075,6 +1059,28 @@ class _Dixel:
             max_history_i: int = len(_GRID_MANAGER.grid.history) - 1
             _GRID_MANAGER.grid.history_i = min(_GRID_MANAGER.grid.history_i, max_history_i)
 
+    def _refresh_unsaved_icon(self: Self, unsaved_color: pg.Color) -> None:
+        """
+        Checks if the image is unsaved and refreshes the unsaved icon.
+
+        Args:
+            unsaved color
+        """
+
+        img: pg.Surface | None = _try_get_grid_img(self._file_str, ignored_exceptions=None)
+        if img is None:
+            if self._is_saved:
+                yellow: pg.Color = pg.Color(255, 255, 0)
+                _UNSAVED_ICON.set_animation(ANIMATION_GROW  , yellow       , should_go_to_0=False)
+                self._is_saved = False
+        elif np.array_equal(_GRID_MANAGER.grid.tiles, get_pixels(img)):
+            if not self._is_saved:
+                _UNSAVED_ICON.set_animation(ANIMATION_SHRINK, WHITE        , should_go_to_0=True)
+                self._is_saved = True
+        elif self._is_saved:
+                _UNSAVED_ICON.set_animation(ANIMATION_GROW  , unsaved_color, should_go_to_0=False)
+                self._is_saved = False
+
     def _handle_events(self: Self) -> None:
         """
         Handles the events.
@@ -1135,7 +1141,7 @@ class _Dixel:
             win_h += 1
 
         if win_w != self._orig_win_wh[0] or win_h != self._orig_win_wh[1]:
-            # Triggers a WINDOWSIZECHANGED event, calling resize_objs is unnecessary
+            # Triggers a WINDOWSIZECHANGED event
             WIN.size = (win_w, win_h)
 
     def _save_palette(self: Self, palette_i: int, errors_list: list[str]) -> None:
@@ -1170,7 +1176,7 @@ class _Dixel:
             try:
                 # If you open in write mode it will clear the file even if it's locked
                 with temp_palette_path.open("ab") as f:
-                    try_lock_file(f, is_shared=False)
+                    try_lock_file(f, should_be_shared=False)
                     try_write_file(f, palette_bytes)
                 try_replace_file(temp_palette_path, palette_path)
                 break
@@ -1267,8 +1273,7 @@ class _Dixel:
             _TOOLS_MANAGER.saved_clicked_i
         )
         grid_ratio: tuple[float, float] | None = (
-            (_GRID_UI.w_ratio, _GRID_UI.h_ratio) if _GRID_UI.checkbox.is_checked else
-            None
+            (_GRID_UI.w_ratio, _GRID_UI.h_ratio) if _GRID_UI.is_keeping_wh_ratio else None
         )
 
         data: dict[str, Any] =  {
@@ -1317,7 +1322,7 @@ class _Dixel:
             try:
                 # If you open in write mode it will clear the file even if it's locked
                 with temp_data_path.open("ab") as f:
-                    try_lock_file(f, is_shared=False)
+                    try_lock_file(f, should_be_shared=False)
                     try_write_file(f, data_bytes)
                 try_replace_file(temp_data_path, data_path)
                 break
@@ -1444,7 +1449,7 @@ class _Dixel:
         is_ctrl_a_pressed: bool = KEYBOARD.is_ctrl_on and K_a in KEYBOARD.pressed
         if is_add_color_clicked or is_ctrl_a_pressed:
             self._state_i = STATE_I_COLOR
-            _COLOR_PICKER.set_color(HEX_BLACK, is_external_change=True)
+            _COLOR_PICKER.set_color(HEX_BLACK, is_external_update=True)
 
         is_edit_grid_clicked: bool = _EDIT_GRID.upt()
         is_ctrl_g_pressed: bool = KEYBOARD.is_ctrl_on and K_g in KEYBOARD.pressed
@@ -1499,14 +1504,14 @@ class _Dixel:
         hex_color, did_palette_change, hex_color_to_edit = _PALETTES_MANAGER.upt()
         if did_palette_change:
             # Refreshes the hovered checkbox immediately
-            self._refresh_objs(should_refresh_only_active_state=True)
+            self._refresh_active_state_objs()
             MOUSE.refresh_hovered_obj()
             _PALETTES_MANAGER.colors_grid.upt_checkboxes()
-        if hex_color_to_edit is not None:
-            self._state_i = STATE_I_COLOR
-            _COLOR_PICKER.set_color(hex_color_to_edit, is_external_change=True)
         if _PALETTES_MANAGER.colors_grid.clicked_i != _PALETTES_MANAGER.colors_grid.prev_clicked_i:
             _PALETTES_MANAGER.colors_grid.check(_PALETTES_MANAGER.colors_grid.clicked_i)
+        if hex_color_to_edit is not None:
+            self._state_i = STATE_I_COLOR
+            _COLOR_PICKER.set_color(hex_color_to_edit, is_external_update=True)
 
         tool_info: ToolInfo = _TOOLS_MANAGER.upt()
         if _TOOLS_MANAGER.tools_grid.clicked_i != _TOOLS_MANAGER.tools_grid.prev_clicked_i:
@@ -1516,27 +1521,30 @@ class _Dixel:
         did_grid_change: bool = _GRID_MANAGER.upt(hex_color, tool_info)
         if did_grid_change and self._file_str != "":
             self._refresh_unsaved_icon(WHITE)
-        if _GRID_MANAGER.eye_dropped_color is not None:
-            did_palette_change = _PALETTES_MANAGER.try_add_color(_GRID_MANAGER.eye_dropped_color)
+        if _GRID_MANAGER.rgb_eye_dropped_color is not None:
+            r: int = _GRID_MANAGER.rgb_eye_dropped_color[0]
+            g: int = _GRID_MANAGER.rgb_eye_dropped_color[1]
+            b: int = _GRID_MANAGER.rgb_eye_dropped_color[2]
+            did_palette_change = _PALETTES_MANAGER.try_add_color(f"{r:02x}{g:02x}{b:02x}")
             if did_palette_change:
-                self._refresh_objs(should_refresh_only_active_state=True)
+                self._refresh_active_state_objs()
 
     def _color_ui(self: Self) -> None:
         """Handles the color UI."""
 
         did_exit: bool
         did_confirm: bool
-        rgb_color: RGBColor
+        hex_color: HexColor
 
-        did_exit, did_confirm, rgb_color = _COLOR_PICKER.upt()
+        did_exit, did_confirm, hex_color = _COLOR_PICKER.upt()
         if did_exit:
             self._state_i = STATE_I_MAIN
         elif did_confirm:
             self._state_i = STATE_I_MAIN
 
-            did_palette_change: bool = _PALETTES_MANAGER.try_add_color(rgb_color)
+            did_palette_change: bool = _PALETTES_MANAGER.try_add_color(hex_color)
             if did_palette_change:
-                self._refresh_objs(should_refresh_only_active_state=True)
+                self._refresh_active_state_objs()
 
     def _grid_ui(self: Self) -> None:
         """Handles the grid UI."""
@@ -1589,23 +1597,6 @@ class _Dixel:
 
         _did_exit, _did_confirm, self._state_i = _SETTINGS_UI.upt()
 
-    def _handle_states(self: Self) -> None:
-        """Handles updating and changing states."""
-
-        prev_state_i: int = self._state_i
-
-        if   self._state_i == STATE_I_MAIN:
-            self._main_interface()
-        elif self._state_i == STATE_I_COLOR:
-            self._color_ui()
-        elif self._state_i == STATE_I_GRID:
-            self._grid_ui()
-        elif self._state_i == STATE_I_SETTINGS:
-            self._settings_ui()
-
-        if self._state_i != prev_state_i:
-            self._change_state()
-
     def _handle_crash(self: Self) -> None:
         """Saves before crashing."""
 
@@ -1624,6 +1615,8 @@ class _Dixel:
     def run(self: Self) -> None:
         """App loop."""
 
+        obj: AnimatableElement
+
         MOUSE.refresh_pos()
         MOUSE.prev_x, MOUSE.prev_y = MOUSE.x, MOUSE.y
         try:
@@ -1631,7 +1624,6 @@ class _Dixel:
                 fps_cap: int = _SETTINGS_UI.fps_dropdown.values[_SETTINGS_UI.fps_dropdown.option_i]
                 last_frame_elapsed_time: float = _CLOCK.tick(fps_cap)
                 my_vars.ticks = pg.time.get_ticks()
-                my_vars.dt = (last_frame_elapsed_time / 1_000) * 60
 
                 MOUSE.refresh_pos()
                 MOUSE.pressed = pg.mouse.get_pressed()
@@ -1648,9 +1640,15 @@ class _Dixel:
                 if KEYBOARD.timed != () and not (self._is_maximized or self._is_fullscreen):
                     self._handle_resize_with_keys()
 
-                self._handle_states()
+                prev_state_i: int = self._state_i
+                self._states_funcs[self._state_i]()
+                if self._state_i != prev_state_i:
+                    self._change_state()
 
-                _UNSAVED_ICON.animate()
+                dt: float = (last_frame_elapsed_time / 1_000) * 60
+                for obj in tuple(objs.animating_objs):  # Changes mid-iteration
+                    obj.animate(dt)
+
                 self._handle_draw()
 
                 MOUSE.prev_x, MOUSE.prev_y = MOUSE.x, MOUSE.y

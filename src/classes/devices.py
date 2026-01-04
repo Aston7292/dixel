@@ -2,12 +2,20 @@
 
 from typing import Self, Final
 
-from pygame import mouse, key
-from pygame.locals import *
+from pygame import (
+    mouse, key,
+    K_END, K_DOWN, K_PAGEDOWN, K_LEFT, K_UNKNOWN,
+    K_RIGHT, K_HOME, K_UP, K_PAGEUP, K_INSERT, K_DELETE,
+    K_1, K_2, K_3, K_4, K_5, K_6, K_7, K_8, K_9, K_0, K_PERIOD,
+    K_KP_1, K_KP_PERIOD,
+    KMOD_CTRL, KMOD_SHIFT, KMOD_ALT, KMOD_NUM,
+    SYSTEM_CURSOR_ARROW,
+)
 
 import src.obj_utils as objs
 import src.vars as my_vars
 from src.obj_utils import UIElement
+from src.type_utils import XY
 from src.consts import CHR_LIMIT
 
 _NUMPAD_FIRST_K: Final[int] = K_KP_1
@@ -44,19 +52,23 @@ class _Mouse:
         self.prev_x: int = self.x
         self.prev_y: int = self.y
 
-        self.pressed: tuple[bool, bool, bool] = (False, False, False)
-        self.released: tuple[bool, ...] = (False, False, False, False, False)
+        self.pressed: list[bool]  = [False, False, False, False, False]
+        self.released: list[bool] = [False, False, False, False, False]
 
         self.scroll_amount: int = 0
         self._cursor_type: int = SYSTEM_CURSOR_ARROW
         self.hovered_obj: UIElement | None = None
 
-    def refresh_pos(self: Self) -> None:
-        """Refreshes the position, if a coordinate is outside the window it will be -1."""
+    def set_pos(self: Self, xy: XY) -> None:
+        """
+        Sets the position, if a coordinate is outside the window it becomes -1.
 
-        self.x, self.y = mouse.get_pos()
+        Args:
+            position"""
+
+        MOUSE.x, MOUSE.y = xy
         if not mouse.get_focused():
-            self.x, self.y = self.x or -1, self.y or -1
+            MOUSE.x, MOUSE.y = MOUSE.x or -1, MOUSE.y or -1
 
     def refresh_type(self: Self) -> None:
         """Refreshes the cursor type using the cursor_type attribute of the hovered object."""
@@ -71,7 +83,7 @@ class _Mouse:
             mouse.set_cursor(self._cursor_type)
 
     def refresh_hovered_obj(self: Self) -> None:
-        """Refreshes the hovered object with the get_hovering method of the active objects."""
+        """Refreshes the hovered object with the hover_rects attribute of the active objects."""
 
         hovered_objs: list[UIElement] = [
             obj
@@ -137,7 +149,9 @@ class _Keyboard:
             self._raws += (k,)
             self.pressed = tuple([
                 _NUMPAD_MAP[((k - _NUMPAD_FIRST_K) * 2) + numpad_offset]
-                if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else k
+                if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else
+                k
+
                 for k in self._raws
             ])
             self._alt_k = ""
@@ -166,7 +180,9 @@ class _Keyboard:
             numpad_offset: int = int(self.is_numpad_on)
             self.pressed = tuple([
                 _NUMPAD_MAP[((k - _NUMPAD_FIRST_K) * 2) + numpad_offset]
-                if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else k
+                if _NUMPAD_FIRST_K <= k <= _NUMPAD_LAST_K else
+                k
+
                 for k in self._raws
             ])
 

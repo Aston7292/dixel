@@ -4,7 +4,7 @@ from unittest import TestCase, mock
 from unittest.mock import Mock
 from typing import Self
 
-from pygame import Rect, K_1, K_END, K_KP1, KMOD_NONE, KMOD_ALT, KMOD_NUM, key
+from pygame import Rect, key, K_1, K_END, K_KP1, KMOD_NONE, KMOD_ALT, KMOD_NUM
 
 from src.classes.devices import _Mouse, _Keyboard
 

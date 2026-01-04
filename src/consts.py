@@ -10,9 +10,10 @@ from numpy.typing import NDArray
 from src.type_utils import HexColor
 
 
-BLACK: Final[Color]       = Color(0  , 0  , 0)
+BLACK: Final[Color]       = Color(0, 0, 0)
 WHITE: Final[Color]       = Color(255, 255, 255)
-DARKER_GRAY: Final[Color] = Color(50 , 50 , 50)
+DARKER_GRAY: Final[Color] = Color(50, 50, 50)
+YELLOW: Final[Color]      = Color(255, 255, 0)
 
 _RGB_LIGHT_GRAY: Final[tuple[int, int, int]] = (70, 70, 70)
 _RGB_DARK_GRAY: Final[tuple[int, int, int]]  = (60, 60, 60)
@@ -52,9 +53,11 @@ UI_LAYER: Final[int]      = SPECIAL_LAYER * 2  # Base for the UI layers
 ANIMATION_GROW: Final[int]   = 0
 ANIMATION_SHRINK: Final[int] = 1
 
-SETTINGS_FPS_ACTIVENESS_CHANGE: Final[int]   = event.custom_type()
-SETTINGS_CRASH_SAVE_DIR_CHOICE: Final[int]   = event.custom_type()
-SETTINGS_ZOOM_DIRECTION_CHANGE: Final[int]   = event.custom_type()
-SETTINGS_HISTORY_MAX_SIZE_CHANGE: Final[int] = event.custom_type()
+SETTINGS_FPS_ACTIVENESS_CHANGE: Final[int]         = event.custom_type()
+SETTINGS_CRASH_SAVE_DIR_CHOICE: Final[int]         = event.custom_type()
+SETTINGS_GRID_ZOOM_DIRECTION_CHANGE: Final[int]    = event.custom_type()
+SETTINGS_GRID_HISTORY_MAX_SIZE_CHANGE: Final[int]  = event.custom_type()
+SETTINGS_GRID_CENTER_ACTIVENESS_CHANGE: Final[int] = event.custom_type()
+SETTINGS_GRID_TILE_MODE_SIZE_CHANGE: Final[int]    = event.custom_type()
 
 del _RGB_LIGHT_GRAY, _RGB_DARK_GRAY

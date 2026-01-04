@@ -2,22 +2,26 @@
 
 from typing import Self
 
-import pygame as pg
-from pygame.locals import *
+from pygame import (
+    Surface, Rect, transform, scrap,
+    K_LEFT, K_RIGHT, K_HOME, K_END,
+    K_BACKSPACE, K_DELETE, K_c, K_v, K_MINUS, K_PLUS,
+    SYSTEM_CURSOR_IBEAM,
+)
 
 from src.classes.clickable import SpammableButton
 from src.classes.text_label import TextLabel
 from src.classes.devices import MOUSE, KEYBOARD
 
 import src.vars as my_vars
-from src.obj_utils import UIElement, ObjInfo, resize_obj
-from src.type_utils import XY, WH, BlitInfo, RectPos
+from src.obj_utils import UIElement, resize_obj
+from src.type_utils import XY, WH, RectPos
 from src.consts import WHITE, MOUSE_LEFT, CHR_LIMIT, BG_LAYER, ELEMENT_LAYER
 from src.imgs import ARROW_UP_OFF_IMG, ARROW_UP_ON_IMG, ARROW_DOWN_OFF_IMG, ARROW_DOWN_ON_IMG
 
 
 
-class InputBox:
+class InputBox(UIElement):
     """Class to create a text, single-line input box"""
 
     __slots__ = (
@@ -26,10 +30,7 @@ class InputBox:
         "_max_len", "cursor_i", "_is_selected", "_last_cursor_blink_time", "_should_show_cursor",
         "text_label", "_cursor_img", "cursor_rect",
         "_prev_selected_obj", "prev_text", "_prev_cursor_i",
-        "hover_rects", "layer", "blit_sequence", "objs_info",
     )
-
-    cursor_type: int = SYSTEM_CURSOR_IBEAM
 
     def __init__(
             self: Self, pos: RectPos, wh: WH, max_len: int,
@@ -42,10 +43,12 @@ class InputBox:
             position, size, max length, base layer (default = BG_LAYER)
         """
 
+        super().__init__()
+
         self._init_pos: RectPos = pos
 
-        self._img: pg.Surface = pg.Surface(wh)
-        self.rect: pg.Rect = pg.Rect(0, 0, *self._img.get_size())
+        self._img: Surface = Surface(wh)
+        self.rect: Rect = Rect(0, 0, *self._img.get_size())
         setattr(self.rect, self._init_pos.coord_type, (self._init_pos.x, self._init_pos.y))
 
         self._init_w: int = self.rect.w
@@ -61,9 +64,9 @@ class InputBox:
             RectPos(self.rect.centerx, self.rect.centery, "center"),
             "0", base_layer
         )
-        self._cursor_img: pg.Surface = pg.Surface((1, self.text_label.rect.h))
+        self._cursor_img: Surface = Surface((1, self.text_label.rect.h))
         self._cursor_img.fill(WHITE)
-        self.cursor_rect: pg.Rect = pg.Rect(0, 0, *self._cursor_img.get_size())
+        self.cursor_rect: Rect = Rect(0, 0, *self._cursor_img.get_size())
         self.cursor_rect.topleft = (
             self.text_label.get_x_at(self.cursor_i),
             self.text_label.rect.y,
@@ -73,10 +76,11 @@ class InputBox:
         self.prev_text: str = self.text_label.text
         self._prev_cursor_i: int = self.cursor_i
 
-        self.hover_rects: tuple[pg.Rect, ...] = (self.rect,)
-        self.layer: int = base_layer + ELEMENT_LAYER
-        self.blit_sequence: list[BlitInfo] = [(self._img, self.rect, self.layer)]
-        self.objs_info: tuple[ObjInfo, ...] = (ObjInfo(self.text_label),)
+        self.hover_rects = (self.rect,)
+        self.layer = base_layer + ELEMENT_LAYER
+        self.cursor_type = SYSTEM_CURSOR_IBEAM
+        self.blit_sequence = [(self._img, self.rect, self.layer)]
+        self.sub_objs = (self.text_label,)
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -99,11 +103,11 @@ class InputBox:
         xy: XY
 
         xy, self.rect.size = resize_obj(self._init_pos, self._init_w, self._init_h)
-        self._img = pg.Surface(self.rect.size)
+        self._img = Surface(self.rect.size)
         setattr(self.rect, self._init_pos.coord_type, xy)
 
         cursor_wh: WH = (1, self.text_label.rect.h)
-        self._cursor_img = pg.transform.scale(self._cursor_img, cursor_wh).convert()
+        self._cursor_img = transform.scale(self._cursor_img, cursor_wh).convert()
         self.cursor_rect.topleft = (
             self.text_label.get_x_at(self.cursor_i),
             self.text_label.rect.y,
@@ -119,9 +123,9 @@ class InputBox:
         if K_RIGHT in KEYBOARD.timed:
             text_len: int = len(self.text_label.text)
             self.cursor_i = text_len if KEYBOARD.is_ctrl_on else min(self.cursor_i + 1, text_len)
-        if K_HOME in KEYBOARD.pressed:
+        if K_HOME in KEYBOARD.timed:
             self.cursor_i = 0
-        if K_END  in KEYBOARD.pressed:
+        if K_END  in KEYBOARD.timed:
             self.cursor_i = len(self.text_label.text)
 
     def _filter_char(self: Self, char: str) -> str:
@@ -141,13 +145,10 @@ class InputBox:
 
         prev_text: str = self.text_label.text
 
-        text: str = "".join(map(self._filter_char, pg.scrap.get_text()))
+        text: str = "".join(map(self._filter_char, scrap.get_text()))
         self._handle_insertion(text)
         if self.text_label.text != prev_text:
             self.cursor_i = min(self.cursor_i + len(text), self._max_len)
-
-    def _handle_post_insertion(self: Self) -> None:
-        """Normalizes the text after it was inserted."""
 
     def _handle_deletion(self: Self) -> None:
         """Handles backspace and delete and moves the cursor."""
@@ -163,6 +164,9 @@ class InputBox:
                 self.text_label.text[self.cursor_i:]
             )
             self.cursor_i = max(self.cursor_i - 1, 0)
+
+    def _handle_post_insertion(self: Self) -> None:
+        """Normalizes the text after it was inserted."""
 
     def _handle_insertion(self: Self, added_text: str) -> None:
         """
@@ -183,7 +187,7 @@ class InputBox:
 
         if KEYBOARD.is_ctrl_on:
             if K_c in KEYBOARD.timed:
-                pg.scrap.put_text("")
+                scrap.put_text("")
             elif K_v in KEYBOARD.timed:
                 self._handle_paste()
 
@@ -199,7 +203,7 @@ class InputBox:
                 self.cursor_i = min(self.cursor_i + 1, len(self.text_label.text))
 
     def refresh(self: Self) -> None:
-        """Refreshes the text label and cursor position."""
+        """Refreshes the text label, cursor position and cursor blinking."""
 
         if self.text_label.text != self.prev_text:
             self.text_label.set_text(self.text_label.text)
@@ -243,9 +247,8 @@ class InputBox:
                 self._last_cursor_blink_time = my_vars.ticks
                 self._should_show_cursor = True
 
-            if KEYBOARD.pressed != ():
-                self._handle_move_with_keys()
             if KEYBOARD.timed != ():
+                self._handle_move_with_keys()
                 self._handle_timed_keys()
 
         self._prev_selected_obj = selected_obj
@@ -292,7 +295,7 @@ class NumInputBox(InputBox):
         self._decrease.set_hover_extra_size(5, 10, 3 , 10)
         self._increase.set_hover_extra_size(5, 10, 10, 3)
 
-        self.objs_info += (ObjInfo(self._decrease), ObjInfo(self._increase))
+        self.sub_objs += (self._decrease, self._increase)
 
     def set_value(self: Self, value: int) -> None:
         """
@@ -395,8 +398,6 @@ class ColorInputBox(InputBox):
         "value",
     )
 
-    cursor_type: int = SYSTEM_CURSOR_IBEAM
-
     def __init__(self: Self, pos: RectPos, base_layer: int = BG_LAYER) -> None:
         """
         Creates the input box, text and cursor.
@@ -413,7 +414,7 @@ class ColorInputBox(InputBox):
             RectPos(self.rect.x - 4, self.rect.centery, "midright"),
             "#", base_layer
         )
-        self.objs_info += (ObjInfo(hashtag_text_label),)
+        self.sub_objs += (hashtag_text_label,)
 
     def set_value(self: Self, value: str) -> None:
         """

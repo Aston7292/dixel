@@ -6,6 +6,10 @@ from io import BytesIO
 from typing import Final
 
 import pygame as pg
+import numpy as np
+from pygame import Surface, surfarray, draw, transform
+from numpy import uint8, uint32, bool_
+from numpy.typing import NDArray
 
 from src.utils import add_border
 from src.file_utils import FileError, handle_file_os_error, try_read_file
@@ -15,12 +19,12 @@ from src.consts import WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I
 
 
 _ERRORS: Final[list[str]] = []
-_MISSING_IMG: Final[pg.Surface] = pg.Surface((64, 64))
+_MISSING_IMG: Final[Surface] = Surface((64, 64))
 _MISSING_IMG.fill((255, 0, 0))
-pg.draw.rect(_MISSING_IMG, WHITE, _MISSING_IMG.get_rect(), width=4)
+draw.rect(_MISSING_IMG, WHITE, _MISSING_IMG.get_rect(), width=4)
 
 
-def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
+def _try_get_img(file_str: str, missing_img_wh: WH) -> Surface:
     """
     Loads an image with retries.
 
@@ -35,7 +39,7 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
     should_retry: bool
 
     file_path: Path = Path("assets", "sprites", file_str)
-    img: pg.Surface | None = None
+    img: Surface | None = None
     for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             with file_path.open("rb") as f:
@@ -64,59 +68,85 @@ def _try_get_img(file_str: str, missing_img_wh: WH) -> pg.Surface:
             break
 
     if img is None:
-        img = pg.transform.scale(_MISSING_IMG, missing_img_wh)
+        img = transform.scale(_MISSING_IMG, missing_img_wh)
     assert img.get_size() == missing_img_wh, f"{file_str} {img.get_size()}"
 
     img.set_colorkey((0, 0, 1))
     return img.convert()
 
+def _change_brightness(img: Surface, brightness: float) -> Surface:
+    """
+    Changes the brightness of an image while preserving the transparent pixels and colorkey
 
-ICON_IMG: Final[pg.Surface] = _try_get_img("icon.png", (32, 32))
+    Args:
+        image, brightness
+    Returns:
+        image
+    """
 
-CHECKBOX_OFF_IMG: Final[pg.Surface] = _try_get_img("checkbox_off.png", (48, 48))
-CHECKBOX_ON_IMG: Final[pg.Surface]  = _try_get_img("checkbox_on.png" , (48, 48))
+    img = img.convert_alpha()
+    pixels: NDArray[uint8] = np.dstack((surfarray.pixels3d(img), surfarray.pixels_alpha(img)))
+    colorkey_arr: NDArray[uint8] = np.array((0, 0, 1, 0), uint8)
+    colorkey_mask: NDArray[bool_] = pixels.view(uint32)[..., 0] == colorkey_arr.view(uint32)[0]
 
-BUTTON_M_OFF_IMG: Final[pg.Surface] = _try_get_img("button_off.png", (128, 64))
-BUTTON_M_ON_IMG: Final[pg.Surface]  = _try_get_img("button_on.png" , (128, 64))
-BUTTON_S_OFF_IMG = pg.transform.scale(BUTTON_M_OFF_IMG, (96, 48)).convert()
-BUTTON_S_ON_IMG  = pg.transform.scale(BUTTON_M_ON_IMG , (96, 48)).convert()
-BUTTON_XS_OFF_IMG: Final[pg.Surface] = pg.transform.scale(BUTTON_M_OFF_IMG, (64, 32)).convert()
-BUTTON_XS_ON_IMG: Final[pg.Surface]  = pg.transform.scale(BUTTON_M_ON_IMG , (64, 32)).convert()
+    transform.hsl(img, lightness=brightness, dest_surface=img)
+    surfarray.pixels3d(img)[colorkey_mask] = (0, 0, 1)
+    img.set_colorkey((0, 0, 1))
+    return img.convert()
 
-X_MIRROR_OFF_IMG: Final[pg.Surface] = _try_get_img("mirror.png", (72, 70))
-X_MIRROR_ON_IMG: Final[pg.Surface] = add_border(X_MIRROR_OFF_IMG, WHITE)
-Y_MIRROR_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(X_MIRROR_OFF_IMG, -90)
-Y_MIRROR_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(X_MIRROR_ON_IMG , -90)
 
-ARROW_UP_OFF_IMG: Final[pg.Surface] = _try_get_img("arrow_off.png", (16, 10))
-ARROW_UP_ON_IMG: Final[pg.Surface]  = _try_get_img("arrow_on.png" , (16, 10))
-ARROW_DOWN_OFF_IMG: Final[pg.Surface] = pg.transform.rotate(ARROW_UP_OFF_IMG, 180).convert()
-ARROW_DOWN_ON_IMG: Final[pg.Surface]  = pg.transform.rotate(ARROW_UP_ON_IMG , 180).convert()
+ICON_IMG: Final[Surface] = _try_get_img("icon.png", (32, 32))
 
-ADD_OFF_IMG: Final[pg.Surface] = _try_get_img("add_off.png", (32, 32))
-ADD_ON_IMG: Final[pg.Surface]  = _try_get_img("add_on.png" , (32, 32))
+CHECKBOX_OFF_IMG: Final[Surface] = _try_get_img("checkbox.png", (48, 48))
+CHECK_IMG: Final[Surface] = _try_get_img("check.png", (32, 32))
+CHECKBOX_ON_IMG: Final[Surface] = CHECKBOX_OFF_IMG.copy()
+CHECKBOX_ON_IMG.blit(
+    CHECK_IMG,
+    (
+        CHECKBOX_OFF_IMG.get_rect().centerx - (CHECK_IMG.get_width()  / 2),
+        CHECKBOX_OFF_IMG.get_rect().centery - (CHECK_IMG.get_height() / 2),
+    )
+)
 
-PENCIL_IMG: Final[pg.Surface]      = _try_get_img("pencil.png"     , (64, 64))
-ERASER_IMG: Final[pg.Surface]      = _try_get_img("eraser.png"     , (64, 64))
-BUCKET_IMG: Final[pg.Surface]      = _try_get_img("bucket.png"     , (64, 64))
-EYE_DROPPER_IMG: Final[pg.Surface] = _try_get_img("eye_dropper.png", (64, 64))
-LINE_IMG: Final[pg.Surface]        = _try_get_img("line.png"       , (64, 64))
-RECT_IMG: Final[pg.Surface]        = _try_get_img("rect.png"       , (64, 64))
+BUTTON_M_OFF_IMG: Final[Surface] = _try_get_img("button.png", (128, 64))
+BUTTON_M_ON_IMG: Final[Surface] = _change_brightness(BUTTON_M_OFF_IMG, 0.5)
+BUTTON_S_OFF_IMG = transform.scale(BUTTON_M_OFF_IMG, (96, 48)).convert()
+BUTTON_S_ON_IMG  = transform.scale(BUTTON_M_ON_IMG , (96, 48)).convert()
+BUTTON_XS_OFF_IMG: Final[Surface] = transform.scale(BUTTON_M_OFF_IMG, (64, 32)).convert()
+BUTTON_XS_ON_IMG: Final[Surface]  = transform.scale(BUTTON_M_ON_IMG , (64, 32)).convert()
 
-SETTINGS_OFF_IMG: Final[pg.Surface] = _try_get_img("settings_off.png", (48, 48))
-SETTINGS_ON_IMG: Final[pg.Surface]  = _try_get_img("settings_on.png" , (48, 48))
+X_MIRROR_OFF_IMG: Final[Surface] = _try_get_img("mirror.png", (72, 70))
+X_MIRROR_ON_IMG: Final[Surface] = add_border(X_MIRROR_OFF_IMG, WHITE)
+Y_MIRROR_OFF_IMG: Final[Surface] = transform.rotate(X_MIRROR_OFF_IMG, -90).convert()
+Y_MIRROR_ON_IMG: Final[Surface]  = transform.rotate(X_MIRROR_ON_IMG , -90).convert()
 
-CLOSE_OFF_IMG: Final[pg.Surface] = _try_get_img("close_off.png", (48, 48))
-CLOSE_ON_IMG: Final[pg.Surface]  = _try_get_img("close_on.png" , (48, 48))
+ARROW_UP_OFF_IMG: Final[Surface] = _try_get_img("arrow.png", (16, 10))
+ARROW_UP_ON_IMG: Final[Surface] = _change_brightness(ARROW_UP_OFF_IMG, -0.5)
+ARROW_DOWN_OFF_IMG: Final[Surface] = transform.rotate(ARROW_UP_OFF_IMG, 180).convert()
+ARROW_DOWN_ON_IMG: Final[Surface]  = transform.rotate(ARROW_UP_ON_IMG , 180).convert()
 
-ROTATE_LEFT_OFF_IMG: Final[pg.Surface] = _try_get_img("rotate_off.png", (38, 44))
-ROTATE_LEFT_ON_IMG: Final[pg.Surface]  = _try_get_img("rotate_on.png" , (38, 44))
-ROTATE_RIGHT_OFF_IMG: Final[pg.Surface] = pg.transform.flip(
-    ROTATE_LEFT_OFF_IMG, True, False
-).convert()
-ROTATE_RIGHT_ON_IMG: Final[pg.Surface] = pg.transform.flip(
-    ROTATE_LEFT_ON_IMG , True, False
-).convert()
+ADD_OFF_IMG: Final[Surface] = _try_get_img("add.png", (32, 32))
+ADD_ON_IMG: Final[Surface] = _change_brightness(ADD_OFF_IMG, 0.5)
+INFO_OFF_IMG: Final[pg.Surface] = _try_get_img("info.png", (11, 3))
+INFO_ON_IMG: Final[pg.Surface] = _change_brightness(INFO_OFF_IMG, 0.5)
+
+PENCIL_IMG: Final[Surface]      = _try_get_img("pencil.png"     , (64, 64))
+ERASER_IMG: Final[Surface]      = _try_get_img("eraser.png"     , (64, 64))
+BUCKET_IMG: Final[Surface]      = _try_get_img("bucket.png"     , (64, 64))
+EYE_DROPPER_IMG: Final[Surface] = _try_get_img("eye_dropper.png", (64, 64))
+LINE_IMG: Final[Surface]        = _try_get_img("line.png"       , (64, 64))
+RECT_IMG: Final[Surface]        = _try_get_img("rect.png"       , (64, 64))
+
+SETTINGS_OFF_IMG: Final[Surface] = _try_get_img("settings.png", (48, 48))
+SETTINGS_ON_IMG: Final[Surface] = _change_brightness(SETTINGS_OFF_IMG, 0.5)
+
+CLOSE_OFF_IMG: Final[Surface] = _try_get_img("close.png", (48, 48))
+CLOSE_ON_IMG: Final[Surface] = _change_brightness(CLOSE_OFF_IMG, -0.5)
+
+ROTATE_LEFT_OFF_IMG: Final[Surface] = _try_get_img("rotate.png", (38, 44))
+ROTATE_LEFT_ON_IMG: Final[Surface] = _change_brightness(ROTATE_LEFT_OFF_IMG, -0.5)
+ROTATE_RIGHT_OFF_IMG: Final[Surface] = transform.flip(ROTATE_LEFT_OFF_IMG, True, False).convert()
+ROTATE_RIGHT_ON_IMG: Final[Surface]  = transform.flip(ROTATE_LEFT_ON_IMG , True, False).convert()
 
 if _ERRORS != []:
     messagebox.showerror("Images Load Failed", "\n".join(_ERRORS))

@@ -7,7 +7,7 @@ they can be opened by clicking their respective buttons,
 they're for colors, grid, grid history and settings.
 
 Mouse info:
-    the MOUSE object contains current and previous coordinates, pressed and released buttons,
+    The MOUSE object contains current and previous coordinates, pressed and released buttons,
     scrolling amount, hovered object and cursor type.
 
 Keyboard input:
@@ -16,24 +16,29 @@ Keyboard input:
     a temporary list that holds the pressed keys for one frame every 128ms,
     used for key repeat, has acceleration.
 
-Objects info:
-    Objects have an objs_info attribute, a list of sub objects, stored in the dataclass ObjInfo,
-    sub objects can also be inactive, the active flag can be changed with ObjInfo.rec_set_active.
-    Every object info is in the _states_objs_info attribute of the Dixel class,
-    the attributes/methods below are automatically used and are required by every object.
+Objects:
+    Objects inherit from the UIElement abstract class,
+    the objs_utils file stores all the objects, the active ones of the current state
+    and the ones that are playing an animation.
+
+    Objects have an initial position, a sub_objs attribute, a sequence of sub objects,
+    an active flag, a should follow parent flag and these methods:
+
+    rec_resize: resizes an object and its children,
+    rec_move_to: moves an object and its children,
+    rec_set_layer: sets the layer of an object and its children,
+    rec_set_active: changes activeness for an object and its children,
+    objects with the should follow parent flag set to False
+    won't be affected when the parent moves or changes activeness.
+
+    Objects also have special attributes or methods modifiable by subclasses:
 
 Hovering info:
     The hover_rects attribute is a list of rects to determine the hovered object,
-    the layer attribute is used to choose an object when more the one is hovered,
+    the layer attribute is used to choose an object when more then one is hovered,
     the hovered object is the one with the highest layer.
 
-Cursor type:
-    The cursor_type attribute indicates the type the cursor will have when hovering that object.
-
-Blitting:
-    The blit_sequence attribute is a list with tuples of image, rect and layer,
-    objects with an higher layer will be blitted on top of objects with a lower one.
-
+Layers:
     There are 4 layer types:
         background: background elements (e.g. grid, palettes manager, unsaved icon)
         element: UI elements (e.g. buttons, scrollbars)
@@ -47,16 +52,23 @@ Blitting:
     The UI group extends the special group in a similar way,
     used for the UI windows of other states.
 
-Entering a state:
+Cursor type:
+    The cursor_type attribute indicates the type the cursor will be when hovering that object.
+
+Blitting:
+    The blit_sequence attribute is a list with tuples of image, rect and layer,
+    objects with an higher layer will be blitted on top of objects with a lower one.
+
+Entering:
     The enter method gets called when entering the object's state or when the object goes active,
     it initializes the relevant data, like the show_cursor flag of input boxes.
 
-Leaving a state:
+Leaving:
     The leave method gets called when leaving the object's state or when the object goes inactive,
     it clears the relevant data, like the selected tiles of the grid.
 
-Window resizing:
-    The resize method scales positions and images manually
+Resizing:
+    The resize method scales positions and images manually when the window is resized
     because blitting everything on an image, scaling it to match the window size and blitting it
     cause blurring and 1 pixel offsets at specific sizes, is slow
     and doesn't allow for custom behavior on some objects.
@@ -64,12 +76,23 @@ Window resizing:
     Only the objects of the main and active state are resized,
     when changing state the state's objects are immediately resized.
 
-Interacting with elements:
+Moving:
+    The move_to method changes the initial position of an object,
+    it also takes a flag to scale the position or not
+    (e.g. a tooltip is moved to the mouse position and it's not scaled depending on the window).
+
+Changing layer:
+    The set_layer changes the layer of an object.
+
+Interacting:
     Interaction is possible with an upt method,
     it contains a high level implementation of its behavior.
 
+Animations:
+    The animate method plays an animation frame and the reset_animation resets it.
+    Objects in the objs_utils.animating_objs set will play an animation frame every frame.
+
 ----------TODO----------
-- text with hovering text
 - split Dixel
 - option to change the palette to match the active colors
 - UI to view grid history
@@ -82,7 +105,6 @@ Interacting with elements:
 - touch and pen support
 
 - GRID_UI:
-    - separate minimap logic from grid and use also in grid UI
     - move image
 
 - TOOLS_MANAGER:
@@ -101,18 +123,23 @@ from tkinter import filedialog, messagebox
 from threading import Thread
 from pathlib import Path
 from json import JSONDecodeError
-from collections import deque
 from collections.abc import Callable
 from sys import argv, stderr
 from io import BytesIO
 from typing import NoReturn, Self, TypeAlias, Final, Any
 
-os.environ["PYGAME_BLEND_ALPHA_SDL2"]    = "1"
-os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+os.environ["PYGAME_BLEND_ALPHA_SDL2"] = os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
 import pygame as pg
 import numpy as np
-from pygame.locals import *
+from pygame import (
+    Color, Surface, Event, Clock, mouse, event,
+    WINDOWCLOSE, WINDOWRESTORED, WINDOWMINIMIZED, WINDOWMAXIMIZED,
+    WINDOWMOVED, WINDOWSIZECHANGED, WINDOWFOCUSLOST, WINDOWPOS_CENTERED,
+    MOUSEMOTION, MOUSEBUTTONDOWN, MOUSEBUTTONUP, MOUSEWHEEL, KEYDOWN, KEYUP, KEYMAPCHANGED,
+    K_ESCAPE, K_F1, K_F5, K_F6, K_F7, K_F8, K_F11,
+    K_1, K_a, K_b, K_g, K_h, K_o, K_s, K_v, K_w, K_COMMA,
+)
 from numpy import uint8
 from numpy.typing import NDArray
 from PIL import Image
@@ -121,23 +148,24 @@ from src.win import WIN, WIN_SURF, WIN_INIT_W, WIN_INIT_H
 
 from src.classes.grid_ui import GridUI
 from src.classes.color_ui import ColorPicker
-from src.classes.settings_ui import (
-    SettingsUI,
+from src.classes.settings_ui import SettingsUI
+from src.classes.general_settings_manager import (
     AUTOSAVE_MODE_NEVER, AUTOSAVE_MODE_CRASH, AUTOSAVE_MODE_INTERRUPT,
 )
 from src.classes.grid_manager import GridManager
 from src.classes.tools_manager import ToolsManager, ToolInfo
 from src.classes.palettes_manager import PalettesManager
 from src.classes.checkbox_grid import CheckboxGrid
+from src.classes.dropdown import Dropdown
 from src.classes.clickable import Checkbox, Button
-from src.classes.text_label import TextLabel
+from src.classes.text_label import TextLabel, HoverableTextLabel
 from src.classes.unsaved_icon import UnsavedIcon
 from src.classes.devices import MOUSE, KEYBOARD
 
 import src.obj_utils as objs
 import src.vars as my_vars
 from src.utils import get_pixels, get_brush_dim_checkbox_info, print_funcs_profiles
-from src.obj_utils import UIElement, AnimatableElement, ObjInfo, rec_move_rect
+from src.obj_utils import UIElement
 from src.file_utils import (
     FileError, prettify_path, handle_file_os_error,
     try_read_file, try_write_file, try_replace_file, try_remove_file,
@@ -146,12 +174,13 @@ from src.file_utils import (
 from src.lock_utils import LockError, try_lock_file
 from src.type_utils import XY, WH, HexColor, BlitInfo, RectPos
 from src.consts import (
-    BLACK, WHITE, HEX_BLACK,
+    BLACK, WHITE, YELLOW, HEX_BLACK,
     FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I,
     STATE_I_MAIN, STATE_I_COLOR, STATE_I_GRID, STATE_I_SETTINGS,
     ANIMATION_GROW, ANIMATION_SHRINK,
     SETTINGS_FPS_ACTIVENESS_CHANGE, SETTINGS_CRASH_SAVE_DIR_CHOICE,
-    SETTINGS_ZOOM_DIRECTION_CHANGE, SETTINGS_HISTORY_MAX_SIZE_CHANGE,
+    SETTINGS_GRID_ZOOM_DIRECTION_CHANGE, SETTINGS_GRID_HISTORY_MAX_SIZE_CHANGE,
+    SETTINGS_GRID_CENTER_ACTIVENESS_CHANGE, SETTINGS_GRID_TILE_MODE_SIZE_CHANGE,
 )
 from src.imgs import (
     ICON_IMG,
@@ -161,8 +190,9 @@ from src.imgs import (
 )
 WIN.set_icon(ICON_IMG)
 
-_StatesObjInfo: TypeAlias = tuple[tuple[ObjInfo, ...], ...]
+_StatesObjs: TypeAlias = tuple[tuple[UIElement, ...], ...]
 _IgnoredExceptions: TypeAlias = tuple[type[Exception], ...] | None
+_PaletteData: TypeAlias = dict[str, Any] | None
 
 _SAVE: Final[Button] = Button(
     RectPos(0, 0, "topleft"),
@@ -189,7 +219,7 @@ _GRID_MANAGER: Final[GridManager] = GridManager(
 _BRUSH_DIMS: Final[CheckboxGrid] = CheckboxGrid(
     RectPos(10, _SAVE_AS.rect.bottom + 10, "topleft"),
     tuple([get_brush_dim_checkbox_info(dim) for dim in range(1, 6)]),
-    num_cols=5, should_invert_cols=False, should_invert_rows=False
+    cols=5, should_invert_cols=False, should_invert_rows=False
 )
 _X_MIRROR: Final[Checkbox] = Checkbox(
     RectPos(_BRUSH_DIMS.rect.x       , _BRUSH_DIMS.rect.bottom + 10, "topleft"),
@@ -221,12 +251,12 @@ _TOOLS_MANAGER: Final[ToolsManager] = ToolsManager(
 )
 
 _FPS_TEXT_LABEL: Final[TextLabel] = TextLabel(
-    RectPos(round(WIN_INIT_W / 2), 0 , "midtop"),
+    RectPos(round(WIN_INIT_W / 2), 0, "midtop"),
     "FPS: 0"
 )
-_FILE_TEXT_LABEL: Final[TextLabel] = TextLabel(
+_FILE_TEXT_LABEL: Final[HoverableTextLabel] = HoverableTextLabel(
     RectPos(round(WIN_INIT_W / 2), _FPS_TEXT_LABEL.rect.bottom, "midtop"),
-    "New File"
+    "New File", "Unsaved", h=20
 )
 _UNSAVED_ICON: Final[UnsavedIcon] = UnsavedIcon()
 
@@ -234,19 +264,18 @@ _COLOR_PICKER: Final[ColorPicker] = ColorPicker()
 _GRID_UI: Final[GridUI]           = GridUI()
 _SETTINGS_UI: Final[SettingsUI]   = SettingsUI()
 
-_FPS_TEXT_LABEL_OBJ_INFO: Final[ObjInfo] = ObjInfo(_FPS_TEXT_LABEL)
-_STATES_MAIN_OBJS_INFO: Final[_StatesObjInfo] = (
+_STATES_MAIN_OBJS: Final[_StatesObjs] = (
     (
-        ObjInfo(_SAVE), ObjInfo(_SAVE_AS), ObjInfo(_OPEN), ObjInfo(_CLOSE),
-        ObjInfo(_GRID_MANAGER), ObjInfo(_BRUSH_DIMS), ObjInfo(_X_MIRROR), ObjInfo(_Y_MIRROR),
-        ObjInfo(_ADD_COLOR), ObjInfo(_EDIT_GRID), ObjInfo(_OPEN_SETTINGS),
-        ObjInfo(_PALETTES_MANAGER), ObjInfo(_TOOLS_MANAGER),
-        _FPS_TEXT_LABEL_OBJ_INFO, ObjInfo(_FILE_TEXT_LABEL), ObjInfo(_UNSAVED_ICON),
+        _SAVE, _SAVE_AS, _OPEN, _CLOSE,
+        _GRID_MANAGER, _BRUSH_DIMS, _X_MIRROR, _Y_MIRROR,
+        _ADD_COLOR, _EDIT_GRID, _OPEN_SETTINGS,
+        _PALETTES_MANAGER, _TOOLS_MANAGER,
+        _FPS_TEXT_LABEL, _FILE_TEXT_LABEL, _UNSAVED_ICON,
     ),
-    (ObjInfo(_COLOR_PICKER),),
-    (ObjInfo(_GRID_UI),),
+    (_COLOR_PICKER,),
+    (_GRID_UI,),
     (),
-    (ObjInfo(_SETTINGS_UI),),
+    (_SETTINGS_UI,),
 )
 
 _EXIT_NO: Final[int]        = 0
@@ -255,22 +284,22 @@ _EXIT_CRASH: Final[int]     = 2
 _EXIT_INTERRUPT: Final[int] = 3
 
 _WIN_EVENTS: Final[tuple[int, ...]] = (
-    WINDOWRESTORED,
-    WINDOWMINIMIZED, WINDOWMAXIMIZED,
+    WINDOWRESTORED, WINDOWMINIMIZED, WINDOWMAXIMIZED,
     WINDOWMOVED, WINDOWSIZECHANGED,
     WINDOWFOCUSLOST,
 )
 _DEVICE_EVENTS: Final[tuple[int, ...]] = (
-    MOUSEWHEEL,
+    MOUSEMOTION, MOUSEBUTTONDOWN, MOUSEBUTTONUP, MOUSEWHEEL,
     KEYDOWN, KEYUP, KEYMAPCHANGED,
 )
+FIRST_SETTINGS_EVENT: Final[int] = SETTINGS_FPS_ACTIVENESS_CHANGE
+LAST_SETTINGS_EVENT: Final[int] = SETTINGS_GRID_TILE_MODE_SIZE_CHANGE
 
-_FILE_SAVE_AS_REQUEST: Final[int]       = pg.event.custom_type()
-_FILE_OPEN_REQUEST: Final[int]          = pg.event.custom_type()
-_FILE_CRASH_SAVE_DIR_CHANGE: Final[int] = pg.event.custom_type()
-_TIMED_UPDATE_1000: Final[int]          = pg.event.custom_type()
-_CLOCK: Final[pg.Clock] = pg.Clock()
-
+_FILE_SAVE_AS_REQUEST: Final[int]       = event.custom_type()
+_FILE_OPEN_REQUEST: Final[int]          = event.custom_type()
+_FILE_CRASH_SAVE_DIR_CHANGE: Final[int] = event.custom_type()
+_TIMED_UPDATE_1000: Final[int]          = event.custom_type()
+_CLOCK: Final[Clock] = Clock()
 
 def stop(e: BaseException) -> NoReturn:
     """
@@ -312,7 +341,7 @@ def _ensure_valid_img_format(file_str: str) -> str:
     return str(file_path.parent / f"{sections[0]}.{sections[1]}")
 
 
-def _try_get_grid_img(file_str: str, ignored_exceptions: _IgnoredExceptions) -> pg.Surface | None:
+def _try_get_grid_img(file_str: str, ignored_exceptions: _IgnoredExceptions) -> Surface | None:
     """
     Loads a grid image with retries.
 
@@ -326,7 +355,7 @@ def _try_get_grid_img(file_str: str, ignored_exceptions: _IgnoredExceptions) -> 
     should_retry: bool
 
     file_path: Path = Path(file_str)
-    pg_img: pg.Surface | None = None
+    pg_img: Surface | None = None
 
     exception: type[Exception] | None = None
     error_str: str = ""
@@ -403,7 +432,7 @@ class _Dixel:
         self._load_data()
         self._load_palettes()
 
-        img: pg.Surface | None = None
+        img: Surface | None = None
         if len(argv) > 1:
             img = self._handle_argv_path()
         elif self._file_str != "":
@@ -460,7 +489,7 @@ class _Dixel:
 
             "brush_dim_i"    : 0,
             "tool_i"         : 0,
-            "active_palette" : 1,
+            "current_palette" : 1,  # Offsets by 1 because of placeholder option
 
             "grid_ratio": None,
 
@@ -473,8 +502,12 @@ class _Dixel:
             "is_fps_counter_active": True,
             "autosave_mode_i": 1,  # Always
             "crash_save_dir": str(Path().resolve()),
-            "is_zooming_inverted": False,
+            "is_grid_zooming_inverted": False,
             "grid_history_max_size_i": 5,  # 512
+            "is_grid_center_active": False,
+            "grid_tile_mode_size": None,
+
+            "sub_tools_states": [False, False],
         }
         data_path: Path = Path("assets", "data", "data.json")
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
@@ -515,7 +548,8 @@ class _Dixel:
 
         _BRUSH_DIMS.check(data["brush_dim_i"])
         _TOOLS_MANAGER.check(data["tool_i"])
-        _PALETTES_MANAGER.palette_dropdown.option_i = data["active_palette"]
+        _TOOLS_MANAGER.import_sub_tools_states(data["sub_tools_states"])
+        _PALETTES_MANAGER.palette_dropdown.option_i = data["current_palette"]
         _GRID_MANAGER.grid.brush_dim = _BRUSH_DIMS.clicked_i + 1
 
         # refresh_full is called later
@@ -526,30 +560,24 @@ class _Dixel:
             should_reset_history=True
         )
 
-        if data["is_x_mirror_on"]:
-            _X_MIRROR.set_checked(True)
-            _GRID_MANAGER.is_x_mirror_on = True
-        if data["is_y_mirror_on"]:
-            _Y_MIRROR.set_checked(True)
-            _GRID_MANAGER.is_y_mirror_on = True
+        _X_MIRROR.set_checked(data["is_x_mirror_on"])
+        _Y_MIRROR.set_checked(data["is_y_mirror_on"])
+        _GRID_MANAGER.is_x_mirror_on = data["is_x_mirror_on"]
+        _GRID_MANAGER.is_y_mirror_on = data["is_y_mirror_on"]
 
         _GRID_UI.is_keeping_wh_ratio = data["grid_ratio"] is not None
-        if _GRID_UI.is_keeping_wh_ratio:
-            _GRID_UI.w_ratio, _GRID_UI.h_ratio = data["grid_ratio"]
+        _GRID_UI.w_ratio, _GRID_UI.h_ratio = (
+            data["grid_ratio"] if _GRID_UI.is_keeping_wh_ratio else
+            (1, 1)
+        )
 
-        if data["orig_win_xy"] != self._orig_win_xy:
-            WIN.position = self._orig_win_xy = data["orig_win_xy"]
-        if data["orig_win_wh"] != self._orig_win_wh:
-            # Triggers a WINDOWSIZECHANGED event
-            WIN.size = data["orig_win_wh"]
-        self._is_maximized  = data["is_maximized"]
-        self._is_fullscreen = data["is_fullscreen"]
+        WIN.position = self._orig_win_xy = data["orig_win_xy"]
+        WIN.size     = self._orig_win_wh = data["orig_win_wh"]
+        self._is_maximized, self._is_fullscreen = data["is_maximized"], data["is_fullscreen"]
 
         _SETTINGS_UI.set_info(data)
 
-    def _try_get_palette_data(
-            self: Self, data_path: Path, errors_list: list[str]
-    ) -> dict[str, Any] | None:
+    def _try_get_palette_data(self: Self, data_path: Path, errors_list: list[str]) -> _PaletteData:
         """
         Gets the palette data from a file with retries.
 
@@ -563,7 +591,7 @@ class _Dixel:
         error_str: str
         should_retry: bool
 
-        data: dict[str, Any] | None = None
+        data: _PaletteData = None
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
             try:
                 with data_path.open("rb") as f:
@@ -605,7 +633,7 @@ class _Dixel:
             messagebox.showerror("Palettes Folder Load Failed", error_str)
 
         errors_list: list[str] = []
-        all_data: list[dict[str, Any] | None] = [
+        all_data: list[_PaletteData] = [
             self._try_get_palette_data(palette_path, errors_list)
             for palette_path in palettes_paths
         ]
@@ -639,27 +667,29 @@ class _Dixel:
 
     def _parse_argv(self: Self) -> tuple[str, ...]:
         """
-        Gets the file path and flags from cmd args.
+        Refreshes the file path and gets the flags from cmd args.
 
         Returns:
             flags
         """
 
+        arg: str
+
         self._file_str = ""
 
-        flags: tuple[str, ...] = ()
+        flags: list[str] = []
         should_parse_flags: bool = True
         for arg in argv[1:]:
             if arg == "--":
                 should_parse_flags = False
             elif should_parse_flags and arg.startswith("--"):
-                flags += (arg.lower(),)
+                flags.append(arg.lower())
             elif self._file_str == "":
                 self._file_str = arg
 
-        return flags
+        return tuple(flags)
 
-    def _try_create_argv(self: Self, flags: tuple[str, ...]) -> pg.Surface | None:
+    def _try_create_argv(self: Self, flags: tuple[str, ...]) -> Surface | None:
         """
         Creates a file if --mk-file is in the flags and a directory if --mk-dir is in the flags.
 
@@ -685,7 +715,7 @@ class _Dixel:
                 )
                 should_create = False
 
-        img: pg.Surface | None = None
+        img: Surface | None = None
         if should_create:
             img = _GRID_MANAGER.grid.try_save(
                 self._file_str,
@@ -693,7 +723,7 @@ class _Dixel:
             )
         return img
 
-    def _handle_argv_path(self: Self) -> pg.Surface:
+    def _handle_argv_path(self: Self) -> Surface:
         """
         Handles the file opening with cmd args with retries.
 
@@ -722,7 +752,7 @@ class _Dixel:
         self._file_str = _ensure_valid_img_format(self._file_str)
 
         file_path: Path = Path(self._file_str)
-        pg_img: pg.Surface | None = None
+        pg_img: Surface | None = None
         for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
             try:
                 with file_path.open("rb") as f:
@@ -758,70 +788,73 @@ class _Dixel:
         return pg_img
 
     def _refresh_file_text_label(self: Self) -> None:
-        """Refreshes the file text label with the shortened path or with New File."""
+        """Refreshes the file text label with the path or with New File."""
 
         if self._file_str == "":
             _FILE_TEXT_LABEL.set_text("New File")
+            _FILE_TEXT_LABEL.hovering_text_label.set_text("Unsaved")
         else:
             _FILE_TEXT_LABEL.set_text(prettify_path(self._file_str))
+            _FILE_TEXT_LABEL.hovering_text_label.set_text(self._file_str)
 
-        rec_move_rect(
-            _UNSAVED_ICON,
+        _UNSAVED_ICON.rec_move_to(
             _FILE_TEXT_LABEL.rect.right + 4, _FILE_TEXT_LABEL.rect.centery,
             should_scale=False
         )
 
-    def _refresh_active_state_objs(self: Self) -> None:
-        """Gets every object with an objs_info attribute from the active state."""
+    def _refresh_current_state_objs(self: Self) -> None:
+        """Refreshes every object of the current state and refreshes the state active ones."""
 
-        info: ObjInfo
+        obj: UIElement
 
-        full_active_state_info: list[ObjInfo] = list(_STATES_MAIN_OBJS_INFO[self._state_i])
-        for info in full_active_state_info:
-            full_active_state_info.extend(info.obj.objs_info)
+        current_state_objs: list[UIElement] = list(_STATES_MAIN_OBJS[self._state_i])
+        for obj in current_state_objs:
+            current_state_objs.extend(obj.sub_objs)
 
         # Reverses to have sub objects before the main one
         # When resizing the main object can use their resized attributes
-        full_active_state_info.reverse()
-        states_info_list: list[tuple[ObjInfo, ...]] = list(objs.states_info)
-        states_info_list[self._state_i] = tuple(full_active_state_info)
-        objs.states_info = tuple(states_info_list)
+        current_state_objs.reverse()
+        objs.states_objs = (
+            objs.states_objs[:self._state_i] +
+            (tuple(current_state_objs),) +
+            objs.states_objs[self._state_i + 1:]
+        )
 
         objs.state_active_objs = tuple([
-            info.obj
-            for info in objs.states_info[self._state_i] if info.is_active
+            obj
+            for obj in objs.states_objs[self._state_i] if obj.is_active
         ])
 
     def _refresh_all_objs(self: Self) -> None:
-        """Gets every object with an objs_info attribute from all the states."""
+        """Refreshes every object of all states and refreshes the state active ones."""
 
-        state_info: tuple[ObjInfo, ...]
-        info: ObjInfo
+        state_main_objs: tuple[UIElement, ...]
+        obj: UIElement
 
-        objs.states_info = ()
-        for state_info in _STATES_MAIN_OBJS_INFO:
-            full_state_info: list[ObjInfo] = list(state_info)
-            for info in full_state_info:
-                full_state_info.extend(info.obj.objs_info)
+        objs.states_objs = ()
+        for state_main_objs in _STATES_MAIN_OBJS:
+            state_objs: list[UIElement] = list(state_main_objs)
+            for obj in state_objs:
+                state_objs.extend(obj.sub_objs)
 
             # Reverses to have sub objects before the main one
             # When resizing the main object can use their resized attributes
-            full_state_info.reverse()
-            objs.states_info += (tuple(full_state_info),)
+            state_objs.reverse()
+            objs.states_objs += (tuple(state_objs),)
 
         objs.state_active_objs = tuple([
-            info.obj
-            for info in objs.states_info[self._state_i] if info.is_active
+            obj
+            for obj in objs.states_objs[self._state_i] if obj.is_active
         ])
 
     def _handle_draw(self: Self) -> None:
-        """Gets every blit_sequence attribute and draws it to the screen."""
+        """Gets every visible blit_sequence attribute and draws it to the window."""
 
         blittable_objs: tuple[UIElement, ...] = objs.state_active_objs
         if self._state_i != STATE_I_MAIN:
             blittable_objs += tuple([
-                info.obj
-                for info in objs.states_info[STATE_I_MAIN] if info.is_active
+                obj
+                for obj in objs.states_objs[STATE_I_MAIN] if obj.is_active
             ])
 
         main_sequence: list[BlitInfo] = sorted(
@@ -843,8 +876,8 @@ class _Dixel:
 
         objs.state_i = self._state_i
         objs.state_active_objs = tuple([
-            info.obj
-            for info in objs.states_info[objs.state_i] if info.is_active
+            obj
+            for obj in objs.states_objs[self._state_i] if obj.is_active
         ])
 
         for obj in objs.state_active_objs:
@@ -855,46 +888,50 @@ class _Dixel:
     def _resize_objs(self: Self) -> None:
         """Resizes every object of the main and active state with a resize method."""
 
-        info: ObjInfo
+        obj: UIElement
 
-        resizable_objs_info: tuple[ObjInfo, ...] = objs.states_info[self._state_i]
+        resizable_objs: tuple[UIElement, ...] = objs.states_objs[self._state_i]
         if self._state_i != STATE_I_MAIN:
-            resizable_objs_info += objs.states_info[STATE_I_MAIN]
+            resizable_objs += objs.states_objs[STATE_I_MAIN]
 
         my_vars.win_w_ratio = WIN_SURF.get_width()  / WIN_INIT_W
         my_vars.win_h_ratio = WIN_SURF.get_height() / WIN_INIT_H
         my_vars.min_win_ratio = min(my_vars.win_w_ratio, my_vars.win_h_ratio)
-        for info in resizable_objs_info:
-            info.obj.resize()
+        for obj in resizable_objs:
+            obj.resize()
 
         # Minimap and text keep ratio
-        rec_move_rect(
-            _UNSAVED_ICON,
+        _UNSAVED_ICON.rec_move_to(
             _FILE_TEXT_LABEL.rect.right + 4, _FILE_TEXT_LABEL.rect.centery,
             should_scale=False
         )
-        rec_move_rect(
-            _OPEN_SETTINGS,
+        _OPEN_SETTINGS.rec_move_to(
             _GRID_MANAGER.grid.minimap_rect.x - 16, _GRID_MANAGER.grid.minimap_rect.y,
             should_scale=False
         )
 
     def _handle_win_event(
-            self: Self, event_type: int,
-            did_restore: bool, did_move: bool, did_resize: bool
-    ) -> tuple[bool, bool, bool]:
+            self: Self, event_type: int, did_move: bool, did_resize: bool
+    ) -> tuple[bool, bool]:
         """
         Handles the window-related events.
 
         Args:
-            event_type, did restore flag, did move flag, did resize flag
+            event_type, did move flag, did resize flag
         Returns:
-            did restore flag, did move flag, did resize flag
+            did move flag, did resize flag
         """
 
+        obj: UIElement
+
         if   event_type == WINDOWRESTORED:
-            did_restore = True
+            # Called when:
+            # - Window is unminimized (if it's maximized, WINDOWMAXIMIZED happens immediately after)
+            # - Window is unmaximized
+            # - Maximized window enters fullscreen
             self._is_minimized = False
+            if not self._is_fullscreen:
+                self._is_maximized = False
         elif event_type == WINDOWMINIMIZED:
             self._is_minimized = True
         elif event_type == WINDOWMAXIMIZED:
@@ -908,7 +945,7 @@ class _Dixel:
             for obj in objs.state_active_objs:
                 obj.leave()
 
-        return did_restore, did_move, did_resize
+        return did_move, did_resize
 
     def _handle_key_press(self: Self, k: int) -> None:
         """
@@ -933,7 +970,7 @@ class _Dixel:
                 WIN.restore()
                 self._is_maximized = False
 
-            WIN.size, WIN.position = (WIN_INIT_W, WIN_INIT_H), pg.WINDOWPOS_CENTERED
+            WIN.size, WIN.position = (WIN_INIT_W, WIN_INIT_H), WINDOWPOS_CENTERED
             self._orig_win_xy = WIN.position
         elif k == K_F11:
             self._is_fullscreen = not self._is_fullscreen
@@ -944,7 +981,7 @@ class _Dixel:
 
         KEYBOARD.add(k)
 
-    def _handle_device_event(self: Self, event: pg.Event) -> None:
+    def _handle_device_event(self: Self, current_event: Event) -> None:
         """
         Handles the device-related events.
 
@@ -952,13 +989,21 @@ class _Dixel:
             event
         """
 
-        if   event.type == MOUSEWHEEL:
-            MOUSE.scroll_amount = event.y
-        elif event.type == KEYDOWN:
-            self._handle_key_press(event.key)
-        elif event.type == KEYUP:
-            KEYBOARD.remove(event.key)
-        elif event.type == KEYMAPCHANGED:
+        if  current_event.type == MOUSEMOTION:
+            MOUSE.set_pos(current_event.pos)
+        elif current_event.type == MOUSEBUTTONDOWN:
+            MOUSE.pressed[current_event.button - 1] = True
+        elif current_event.type == MOUSEBUTTONUP:
+            MOUSE.pressed[current_event.button - 1] = False
+            MOUSE.released[current_event.button - 1] = True
+        elif current_event.type == MOUSEWHEEL:
+            MOUSE.scroll_amount = current_event.y
+
+        elif current_event.type == KEYDOWN:
+            self._handle_key_press(current_event.key)
+        elif current_event.type == KEYUP:
+            KEYBOARD.remove(current_event.key)
+        elif current_event.type == KEYMAPCHANGED:
             KEYBOARD.clear()
 
     def _finish_ask_save_as(self: Self, file_str: str) -> None:
@@ -970,15 +1015,15 @@ class _Dixel:
         """
 
         file_str = _ensure_valid_img_format(file_str)
-        img: pg.Surface | None = _GRID_MANAGER.grid.try_save(file_str, should_ask_create_dir=True)
+        img: Surface | None = _GRID_MANAGER.grid.try_save(file_str, should_ask_create_dir=True)
         if img is None:
-                red: pg.Color = pg.Color(255, 0, 0)
+                red: pg.Color = Color(255, 0, 0)
                 _UNSAVED_ICON.set_animation(ANIMATION_GROW, red  , should_go_to_0=False)
                 self._is_saved = False
         else:
             self._file_str = file_str
             if not self._is_saved:
-                green: pg.Color = pg.Color(0, 255, 0)
+                green: pg.Color = Color(0, 255, 0)
                 _UNSAVED_ICON.set_animation(ANIMATION_GROW, green, should_go_to_0=True)
                 self._is_saved = True
             self._refresh_file_text_label()
@@ -992,7 +1037,7 @@ class _Dixel:
         """
 
         file_str = _ensure_valid_img_format(file_str)
-        new_file_img: pg.Surface | None = _try_get_grid_img(file_str, ignored_exceptions=())
+        new_file_img: Surface | None = _try_get_grid_img(file_str, ignored_exceptions=())
         if new_file_img is None:
             self._new_file_str = ""
         else:
@@ -1002,7 +1047,7 @@ class _Dixel:
 
             self._change_state()
 
-    def _handle_file_event(self: Self, event: pg.Event) -> None:
+    def _handle_file_event(self: Self, current_event: Event) -> None:
         """
         Handles the file-related events.
 
@@ -1010,24 +1055,22 @@ class _Dixel:
             event
         """
 
-        if event.type == _FILE_SAVE_AS_REQUEST:
-            if event.path_str != "":
-                self._finish_ask_save_as(event.path_str)
+        if current_event.type == _FILE_SAVE_AS_REQUEST:
+            if current_event.path_str != "":
+                self._finish_ask_save_as(current_event.path_str)
             self._is_asking_file_save_as = False
 
-        elif event.type == _FILE_OPEN_REQUEST:
-            if event.path_str != "":
-                self._finish_ask_open_file(event.path_str)
+        elif current_event.type == _FILE_OPEN_REQUEST:
+            if current_event.path_str != "":
+                self._finish_ask_open_file(current_event.path_str)
             self._is_asking_file_open = False
 
-        elif event.type == _FILE_CRASH_SAVE_DIR_CHANGE:
-            if event.path_str != "":
-                _SETTINGS_UI.crash_save_dir_str = event.path_str
-                pretty_path_str: str = prettify_path(_SETTINGS_UI.crash_save_dir_str)
-                _SETTINGS_UI.crash_save_dir_text_label.set_text(pretty_path_str)
+        elif current_event.type == _FILE_CRASH_SAVE_DIR_CHANGE:
+            if current_event.path_str != "":
+                _SETTINGS_UI.set_crash_save_dir(current_event.path_str)
             self._is_asking_crash_save_dir = False
 
-    def _handle_settings_event(self: Self, event: pg.Event) -> None:
+    def _handle_settings_event(self: Self, current_event: Event) -> None:
         """
         Handles the settings edit events.
 
@@ -1035,9 +1078,9 @@ class _Dixel:
             event
         """
 
-        if event.type == SETTINGS_FPS_ACTIVENESS_CHANGE:
-            _FPS_TEXT_LABEL_OBJ_INFO.rec_set_active(event.value)
-        elif event.type == SETTINGS_CRASH_SAVE_DIR_CHOICE and not self._is_asking_crash_save_dir:
+        if current_event.type == SETTINGS_FPS_ACTIVENESS_CHANGE:
+            _FPS_TEXT_LABEL.rec_set_active(current_event.value)
+        elif current_event.type == SETTINGS_CRASH_SAVE_DIR_CHOICE and not self._is_asking_crash_save_dir:
             def _ask_crash_save_dir() -> None:
                 """Asks a directory to save uncreated files to on crash with tkinter."""
 
@@ -1048,16 +1091,26 @@ class _Dixel:
                 if not isinstance(dir_str, str):
                     dir_str = ""
 
-                pg.event.post(pg.Event(_FILE_CRASH_SAVE_DIR_CHANGE, {"path_str": dir_str}))
+                current_event.post(Event(_FILE_CRASH_SAVE_DIR_CHANGE, {"path_str": dir_str}))
 
             Thread(target=_ask_crash_save_dir, daemon=True).start()
             self._is_asking_crash_save_dir = True
-        elif event.type == SETTINGS_ZOOM_DIRECTION_CHANGE:
-            _GRID_MANAGER.grid.zoom_direction = event.value
-        elif event.type == SETTINGS_HISTORY_MAX_SIZE_CHANGE:
-            _GRID_MANAGER.grid.history = deque(_GRID_MANAGER.grid.history, event.value)
-            max_history_i: int = len(_GRID_MANAGER.grid.history) - 1
-            _GRID_MANAGER.grid.history_i = min(_GRID_MANAGER.grid.history_i, max_history_i)
+        elif current_event.type == SETTINGS_GRID_ZOOM_DIRECTION_CHANGE:
+            _GRID_MANAGER.grid.zoom_direction = current_event.value
+        elif current_event.type == SETTINGS_GRID_HISTORY_MAX_SIZE_CHANGE:
+            _GRID_MANAGER.grid.set_history_max_len(current_event.value)
+        elif current_event.type == SETTINGS_GRID_CENTER_ACTIVENESS_CHANGE:
+            _GRID_MANAGER.grid.should_show_center = current_event.value
+            _GRID_UI.should_show_center           = current_event.value
+            _GRID_MANAGER.grid.refresh_grid_img()
+            _GRID_MANAGER.grid.refresh_minimap_img()
+            _GRID_UI.refresh_preview()
+        elif current_event.type == SETTINGS_GRID_TILE_MODE_SIZE_CHANGE:
+            _GRID_MANAGER.grid.tile_mode_size = current_event.value
+            _GRID_UI.tile_mode_size           = current_event.value
+            _GRID_MANAGER.grid.refresh_grid_img()
+            _GRID_MANAGER.grid.refresh_minimap_img()
+            _GRID_UI.refresh_preview()
 
     def _refresh_unsaved_icon(self: Self, unsaved_color: pg.Color) -> None:
         """
@@ -1067,11 +1120,10 @@ class _Dixel:
             unsaved color
         """
 
-        img: pg.Surface | None = _try_get_grid_img(self._file_str, ignored_exceptions=None)
+        img: Surface | None = _try_get_grid_img(self._file_str, ignored_exceptions=None)
         if img is None:
             if self._is_saved:
-                yellow: pg.Color = pg.Color(255, 255, 0)
-                _UNSAVED_ICON.set_animation(ANIMATION_GROW  , yellow       , should_go_to_0=False)
+                _UNSAVED_ICON.set_animation(ANIMATION_GROW  , YELLOW       , should_go_to_0=False)
                 self._is_saved = False
         elif np.array_equal(_GRID_MANAGER.grid.tiles, get_pixels(img)):
             if not self._is_saved:
@@ -1089,36 +1141,30 @@ class _Dixel:
             SystemExit: on main window close
         """
 
-        event: pg.Event
+        current_event: Event
 
-        prev_is_minimized: bool = self._is_minimized
-        did_restore: bool    = False
         did_win_move: bool   = False
         did_win_resize: bool = False
-        for event in pg.event.get():
-            if event.type == WINDOWCLOSE:
+        for current_event in event.get():
+            if current_event.type == WINDOWCLOSE:
                 self._save(_EXIT_OK, should_ask_create_dir=False)
                 stop(SystemExit())
 
             # Handled after everything is processed to have the updated flags
-            if event.type in _WIN_EVENTS:
-                did_restore, did_win_move, did_win_resize = self._handle_win_event(
-                    event.type,
-                    did_restore, did_win_move, did_win_resize
+            if current_event.type in _WIN_EVENTS:
+                did_win_move, did_win_resize = self._handle_win_event(
+                    current_event.type, did_win_move, did_win_resize
                 )
-            elif event.type in _DEVICE_EVENTS:
-                self._handle_device_event(event)
-            elif _FILE_SAVE_AS_REQUEST <= event.type <= _FILE_CRASH_SAVE_DIR_CHANGE:
-                self._handle_file_event(event)
-            elif SETTINGS_FPS_ACTIVENESS_CHANGE <= event.type <= SETTINGS_HISTORY_MAX_SIZE_CHANGE:
-                self._handle_settings_event(event)
-            elif event.type == _TIMED_UPDATE_1000:
+            elif current_event.type in _DEVICE_EVENTS:
+                self._handle_device_event(current_event)
+            elif _FILE_SAVE_AS_REQUEST <= current_event.type <= _FILE_CRASH_SAVE_DIR_CHANGE:
+                self._handle_file_event(current_event)
+            elif FIRST_SETTINGS_EVENT <= current_event.type <= LAST_SETTINGS_EVENT:
+                self._handle_settings_event(current_event)
+            elif current_event.type == _TIMED_UPDATE_1000:
                 _FPS_TEXT_LABEL.set_text(f"FPS: {_CLOCK.get_fps():.2f}")
                 if self._file_str != "":
-                    self._refresh_unsaved_icon(pg.Color(255, 255, 0))
-
-        if did_restore and not (self._is_minimized != prev_is_minimized or self._is_fullscreen):
-            self._is_maximized = False
+                    self._refresh_unsaved_icon(unsaved_color=YELLOW)
 
         if not (self._is_maximized or self._is_fullscreen):
             if did_win_move:
@@ -1164,8 +1210,9 @@ class _Dixel:
 
         palette_path: Path = Path("assets", "data", "palettes", f"palette_{palette_i}.dixel")
         temp_palette_path: Path = palette_path.with_suffix(".tmp")
-        palette_json: str = json.dumps(data, ensure_ascii=False, indent=4)
-        palette_bytes: bytes = palette_json.encode("utf-8", errors="ignore")
+        palette_bytes: bytes = json.dumps(
+            data, ensure_ascii=False, indent=4,
+        ).encode("utf-8", errors="ignore")
 
         dir_creation_attempt_i: int = FILE_ATTEMPT_START_I
         system_attempt_i: int       = FILE_ATTEMPT_START_I
@@ -1238,8 +1285,8 @@ class _Dixel:
         """
 
         if exit_type != _EXIT_NO:
-            autosave_mode_i: int = _SETTINGS_UI.autosave_dropdown.option_i
-            autosave_mode: int = _SETTINGS_UI.autosave_dropdown.values[autosave_mode_i]
+            autosave_dropdown: Dropdown = _SETTINGS_UI.general_settings_manager.autosave_dropdown
+            autosave_mode: int = autosave_dropdown.values[autosave_dropdown.option_i]
             if (
                  autosave_mode == AUTOSAVE_MODE_NEVER or
                 (autosave_mode == AUTOSAVE_MODE_CRASH     and exit_type != _EXIT_CRASH    ) or
@@ -1247,13 +1294,13 @@ class _Dixel:
             ):
                 return
 
-        img: pg.Surface | None = _GRID_MANAGER.grid.try_save(self._file_str, should_ask_create_dir)
+        img: Surface | None = _GRID_MANAGER.grid.try_save(self._file_str, should_ask_create_dir)
         if img is None:
-            red: pg.Color = pg.Color(255, 0, 0)
+            red: pg.Color = Color(255, 0, 0)
             _UNSAVED_ICON.set_animation(ANIMATION_GROW, red  , should_go_to_0=False)
             self._is_saved = False
         elif not self._is_saved:
-            green: pg.Color = pg.Color(0, 255, 0)
+            green: pg.Color = Color(0, 255, 0)
             _UNSAVED_ICON.set_animation(ANIMATION_GROW, green, should_go_to_0=True)
             self._is_saved = True
 
@@ -1273,7 +1320,8 @@ class _Dixel:
             _TOOLS_MANAGER.saved_clicked_i
         )
         grid_ratio: tuple[float, float] | None = (
-            (_GRID_UI.w_ratio, _GRID_UI.h_ratio) if _GRID_UI.is_keeping_wh_ratio else None
+            (_GRID_UI.w_ratio, _GRID_UI.h_ratio) if _GRID_UI.is_keeping_wh_ratio else
+            None
         )
 
         data: dict[str, Any] =  {
@@ -1291,7 +1339,7 @@ class _Dixel:
 
             "brush_dim_i"     : _BRUSH_DIMS.clicked_i,
             "tool_i"          : tool_i,
-            "active_palette"  : _PALETTES_MANAGER.palette_dropdown.option_i,
+            "current_palette" : _PALETTES_MANAGER.palette_dropdown.option_i,
 
             "grid_ratio": grid_ratio,
 
@@ -1300,18 +1348,23 @@ class _Dixel:
             "is_maximized" : self._is_maximized,
             "is_fullscreen": self._is_fullscreen,
 
-            "fps_cap_i": _SETTINGS_UI.fps_dropdown.option_i,
-            "is_fps_counter_active": _SETTINGS_UI.show_fps.is_checked,
-            "autosave_mode_i": _SETTINGS_UI.autosave_dropdown.option_i,
-            "crash_save_dir": _SETTINGS_UI.crash_save_dir_str,
-            "is_zooming_inverted": _SETTINGS_UI.invert_zoom.is_checked,
-            "grid_history_max_size_i": _SETTINGS_UI.history_dropdown.option_i,
+            "fps_cap_i": _SETTINGS_UI.general_settings_manager.fps_dropdown.option_i,
+            "is_fps_counter_active": _SETTINGS_UI.general_settings_manager.show_fps.is_checked,
+            "autosave_mode_i": _SETTINGS_UI.general_settings_manager.autosave_dropdown.option_i,
+            "crash_save_dir": _SETTINGS_UI.general_settings_manager.crash_save_dir_str,
+            "is_grid_zooming_inverted": _SETTINGS_UI.grid_settings_manager.invert_zoom.is_checked,
+            "grid_history_max_size_i": _SETTINGS_UI.grid_settings_manager.history_dropdown.option_i,
+            "is_grid_center_active": _GRID_MANAGER.grid.should_show_center,
+            "grid_tile_mode_size": _GRID_MANAGER.grid.tile_mode_size,
+
+            "sub_tools_states": _TOOLS_MANAGER.export_sub_tools_states()
         }
 
         data_path: Path = Path("assets", "data", "data.json")
         temp_data_path: Path = data_path.with_suffix(".tmp")
-        data_json: str = json.dumps(data, ensure_ascii=False, indent=4)
-        data_bytes: bytes = data_json.encode("utf-8", errors="ignore")
+        data_bytes: bytes = json.dumps(
+            data, ensure_ascii=False, indent=4,
+        ).encode("utf-8", errors="ignore")
 
         dir_creation_attempt_i: int = FILE_ATTEMPT_START_I
         system_attempt_i: int       = FILE_ATTEMPT_START_I
@@ -1392,7 +1445,7 @@ class _Dixel:
                 if not isinstance(file_str, str):
                     file_str = ""
 
-                pg.event.post(pg.Event(_FILE_SAVE_AS_REQUEST, {"path_str": file_str}))
+                event.post(Event(_FILE_SAVE_AS_REQUEST, {"path_str": file_str}))
 
             Thread(target=_ask_save_as, daemon=True).start()
             self._is_asking_file_save_as = True
@@ -1423,7 +1476,7 @@ class _Dixel:
                 if not isinstance(file_str, str):
                     file_str = ""
 
-                pg.event.post(pg.Event(_FILE_OPEN_REQUEST, {"path_str": file_str}))
+                event.post(Event(_FILE_OPEN_REQUEST, {"path_str": file_str}))
 
             Thread(target=_ask_open_file, daemon=True).start()
             self._is_asking_file_open = True
@@ -1504,14 +1557,13 @@ class _Dixel:
         hex_color, did_palette_change, hex_color_to_edit = _PALETTES_MANAGER.upt()
         if did_palette_change:
             # Refreshes the hovered checkbox immediately
-            self._refresh_active_state_objs()
+            self._refresh_current_state_objs()
             MOUSE.refresh_hovered_obj()
             _PALETTES_MANAGER.colors_grid.upt_checkboxes()
-        if _PALETTES_MANAGER.colors_grid.clicked_i != _PALETTES_MANAGER.colors_grid.prev_clicked_i:
-            _PALETTES_MANAGER.colors_grid.check(_PALETTES_MANAGER.colors_grid.clicked_i)
         if hex_color_to_edit is not None:
             self._state_i = STATE_I_COLOR
             _COLOR_PICKER.set_color(hex_color_to_edit, is_external_update=True)
+        _PALETTES_MANAGER.refresh()
 
         tool_info: ToolInfo = _TOOLS_MANAGER.upt()
         if _TOOLS_MANAGER.tools_grid.clicked_i != _TOOLS_MANAGER.tools_grid.prev_clicked_i:
@@ -1520,14 +1572,16 @@ class _Dixel:
 
         did_grid_change: bool = _GRID_MANAGER.upt(hex_color, tool_info)
         if did_grid_change and self._file_str != "":
-            self._refresh_unsaved_icon(WHITE)
+            self._refresh_unsaved_icon(unsaved_color=WHITE)
         if _GRID_MANAGER.rgb_eye_dropped_color is not None:
             r: int = _GRID_MANAGER.rgb_eye_dropped_color[0]
             g: int = _GRID_MANAGER.rgb_eye_dropped_color[1]
             b: int = _GRID_MANAGER.rgb_eye_dropped_color[2]
             did_palette_change = _PALETTES_MANAGER.try_add_color(f"{r:02x}{g:02x}{b:02x}")
             if did_palette_change:
-                self._refresh_active_state_objs()
+                self._refresh_current_state_objs()
+
+        _FILE_TEXT_LABEL.upt()
 
     def _color_ui(self: Self) -> None:
         """Handles the color UI."""
@@ -1544,7 +1598,7 @@ class _Dixel:
 
             did_palette_change: bool = _PALETTES_MANAGER.try_add_color(hex_color)
             if did_palette_change:
-                self._refresh_active_state_objs()
+                self._refresh_current_state_objs()
 
     def _grid_ui(self: Self) -> None:
         """Handles the grid UI."""
@@ -1587,21 +1641,28 @@ class _Dixel:
                 _GRID_MANAGER.grid.add_to_history()
 
             if self._file_str != "":
-                self._refresh_unsaved_icon(WHITE)
+                self._refresh_unsaved_icon(unsaved_color=WHITE)
 
     def _settings_ui(self: Self) -> None:
         """Handles the settings UI."""
 
-        _did_exit: bool
+        did_exit: bool
         _did_confirm: bool
+        did_change: bool
 
-        _did_exit, _did_confirm, self._state_i = _SETTINGS_UI.upt()
+        did_exit, _did_confirm, did_change = _SETTINGS_UI.upt()
+        if did_exit:
+            self._state_i = STATE_I_MAIN
+        if did_change:
+            self._refresh_current_state_objs()
+            MOUSE.refresh_hovered_obj()
+            _SETTINGS_UI.selected_manager.upt()
 
     def _handle_crash(self: Self) -> None:
         """Saves before crashing."""
 
         if self._file_str == "":
-            crash_save_dir_path: Path = Path(_SETTINGS_UI.crash_save_dir_str)
+            crash_save_dir_path: Path = Path(_SETTINGS_UI.general_settings_manager.crash_save_dir_str)
             file_path: Path = crash_save_dir_path / "new_file.png"
             duplicate_name_counter: int = 0
             while file_path.exists():
@@ -1615,26 +1676,23 @@ class _Dixel:
     def run(self: Self) -> None:
         """App loop."""
 
-        obj: AnimatableElement
+        obj: UIElement
 
-        MOUSE.refresh_pos()
+        MOUSE.set_pos(mouse.get_pos())
         MOUSE.prev_x, MOUSE.prev_y = MOUSE.x, MOUSE.y
         try:
             while True:
-                fps_cap: int = _SETTINGS_UI.fps_dropdown.values[_SETTINGS_UI.fps_dropdown.option_i]
+                fps_dropdown: Dropdown = _SETTINGS_UI.general_settings_manager.fps_dropdown
+                fps_cap: int = fps_dropdown.values[fps_dropdown.option_i]
                 last_frame_elapsed_time: float = _CLOCK.tick(fps_cap)
                 my_vars.ticks = pg.time.get_ticks()
 
-                MOUSE.refresh_pos()
-                MOUSE.pressed = pg.mouse.get_pressed()
-                MOUSE.released = pg.mouse.get_just_released()
+                MOUSE.released = [False, False, False, False, False]
                 MOUSE.scroll_amount = 0
                 KEYBOARD.released = ()
 
                 self._handle_events()
-
                 MOUSE.refresh_hovered_obj()
-                MOUSE.refresh_type()
                 KEYBOARD.refresh_timed()
 
                 if KEYBOARD.timed != () and not (self._is_maximized or self._is_fullscreen):
@@ -1649,6 +1707,7 @@ class _Dixel:
                 for obj in tuple(objs.animating_objs):  # Changes mid-iteration
                     obj.animate(dt)
 
+                MOUSE.refresh_type()
                 self._handle_draw()
 
                 MOUSE.prev_x, MOUSE.prev_y = MOUSE.x, MOUSE.y

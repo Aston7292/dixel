@@ -1,6 +1,6 @@
 """Classes to create various clickable objects."""
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from math import ceil
 from typing import Self, Final
 
@@ -11,8 +11,8 @@ from src.classes.devices import MOUSE
 
 import src.obj_utils as objs
 import src.vars as my_vars
-from src.obj_utils import ObjInfo, resize_obj, rec_move_rect
-from src.type_utils import XY, WH, CoordType, BlitInfo, RectPos
+from src.obj_utils import UIElement, resize_obj
+from src.type_utils import XY, CoordType, RectPos
 from src.consts import (
     BLACK,
     MOUSE_LEFT,
@@ -24,21 +24,20 @@ from src.win import WIN_SURF
 _INIT_CLICK_INTERVAL: Final[int] = 128
 
 
-class _Clickable(ABC):
+class _Clickable(UIElement):
     """Abstract class to create a clickable object with various images and hovering text."""
 
     __slots__ = (
-        "init_pos", "_scale", "init_imgs", "_imgs", "rect", "_frame_rect",
+        "init_pos", "init_imgs", "_imgs", "rect", "_frame_rect",
         "_last_mouse_move_time",
-        "hovering_text_label", "_hovering_text_label_obj_info",
-        "hover_rects", "layer", "blit_sequence", "objs_info",
+        "hovering_text_label",
     )
 
-    cursor_type: int = SYSTEM_CURSOR_HAND
+    scale: float = 1
 
     def __init__(
-            self: Self, pos: RectPos, imgs: tuple[Surface, ...], hovering_text: str,
-            base_layer: int
+            self: Self, pos: RectPos, imgs: tuple[Surface, ...],
+            hovering_text: str, base_layer: int
     ) -> None:
         """
         Creates the object and hovering text.
@@ -47,11 +46,12 @@ class _Clickable(ABC):
             position, images, hovering text, base layer
         """
 
+        super().__init__()
+
         self.init_pos: RectPos = pos
-        self._scale: float = 1
 
         self.init_imgs: tuple[Surface, ...] = imgs  # Better for scaling
-        self._imgs: list[Surface] = list(self.init_imgs)
+        self._imgs: tuple[Surface, ...] = self.init_imgs
         self.rect: Rect = Rect(0, 0, *self._imgs[0].get_size())
         setattr(self.rect, self.init_pos.coord_type, (self.init_pos.x, self.init_pos.y))
         self._frame_rect: Rect = self.rect.copy()
@@ -59,21 +59,19 @@ class _Clickable(ABC):
 
         self._last_mouse_move_time: int = my_vars.ticks
 
-        # Better if it's not in objs_info, activating a drop-down menu will activate it too
         self.hovering_text_label: TextLabel = TextLabel(
             RectPos(MOUSE.x, MOUSE.y, "topleft"),
             hovering_text, base_layer + TOP_LAYER - TEXT_LAYER,
             h=12, bg_color=BLACK
         )
-        self._hovering_text_label_obj_info: ObjInfo = ObjInfo(
-            self.hovering_text_label, should_follow_parent=False
-        )
-        self._hovering_text_label_obj_info.rec_set_active(False)
+        self.hovering_text_label.rec_set_active(False)
+        self.hovering_text_label.should_follow_parent = False
 
-        self.hover_rects: tuple[Rect, ...] = (self.rect,)
-        self.layer: int = base_layer + ELEMENT_LAYER
-        self.blit_sequence: list[BlitInfo] = [(self._imgs[0], self._frame_rect, self.layer)]
-        self.objs_info: tuple[ObjInfo, ...] = (self._hovering_text_label_obj_info,)
+        self.hover_rects = (self.rect,)
+        self.layer = base_layer + ELEMENT_LAYER
+        self.cursor_type = SYSTEM_CURSOR_HAND
+        self.blit_sequence = [(self._imgs[0], self._frame_rect, self.layer)]
+        self.sub_objs = (self.hovering_text_label,)
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -83,7 +81,7 @@ class _Clickable(ABC):
     def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-        self._hovering_text_label_obj_info.rec_set_active(False)
+        self.hovering_text_label.rec_set_active(False)
         # blit_sequence is refreshed by subclasses
 
     def resize(self: Self) -> None:
@@ -93,16 +91,16 @@ class _Clickable(ABC):
 
         xy, self.rect.size = resize_obj(self.init_pos, *self.init_imgs[0].get_size())
         self._frame_rect.size = (
-            ceil(self.init_imgs[0].get_width()  * self._scale * my_vars.win_w_ratio),
-            ceil(self.init_imgs[0].get_height() * self._scale * my_vars.win_h_ratio),
+            ceil(self.init_imgs[0].get_width()  * self.scale * my_vars.win_w_ratio),
+            ceil(self.init_imgs[0].get_height() * self.scale * my_vars.win_h_ratio),
         )
         self.set_unscaled_imgs(self.init_imgs)
         setattr(self.rect, self.init_pos.coord_type, xy)
         self._frame_rect.center = self.rect.center
 
-    def move_rect(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
+    def move_to(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
         """
-        Moves the rect to a specific coordinate.
+        Moves the object to a specific coordinate.
 
         Args:
             initial x, initial y, scale flag
@@ -131,15 +129,27 @@ class _Clickable(ABC):
         """
 
         img_i: int = self._imgs.index(self.blit_sequence[0][0])
-        self._imgs = [
+        self._imgs = tuple([
             transform.scale(img, self._frame_rect.size).convert()
             for img in imgs
-        ]
+        ])
+        self.blit_sequence[0] = (self._imgs[img_i], self._frame_rect, self.layer)
+
+    def set_layer(self: Self, layer: int) -> None:
+        """
+        Sets the object layer.
+
+        Args:
+            layer
+        """
+
+        self.layer = layer
+        img_i: int = self._imgs.index(self.blit_sequence[0][0])
         self.blit_sequence[0] = (self._imgs[img_i], self._frame_rect, self.layer)
 
     def _handle_hovering_text_label_pos(self: Self) -> XY:
         """
-        Gets the position of the hovering text label and changes the coord type if it overflows.
+        Refreshes the position of the hovering text label and changes the coord type if necessary.
 
         Returns:
             hovering text label x, hovering text label y
@@ -163,16 +173,15 @@ class _Clickable(ABC):
             self.hovering_text_label.init_pos.coord_type = "topleft"
 
         if self.hovering_text_label.init_pos.coord_type != prev_coord_type:
-            rect_xy: XY = getattr(
-                self.hovering_text_label.rect, self.hovering_text_label.init_pos.coord_type
-            )
+            coord_type: str = self.hovering_text_label.init_pos.coord_type
+            rect_xy: XY = getattr(self.hovering_text_label.rect, coord_type)
             self.hovering_text_label.refresh_rects(rect_xy)
 
         return x, y
 
     def _refresh(self: Self, img_i: int, is_hovering: bool = False) -> None:
         """
-        Refreshes the last mouse move time and blit sequence.
+        Refreshes the hovering text label and blit sequence.
 
         Args:
             image index, hovering flag
@@ -183,17 +192,15 @@ class _Clickable(ABC):
 
         if not is_hovering or (MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y):
             self._last_mouse_move_time = my_vars.ticks
-            self._hovering_text_label_obj_info.rec_set_active(False)
+            self.hovering_text_label.rec_set_active(False)
 
         self.blit_sequence = [(self._imgs[img_i], self._frame_rect, self.layer)]
         if is_hovering and (my_vars.ticks - self._last_mouse_move_time >= 750):
             x, y = self._handle_hovering_text_label_pos()
-            rec_move_rect(self.hovering_text_label, x, y, should_scale=False)
-
-            if not self._hovering_text_label_obj_info.is_active:
+            self.hovering_text_label.rec_move_to(x, y, should_scale=False)
+            if not self.hovering_text_label.is_active:
                 self.hovering_text_label.start_animation()
-                self._hovering_text_label_obj_info.rec_set_active(True)
-
+                self.hovering_text_label.rec_set_active(True)
 
     @abstractmethod
     def upt(self: Self) -> bool:
@@ -220,7 +227,8 @@ class Checkbox(_Clickable):
         Creates the checkbox and text.
 
         Args:
-            position, two images, text (can be None), hovering text, base layer (default = BG_LAYER)
+            position, two images,
+            text (can be None), hovering text, base layer (default = BG_LAYER)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
@@ -233,7 +241,7 @@ class Checkbox(_Clickable):
                 text, base_layer, h=16
             )
 
-            self.objs_info += (ObjInfo(text_label),)
+            self.sub_objs += (text_label,)
 
     def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
@@ -251,6 +259,26 @@ class Checkbox(_Clickable):
 
         self.is_checked = is_checked
         self._refresh(int(self.is_checked), MOUSE.hovered_obj == self)
+
+    def import_state(self: Self, is_checked: bool) -> None:
+        """
+        Sets all the relevant object info.
+
+        Args:
+            info
+        """
+
+        self.set_checked(is_checked)
+
+    def export_state(self: Self) -> bool:
+        """
+        Gets all the relevant object info.
+
+        Returns:
+            info
+        """
+
+        return self.is_checked
 
     def upt(self: Self, is_shortcutting: bool = False) -> bool:
         """
@@ -280,8 +308,8 @@ class LockedCheckbox(_Clickable):
     )
 
     def __init__(
-            self: Self, pos: RectPos, imgs: tuple[Surface, ...], hovering_text: str,
-            base_layer: int = BG_LAYER
+            self: Self, pos: RectPos, imgs: tuple[Surface, ...],
+            hovering_text: str, base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the checkbox.
@@ -330,27 +358,27 @@ class Button(_Clickable):
     """Class to create a button, when hovered changes image."""
 
     __slots__ = (
-        "_min_scale", "_max_scale", "_animation_i", "_should_animate",
+        "scale", "_min_scale", "_max_scale", "_animation_i", "_should_animate",
         "text_label",
     )
 
     def __init__(
             self: Self, pos: RectPos, imgs: tuple[Surface, ...],
-            text: str | None, hovering_text: str,
-            base_layer: int = BG_LAYER,
+            text: str | None, hovering_text: str, base_layer: int = BG_LAYER,
             should_animate: bool = True, text_h: int = 25
     ) -> None:
         """
         Creates the button and text.
 
         Args:
-            position, two images, text (can be None), hovering text,
-            base layer (default = BG_LAYER),
+            position, two images,
+            text (can be None), hovering text, base layer (default = BG_LAYER),
             animate flag (default = True), text height (default = 25)
         """
 
         super().__init__(pos, imgs, hovering_text, base_layer)
 
+        self.scale: float = 1
         self._min_scale: float = 1
         self._max_scale: float = 1.15
         self._animation_i: int = ANIMATION_GROW
@@ -363,7 +391,7 @@ class Button(_Clickable):
                 text, base_layer, text_h
             )
 
-            self.objs_info += (ObjInfo(self.text_label),)
+            self.sub_objs += (self.text_label,)
 
     def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
@@ -380,6 +408,22 @@ class Button(_Clickable):
         """
 
         self._refresh(int(is_hovering), is_hovering)
+
+    def _set_scale(self: Self, scale: float) -> None:
+        """
+        Sets the scale and refreshes images and rect.
+
+        Args:
+            scale
+        """
+
+        self.scale = scale
+        w: int = ceil(self.init_imgs[0].get_width()  * self.scale * my_vars.win_w_ratio)
+        h: int = ceil(self.init_imgs[0].get_height() * self.scale * my_vars.win_h_ratio)
+
+        self._frame_rect.size = (w, h)
+        self._frame_rect.center = self.rect.center
+        self.set_unscaled_imgs(self.init_imgs)
 
     def upt(self: Self) -> bool:
         """
@@ -406,48 +450,46 @@ class Button(_Clickable):
             delta time
         """
 
-        prev_scale: float = self._scale
+        prev_scale: float = self.scale
 
         # The animation is fast at the start and slow at the end
         if self._animation_i == ANIMATION_GROW:
-            grow_progress: float = (self._max_scale - self._scale) / self._max_scale
-            self._scale += grow_progress * 0.5 * dt
-            if self._max_scale - self._scale <= 0.01:
-                self._scale = self._max_scale
+            grow_progress: float = (self._max_scale - self.scale) / self._max_scale
+            self.scale += grow_progress * 0.5 * dt
+            if self._max_scale - self.scale <= 0.01:
+                self.scale = self._max_scale
                 self._animation_i = ANIMATION_SHRINK
                 self._min_scale = 1
         elif self._animation_i == ANIMATION_SHRINK:
-            shrink_progress: float = (self._scale - self._min_scale) / self._max_scale
-            self._scale -= shrink_progress * 0.25 * dt
-            if self._scale - self._min_scale <= 0.01:
-                self._scale = self._min_scale
+            shrink_progress: float = (self.scale - self._min_scale) / self._max_scale
+            self.scale -= shrink_progress * 0.25 * dt
+            if self.scale - self._min_scale <= 0.01:
+                self.scale = self._min_scale
                 if self._min_scale == 1:
                     objs.animating_objs.remove(self)
                 else:
                     self._animation_i = ANIMATION_GROW
 
-        if self._scale != prev_scale:
-            w: int = ceil(self.init_imgs[0].get_width()  * self._scale * my_vars.win_w_ratio)
-            h: int = ceil(self.init_imgs[0].get_height() * self._scale * my_vars.win_h_ratio)
+        if self.scale != prev_scale:
+            self._set_scale(self.scale)
 
-            self._frame_rect.size = (w, h)
-            self._frame_rect.center = self.rect.center
-            self.set_unscaled_imgs(self.init_imgs)
+    def reset_animation(self: Self) -> None:
+        """Resets the animation."""
 
-
+        self._set_scale(1)
 
 class SpammableButton(_Clickable):
     """Class to create a spammable button, when hovered changes image."""
 
     __slots__ = (
         "_click_interval", "_last_click_time", "_is_first_click",
-        "_min_scale", "_max_scale", "_animation_i",
+        "scale", "_min_scale", "_max_scale", "_animation_i",
         "_hover_extra_x", "_hover_extra_y", "_hover_extra_w", "_hover_extra_h",
     )
 
     def __init__(
-            self: Self, pos: RectPos, imgs: tuple[Surface, ...], hovering_text: str,
-            base_layer: int = BG_LAYER
+            self: Self, pos: RectPos, imgs: tuple[Surface, ...],
+            hovering_text: str, base_layer: int = BG_LAYER
     ) -> None:
         """
         Creates the button and text.
@@ -462,6 +504,7 @@ class SpammableButton(_Clickable):
         self._last_click_time: int = -_INIT_CLICK_INTERVAL
         self._is_first_click: bool = True
 
+        self.scale: float = 1
         self._min_scale: float = 1
         self._max_scale: float = 1.15
         self._animation_i: int = ANIMATION_GROW
@@ -489,9 +532,9 @@ class SpammableButton(_Clickable):
         self.rect.w += self._hover_extra_w
         self.rect.h += self._hover_extra_h
 
-    def move_rect(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
+    def move_to(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
         """
-        Moves the rect to a specific coordinate.
+        Moves the object to a specific coordinate.
 
         Args:
             initial x, initial y, scale flag
@@ -500,10 +543,36 @@ class SpammableButton(_Clickable):
         self.rect.x += self._hover_extra_x
         self.rect.y += self._hover_extra_y
 
-        super().move_rect(init_x, init_y, should_scale)
+        super().move_to(init_x, init_y, should_scale)
 
         self.rect.x -= self._hover_extra_x
         self.rect.y -= self._hover_extra_y
+
+    def _set_scale(self: Self, scale: float) -> None:
+        """
+        Sets the scale and refreshes images and rect.
+
+        Args:
+            scale
+        """
+
+        self.scale = scale
+        w: int = ceil(self.init_imgs[0].get_width()  * self.scale * my_vars.win_w_ratio)
+        h: int = ceil(self.init_imgs[0].get_height() * self.scale * my_vars.win_h_ratio)
+
+        self.rect.x += self._hover_extra_x
+        self.rect.y += self._hover_extra_y
+        self.rect.w -= self._hover_extra_w
+        self.rect.h -= self._hover_extra_h
+
+        self._frame_rect.size = (w, h)
+        self._frame_rect.center = self.rect.center
+        self.set_unscaled_imgs(self.init_imgs)
+
+        self.rect.x -= self._hover_extra_x
+        self.rect.y -= self._hover_extra_y
+        self.rect.w += self._hover_extra_w
+        self.rect.h += self._hover_extra_h
 
     def set_hover_extra_size(self: Self, left: int, right: int, top: int, bottom: int) -> None:
         """
@@ -574,40 +643,30 @@ class SpammableButton(_Clickable):
             delta time
         """
 
-        prev_scale: float = self._scale
+        prev_scale: float = self.scale
 
         if self._animation_i == ANIMATION_GROW:
-            grow_progress: float = (self._max_scale - self._scale) / self._max_scale
-            self._scale += grow_progress * 0.5 * dt
-            if self._max_scale - self._scale <= 0.01:
-                self._scale = self._max_scale
+            grow_progress: float = (self._max_scale - self.scale) / self._max_scale
+            self.scale += grow_progress * 0.5 * dt
+            if self._max_scale - self.scale <= 0.01:
+                self.scale = self._max_scale
                 self._animation_i = ANIMATION_SHRINK
                 self._min_scale = 1
         elif self._animation_i == ANIMATION_SHRINK:
-            shrink_progress: float = (self._scale - self._min_scale) / self._min_scale
-            self._scale -= shrink_progress * 0.25 * dt
-            if self._scale - self._min_scale <= 0.01:
-                self._scale = self._min_scale
+            shrink_progress: float = (self.scale - self._min_scale) / self._min_scale
+            self.scale -= shrink_progress * 0.25 * dt
+            if self.scale - self._min_scale <= 0.01:
+                self.scale = self._min_scale
                 if self._min_scale == 1:
                     objs.animating_objs.remove(self)
                 else:
                     self._animation_i = ANIMATION_GROW
 
         # The animation is fast at the start and slow at the end
-        if self._scale != prev_scale:
-            w: int = ceil(self.init_imgs[0].get_width()  * self._scale * my_vars.win_w_ratio)
-            h: int = ceil(self.init_imgs[0].get_height() * self._scale * my_vars.win_h_ratio)
+        if self.scale != prev_scale:
+            self._set_scale(self.scale)
 
-            self.rect.x += self._hover_extra_x
-            self.rect.y += self._hover_extra_y
-            self.rect.w -= self._hover_extra_w
-            self.rect.h -= self._hover_extra_h
+    def reset_animation(self: Self) -> None:
+        """Resets the animation."""
 
-            self._frame_rect.size = (w, h)
-            self._frame_rect.center = self.rect.center
-            self.set_unscaled_imgs(self.init_imgs)
-
-            self.rect.x -= self._hover_extra_x
-            self.rect.y -= self._hover_extra_y
-            self.rect.w += self._hover_extra_w
-            self.rect.h += self._hover_extra_h
+        self._set_scale(1)

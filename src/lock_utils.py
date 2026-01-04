@@ -2,7 +2,7 @@
 
 from sys import platform
 from collections.abc import Callable
-from errno import *
+from errno import ENOENT, EPERM, EROFS, EAGAIN, EACCES
 from typing import BinaryIO, Final
 from types import ModuleType
 
@@ -65,6 +65,8 @@ if platform == "win32":
                 get_osfhandle: Callable[[int], int] = win32file._get_osfhandle
                 file_handle = get_osfhandle(f.fileno())
                 break
+            except PermissionError:
+                raise
             except OSError as e:
                 error_str, should_retry = handle_file_os_error(e)
                 if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:

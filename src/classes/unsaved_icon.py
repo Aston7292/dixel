@@ -3,22 +3,22 @@
 from math import ceil
 from typing import Self, Final
 
-from pygame import Surface, Rect, Color, draw, SYSTEM_CURSOR_ARROW
+from pygame import Surface, Rect, Color, draw
 
 import src.obj_utils as objs
 import src.vars as my_vars
-from src.obj_utils import ObjInfo, resize_obj
-from src.type_utils import XY, WH, BlitInfo, RectPos
+from src.obj_utils import UIElement
+from src.type_utils import XY, RectPos
 from src.consts import (
     WHITE,
-    BG_LAYER, ELEMENT_LAYER,
-    ANIMATION_GROW, ANIMATION_SHRINK
+    ELEMENT_LAYER,
+    ANIMATION_GROW, ANIMATION_SHRINK,
 )
 
 INIT_DIM: Final[int] = 16
 
 
-class UnsavedIcon:
+class UnsavedIcon(UIElement):
     """Class to indicate an unsaved file."""
 
     __slots__ = (
@@ -26,14 +26,12 @@ class UnsavedIcon:
         "_scale", "_min_scale", "_max_scale",
         "_rect", "_frame_rect",
         "_color", "_animation_i",
-        "hover_rects", "layer", "blit_sequence",
     )
-
-    cursor_type: int = SYSTEM_CURSOR_ARROW
-    objs_info: tuple[ObjInfo, ...] = ()
 
     def __init__(self: Self) -> None:
         """Creates image and rect."""
+
+        super().__init__()
 
         self.init_pos: RectPos = RectPos(0, 0, "midleft")
 
@@ -56,15 +54,8 @@ class UnsavedIcon:
         self._color: Color = WHITE
         self._animation_i: int = ANIMATION_GROW
 
-        self.hover_rects: tuple[Rect, ...] = ()
-        self.layer: int = BG_LAYER
-        self.blit_sequence: list[BlitInfo] = [(img, self._frame_rect, ELEMENT_LAYER)]
-
-    def enter(self: Self) -> None:
-        """Initializes all the relevant data when the object state is entered."""
-
-    def leave(self: Self) -> None:
-        """Clears the relevant data when the object state is leaved."""
+        self.layer = ELEMENT_LAYER
+        self.blit_sequence = [(img, self._frame_rect, self.layer)]
 
     def resize(self: Self) -> None:
         """Resizes the object."""
@@ -75,9 +66,9 @@ class UnsavedIcon:
         )
         self.set_scale(self._scale)
 
-    def move_rect(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
+    def move_to(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
         """
-        Moves the rect and frame_rect to a specific coordinate.
+        Moves the object to a specific coordinate.
 
         Args:
             initial x, initial y, scale flag
@@ -121,7 +112,7 @@ class UnsavedIcon:
 
         self.blit_sequence = (
             [] if self._frame_rect.w == 0 else
-            [(img, self._frame_rect, ELEMENT_LAYER)]
+            [(img, self._frame_rect, self.layer)]
         )
 
     def set_animation(self: Self, animation_i: int, color: Color, should_go_to_0: bool) -> None:
@@ -164,3 +155,9 @@ class UnsavedIcon:
 
         if self._scale != prev_scale:
             self.set_scale(self._scale)
+
+    def reset_animation(self: Self) -> None:
+        """Resets the animation."""
+
+        self._color = WHITE
+        self.set_scale(1)

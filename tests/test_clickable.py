@@ -82,7 +82,7 @@ class TestCheckbox(TestCase):
         )
         self.assertTupleEqual(text_label_init_args[0], expected_text_label_init_args)
 
-        self.assertListEqual(checkbox.objs_info, [ObjInfo(text_label)])
+        self.assertListEqual(checkbox.sub_objs, [ObjInfo(text_label)])
 
         # Edge cases
 
@@ -259,10 +259,10 @@ class TestButton(TestCase):
             text_label, RectPos(btn.rect.centerx, btn.rect.centery, "center"),
             "hello", 1, 10
         )
-        self.assertListEqual(btn.objs_info, [ObjInfo(text_label)])
+        self.assertListEqual(btn.sub_objs, [ObjInfo(text_label)])
 
         no_text_btn: Button = Button(pos, imgs, None, None)
-        self.assertListEqual(no_text_btn.objs_info, [])
+        self.assertListEqual(no_text_btn.sub_objs, [])
 
     def test_upt(self) -> None:
         """Tests the upt method."""

@@ -1,16 +1,17 @@
 """Abstract class to create a default UI with a title, confirm and exit buttons."""
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Self, Final, Any
 
-from pygame import Surface, Rect, K_ESCAPE, K_RETURN, SYSTEM_CURSOR_ARROW
+from pygame import Surface, Rect, K_ESCAPE, K_RETURN
 
 from src.classes.clickable import Button
 from src.classes.text_label import TextLabel
 from src.classes.devices import KEYBOARD
 
-from src.obj_utils import ObjInfo, resize_obj
-from src.type_utils import XY, BlitInfo, RectPos
+import src.obj_utils as objs
+from src.obj_utils import UIElement, resize_obj
+from src.type_utils import XY, RectPos
 from src.consts import DARKER_GRAY, UI_LAYER
 from src.win import WIN_INIT_W, WIN_INIT_H
 from src.imgs import CLOSE_OFF_IMG, CLOSE_ON_IMG, BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG
@@ -19,16 +20,13 @@ INTERFACE_INIT_W: Final[int] = 500
 INTERFACE_INIT_H: Final[int] = 700
 
 
-class UI(ABC):
+class UI(UIElement):
     """Abstract class to create a default UI with a title, confirm and exit buttons."""
 
     __slots__ = (
         "_init_pos", "_rect",
         "_title_text_label", "_exit", "_confirm",
-        "hover_rects", "layer", "blit_sequence", "objs_info",
     )
-
-    cursor_type: int = SYSTEM_CURSOR_ARROW
 
     def __init__(self: Self, title: str, should_have_confirm: bool) -> None:
         """
@@ -37,6 +35,8 @@ class UI(ABC):
         Args:
             title, have confirm flag
         """
+
+        super().__init__()
 
         self._init_pos: RectPos = RectPos(round(WIN_INIT_W / 2), round(WIN_INIT_H / 2), "center")
 
@@ -62,22 +62,23 @@ class UI(ABC):
                 (BUTTON_M_OFF_IMG, BUTTON_M_ON_IMG), "Confirm", "Enter", UI_LAYER
             )
 
-        self.hover_rects: tuple[Rect, ...] = ()
-        self.layer: int = UI_LAYER
-        self.blit_sequence: list[BlitInfo] = [(img, self._rect, self.layer)]
-        self.objs_info: tuple[ObjInfo, ...] = (ObjInfo(self._title_text_label), ObjInfo(self._exit))
+        self.layer = UI_LAYER
+        self.blit_sequence = [(img, self._rect, self.layer)]
+        self.sub_objs = (self._title_text_label, self._exit)
         if self._confirm is not None:
-            self.objs_info += (ObjInfo(self._confirm),)
-
-    def enter(self: Self) -> None:
-        """Initializes all the relevant data when the object state is entered."""
-
-        return
+            self.sub_objs += (self._confirm,)
 
     def leave(self: Self) -> None:
         """Clears the relevant data when the object state is leaved."""
 
-        return
+        objs_list: list[UIElement] = list(self.sub_objs)
+        while objs_list != []:
+            obj: UIElement = objs_list.pop()
+            if obj in objs.animating_objs:
+                obj.reset_animation()
+                objs.animating_objs.remove(obj)
+
+            objs_list.extend(obj.sub_objs)
 
     def resize(self: Self) -> None:
         """Resizes the object."""

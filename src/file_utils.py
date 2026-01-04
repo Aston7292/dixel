@@ -58,28 +58,41 @@ def prettify_path(path_str: str) -> str:
                 start += "/" + parts[1]
                 num_extra_parts -= 1
 
-        def _shorten_str(string: str, max_len: int) -> str:
+        def _shorten_str(
+                string: str,
+                max_len: int, first_part_len: int, second_part_len: int
+            ) -> str:
             """
             Shortens a string by replacing the middle with ...
 
             Args:
-                string, max length
+                string, max length, first part length, second part length
             Returns:
                 string
             """
 
-            section_len: int = max_len // 4
             return (
-                f"{string[:section_len]}...{string[-section_len:]}" if len(string) > max_len else
+                f"{string[:first_part_len]}...{string[-second_part_len:]}"
+                if len(string) > max_len else
                 string
             )
-        path_str = _shorten_str(start, 10)
+        path_str = _shorten_str(
+            start,
+            max_len=6, first_part_len=2, second_part_len=1
+        )
         if num_extra_parts >= 3:  # There's something between root and parent so add dots
             path_str += "/..."
         if num_extra_parts >= 2:  # There's something between root and element so add parent
-            path_str += "/" + _shorten_str(path_obj.parent.name, 16)
+            path_str += "/" + _shorten_str(
+                path_obj.parent.name,
+                max_len=10, first_part_len=6, second_part_len=6
+            )
         if num_extra_parts >= 1:  # Root and element are different so add element
-            path_str += "/" + _shorten_str(path_obj.name       , 16)
+            path_str += "/" + _shorten_str(
+                path_obj.name,
+                max_len=10, first_part_len=2, second_part_len=5
+            )
+
         path_str = str(Path(path_str))  # Replaces / with the right linker
 
     return path_str
@@ -124,6 +137,8 @@ def try_read_file(f: BinaryIO) -> bytes:
             f.seek(0)
             content = f.read()
             break
+        except PermissionError:
+            raise
         except OSError as e:
             error_str, should_retry = handle_file_os_error(e)
             if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
@@ -152,11 +167,13 @@ def try_write_file(f: BinaryIO, content: bytes) -> None:
     for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             f.truncate(0)
-            num_written_bytes: int = f.write(content)
-            if num_written_bytes != len(content):
+            written_bytes: int = f.write(content)
+            if written_bytes != len(content):
                 raise FileError("Failed to write full file.")
 
             break
+        except PermissionError:
+            raise
         except OSError as e:
             error_str, should_retry = handle_file_os_error(e)
             if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
@@ -169,6 +186,8 @@ def try_write_file(f: BinaryIO, content: bytes) -> None:
         try:
             f.flush()
             break
+        except PermissionError:
+            raise
         except OSError as e:
             error_str, should_retry = handle_file_os_error(e)
             if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
@@ -181,6 +200,8 @@ def try_write_file(f: BinaryIO, content: bytes) -> None:
         try:
             os.fsync(f.fileno())
             break
+        except PermissionError:
+            raise
         except OSError as e:
             error_str, should_retry = handle_file_os_error(e)
             if should_retry and attempt_i != FILE_ATTEMPT_STOP_I:
@@ -244,7 +265,7 @@ def try_remove_file(file_path: Path) -> None:
 
 def try_get_paths(dir_path: Path, pattern: str) -> tuple[tuple[Path, ...], str | None]:
     """
-    Gets all the palettes data files matching a pattern with retries.
+    Gets all the files matching a pattern with retries.
 
     Args:
         directory path, search pattern

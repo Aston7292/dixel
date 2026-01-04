@@ -4,27 +4,16 @@ Drawing program for pixel art.
 
 ## Install instructions
 
-Requires python 3.14.0 or higher, it can be installed from <https://www.python.org/downloads/>.\
-Check with ```python3 --version```.
+Requires python 3.14.0 or higher, installable from <https://www.python.org/downloads/>.\
+You can check with ```python3 --version```.
 
-1. Clone the repository ```git clone https://github.com/Aston7292/dixel.git```
-2. Open a terminal and go in the project directory
-3. (Optional) Use a virtual environment
-   * Make sure venv is installed on Linux\
-   ```sudo apt update``` then ```sudo apt install python3-venv```
-   * Create ```python3 -m venv virtual_environment```
-   * Activate on Windows ```virtual_environment\Scripts\activate```
-   * Activate on Linux ```source virtual_environment/bin/activate```
-4. Install packages ```python3 -m pip install -r requirements.txt```
-5. Run app ```python3 main.py```
-6. (Optional) You can exit the virtual environment with ```deactivate```
-
-### Possible errors (Linux)
-
-* If importing tk fails\
-```sudo apt update``` then ```sudo apt install python3-tk```.
-* If you're not in a virtual environment and pip returns an "externally-managed-environment" error\
-```python3 -m pip install -r requirements.txt --break-system-packages```.
+1. Clone the repository: ```git clone https://github.com/Aston7292/dixel.git```
+2. Create virtual environment inside it: ```python3 -m venv nameOfVenv```
+3. Activate virtual environment:
+   - Windows: ```nameOfVenv\Scripts\activate```
+   - MacOS/Linux: ```source nameOfVenv/bin/activate```
+4. Install packages: ```python3 -m pip install -r requirements.txt```
+5. Run app: ```python3 main.py```
 
 ## Features
 
@@ -77,13 +66,13 @@ if the program crashes the image will always be saved.
 ### Checkbox grids
 
 **arrows/home/end**: Move\
-**CTRL arrows**: Move to the limit of the grid\
+**CTRL arrows**: Move to the limit of the grid
 
-**CTRL B 1-5**: Change brush size\
+**CTRL B 1-5**: Change brush size
 
 **CTRL C 1-9**: Change color\
 **CTRL E**: Edit selected color\
-**CTRL Del**: delete selected color\
+**CTRL Del**: delete selected color
 
 **SHIFT P**: Select pencil tool\
 **SHIFT E**: Select eraser tool\
@@ -113,7 +102,7 @@ if the program crashes the image will always be saved.
 **Enter**: Confirm\
 **arrows/tab/SHIFT tab**: Move selection\
 **+/-**: Increment/decrement in numerical input box\
-**CTRL +/-**: Reach limit in numerical input box\
+**CTRL +/-**: Reach limit in numerical input box
 
 **CTRL K**: Toggle keep ratio in grid UI\
 **CTRL C**: Crop in grid UI\
@@ -122,12 +111,15 @@ if the program crashes the image will always be saved.
 
 ### Settings
 
+**CTRL 1-9**: Change visible settings type\
 **CTRL F**: Show/hide fps counter\
 **CTRL C 1-5**: Change fps cap\
 **CTRL A 1-4**: change autosave mode\
 **CTRL S**: Choose crash save directory\
 **CTRL Z**: Invert zoom direction\
-**CTRL H 1-7**: Change grid history max size
+**CTRL H 1-7**: Change grid history max size\
+**CTRL G**: Toggle grid center visibility\
+**CTRL T**: Toggle tile mode activeness
 
 ## Screenshots
 

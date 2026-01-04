@@ -1,27 +1,43 @@
 """Functions/Classes shared between files to manage objects."""
 
-from dataclasses import dataclass, field
+from abc import ABC
 from math import ceil
-from typing import Self, Protocol
+from typing import Self
 
-from pygame import Rect
+from pygame import Rect, SYSTEM_CURSOR_ARROW
 
 import src.vars as my_vars
 from src.type_utils import XY, WH, BlitInfo, RectPos
+from src.consts import BG_LAYER
 
 state_i: int = 0
-states_info: tuple[tuple[ObjInfo, ...], ...] = ((),)
+states_objs: tuple[tuple[UIElement, ...], ...] = ((),)
 state_active_objs: tuple[UIElement, ...] = ()
-animating_objs: set[AnimatableElement] = set()
+animating_objs: set[UIElement] = set()
 
 
-class UIElement(Protocol):
-    """Class to reinforce type hinting of UIElements."""
+class UIElement(ABC):
+    """Base class for UI elements."""
 
-    hover_rects: tuple[Rect, ...]
-    layer: int
-    cursor_type: int
-    blit_sequence: list[BlitInfo]
+    __slots__ = (
+        "init_pos",
+        "hover_rects", "layer", "cursor_type", "blit_sequence", "sub_objs",
+        "is_active", "should_follow_parent",
+    )
+
+    def __init__(self: Self) -> None:
+        """Initializes all the default attributes of UI elements."""
+
+        self.init_pos: RectPos = RectPos(0, 0, "topleft")
+
+        self.hover_rects: tuple[Rect, ...] = ()
+        self.layer: int = BG_LAYER
+        self.cursor_type: int = SYSTEM_CURSOR_ARROW
+        self.blit_sequence: list[BlitInfo] = []
+        self.sub_objs: tuple[UIElement , ...] = ()
+
+        self.is_active: bool = True
+        self.should_follow_parent: bool = True
 
     def enter(self: Self) -> None:
         """Initializes all the relevant data when the object state is entered."""
@@ -32,20 +48,23 @@ class UIElement(Protocol):
     def resize(self: Self) -> None:
         """Resizes the object."""
 
-    @property
-    def objs_info(self: Self) -> tuple[ObjInfo, ...]:
+    def move_to(self: Self, _init_x: int, _init_y: int, _should_scale: bool) -> None:
         """
-        Gets the sub objects info.
+        Moves the object to a specific coordinate.
 
-        Returns:
-            objects info
+        Args:
+            initial x, initial y, scale flag
         """
 
+    def set_layer(self: Self, _layer: int) -> None:
+        """
+        Sets the object layer.
 
-class AnimatableElement(Protocol):
-    """Class to reinforce type hinting of animatable elements."""
+        Args:
+            layer
+        """
 
-    def animate(self: Self, dt: float) -> None:
+    def animate(self: Self, _dt: float) -> None:
         """
         Plays a frame of the active animation.
 
@@ -53,19 +72,54 @@ class AnimatableElement(Protocol):
             delta time
         """
 
+    def reset_animation(self: Self) -> None:
+        """Resets the animation."""
 
-@dataclass(slots=True)
-class ObjInfo:
-    """
-    Dataclass for storing an object and its active flag.
+    def rec_resize(self: Self) -> None:
+        """Resizes an object and its sub objects."""
 
-    Args:
-        object, follow parent flag (changes activeness when parent does) (default = True)
-    """
+        objs_list: list[UIElement] = [self]
+        while objs_list != []:
+            obj: UIElement = objs_list.pop()
+            obj.resize()
+            objs_list.extend([obj for obj in obj.sub_objs])
 
-    obj: UIElement
-    is_active: bool = field(default=True, init=False)
-    should_follow_parent: bool = True
+    def rec_move_to(self: Self, init_x: int, init_y: int, should_scale: bool = True) -> None:
+        """
+        Moves an object and its sub objects to a specific coordinate.
+
+        Args:
+            object, initial x, initial y, scale flag (default = True)
+        """
+
+        objs_list: list[UIElement] = [self]
+        change_x: int = 0
+        change_y: int = 0
+        while objs_list != []:
+            obj: UIElement = objs_list.pop()
+            if obj.should_follow_parent or obj == self:
+                if obj == self:
+                    change_x, change_y = init_x - obj.init_pos.x, init_y - obj.init_pos.y
+                    obj.move_to(init_x, init_y, should_scale)
+                else:
+                    obj.move_to(obj.init_pos.x + change_x, obj.init_pos.y + change_y, should_scale)
+
+                objs_list.extend(obj.sub_objs)
+
+    def rec_set_layer(self: Self, layer: int) -> None:
+        """
+        Sets the layer for an object and its sub objects.
+
+        Args:
+            object, layer
+        """
+
+        objs_list: list[UIElement] = [self]
+        layer_offset: int = layer - self.layer
+        while objs_list != []:
+            obj: UIElement = objs_list.pop()
+            obj.set_layer(obj.layer + layer_offset)
+            objs_list.extend(obj.sub_objs)
 
     def rec_set_active(self: Self, should_activate: bool) -> None:
         """
@@ -78,22 +132,22 @@ class ObjInfo:
         if self.is_active == should_activate:
             return
 
-        objs_info: list[ObjInfo] = [self]
-        while objs_info != []:
-            info: ObjInfo = objs_info.pop()
-            if info.should_follow_parent or info == self:
-                info.is_active = should_activate
+        objs_list: list[UIElement] = [self]
+        while objs_list != []:
+            obj: UIElement = objs_list.pop()
+            if obj.should_follow_parent or obj == self:
+                obj.is_active = should_activate
                 if should_activate:
-                    info.obj.enter()
+                    obj.enter()
                 else:
-                    info.obj.leave()
+                    obj.leave()
 
-                objs_info.extend(info.obj.objs_info)
+                objs_list.extend(obj.sub_objs)
 
         global state_active_objs
         state_active_objs = tuple([
-            info.obj
-            for info in states_info[state_i] if info.is_active
+            obj
+            for obj in states_objs[state_i] if obj.is_active
         ])
 
 
@@ -124,32 +178,3 @@ def resize_obj(
         resized_wh = (ceil(init_w * my_vars.win_w_ratio  ), ceil(init_h * my_vars.win_h_ratio))
 
     return resized_xy, resized_wh
-
-
-def rec_move_rect(
-        main_obj: UIElement, init_x: int, init_y: int,
-        should_scale: bool = True
-) -> None:
-    """
-    Moves an object and its sub objects to a specific coordinate.
-
-    Args:
-        object, initial x, initial y, scale flag (default = True)
-    """
-
-    objs_list: list[UIElement] = [main_obj]
-    change_x: int = 0
-    change_y: int = 0
-    while objs_list != []:
-        obj: UIElement = objs_list.pop()
-        class_name: str = obj.__class__.__name__
-        assert hasattr(obj, "init_pos") and isinstance(obj.init_pos, RectPos), class_name
-        assert hasattr(obj, "move_rect") and callable(obj.move_rect)         , class_name
-
-        if obj == main_obj:
-            change_x, change_y = init_x - obj.init_pos.x, init_y - obj.init_pos.y
-            obj.move_rect(init_x, init_y, should_scale)
-        else:
-            obj.move_rect(obj.init_pos.x + change_x, obj.init_pos.y + change_y, should_scale)
-
-        objs_list.extend([info.obj for info in obj.objs_info])

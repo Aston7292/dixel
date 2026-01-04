@@ -1,5 +1,5 @@
 pygame-ce
 numpy
 opencv-python
-pywin32
 pillow
+pywin32; sys_platform == "win32"

@@ -6,17 +6,23 @@ from io import BytesIO
 from typing import Self, Final
 
 import pygame as pg
-from pygame import SYSTEM_CURSOR_ARROW
+from pygame import Color, Surface, Rect, Font
+
+from src.classes.devices import MOUSE
 
 import src.obj_utils as objs
 import src.vars as my_vars
-from src.obj_utils import ObjInfo, resize_obj
+from src.obj_utils import UIElement, resize_obj
 from src.file_utils import FileError, handle_file_os_error, try_read_file
 from src.lock_utils import LockError, try_lock_file
-from src.type_utils import XY, WH, BlitInfo, RectPos
-from src.consts import WHITE, FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I, BG_LAYER, TEXT_LAYER
+from src.type_utils import XY, WH, RectPos
+from src.consts import (
+    BLACK, WHITE,
+    FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I,
+    BG_LAYER, TEXT_LAYER, TOP_LAYER,
+)
 
-_RENDERERS_CACHE: Final[dict[int, pg.Font]] = {}
+_RENDERERS_CACHE: Final[dict[int, Font]] = {}
 _is_first_font_load_error: bool = True
 
 
@@ -33,14 +39,14 @@ def _try_add_renderer(h: int) -> None:
     should_retry: bool
 
     font_path: Path = Path("assets", "fonts", "fredoka.ttf")
-    renderer: pg.Font | None = None
+    renderer: Font | None = None
     error_str: str = ""
     for attempt_i in range(FILE_ATTEMPT_START_I, FILE_ATTEMPT_STOP_I + 1):
         try:
             with font_path.open("rb") as f:
                 try_lock_file(f, should_be_shared=True)
                 font_bytes_io: BytesIO = BytesIO(try_read_file(f))
-                renderer = pg.font.Font(font_bytes_io, h)
+                renderer = Font(font_bytes_io, h)
             break
         except (FileNotFoundError, PermissionError, LockError, FileError, pg.error) as e:
             error_str = {
@@ -64,27 +70,23 @@ def _try_add_renderer(h: int) -> None:
         if _is_first_font_load_error:
             messagebox.showerror("Font Load Failed", f"{font_path.name}: {error_str}")
             _is_first_font_load_error = False
-        renderer = pg.font.Font(size=round(h * 1.3))
+        renderer = Font(size=round(h * 1.3))
     _RENDERERS_CACHE[h] = renderer
 
 
-class TextLabel:
+class TextLabel(UIElement):
     """Class to simplify multi-line text rendering."""
 
     __slots__ = (
         "init_pos", "init_h", "_renderer",
         "text", "_bg_color",
         "_imgs", "rect", "_rects",
-        "hover_rects", "layer", "blit_sequence",
     )
-
-    cursor_type: int = SYSTEM_CURSOR_ARROW
-    objs_info: tuple[ObjInfo, ...] = ()
 
     def __init__(
             self: Self, pos: RectPos, text: str,
             base_layer: int = BG_LAYER,
-            h: int = 25, bg_color: pg.Color | None = None
+            h: int = 25, bg_color: Color | None = None
     ) -> None:
         """
         Creates the text images, rects and full rect.
@@ -95,38 +97,31 @@ class TextLabel:
             height (default = 25), background color (default = None)
         """
 
+        super().__init__()
+
         self.init_pos: RectPos = pos
         self.init_h: int = h
 
         if self.init_h not in _RENDERERS_CACHE:
             _try_add_renderer(self.init_h)
-        self._renderer: pg.Font = _RENDERERS_CACHE[self.init_h]
+        self._renderer: Font = _RENDERERS_CACHE[self.init_h]
 
         self.text: str = text
-        self._bg_color: pg.Color | None = bg_color
+        self._bg_color: Color | None = bg_color
 
-        self._imgs: tuple[pg.Surface, ...] = tuple([
+        self._imgs: tuple[Surface, ...] = tuple([
             self._renderer.render(
                 line,
                 antialias=True, color=WHITE, bgcolor=self._bg_color
             ).convert_alpha()
             for line in self.text.split("\n")
         ])
+        self.rect: Rect = Rect()
+        self._rects: tuple[Rect, ...] = ()
 
-        self.rect: pg.Rect = pg.Rect()
-        self._rects: tuple[pg.Rect, ...] = ()
-
-        self.hover_rects: tuple[pg.Rect, ...] = ()
-        self.layer: int = base_layer + TEXT_LAYER
-        self.blit_sequence: list[BlitInfo] = []
+        self.layer = base_layer + TEXT_LAYER
 
         self.refresh_rects((self.init_pos.x, self.init_pos.y))
-
-    def enter(self: Self) -> None:
-        """Initializes all the relevant data when the object state is entered."""
-
-    def leave(self: Self) -> None:
-        """Clears the relevant data when the object state is leaved."""
 
     def resize(self: Self) -> None:
         """Resizes the object."""
@@ -152,16 +147,16 @@ class TextLabel:
         ])
         self.refresh_rects(xy)
 
-    def move_rect(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
+    def move_to(self: Self, init_x: int, init_y: int, should_scale: bool) -> None:
         """
-        Moves the rects and rect to a specific coordinate.
+        Moves the object to a specific coordinate.
 
         Args:
             initial x, initial y, scale flag
         """
 
         xy: XY
-        rect: pg.Rect
+        rect: Rect
 
         prev_rect_x: int = self.rect.x
         prev_rect_y: int = self.rect.y
@@ -207,7 +202,7 @@ class TextLabel:
             # Creates the full line rect to get the position at coord_type
             # Shrinks it to the line width and moves it there
 
-            line_rect: pg.Rect = pg.Rect(self.rect.x, line_rect_y, self.rect.w, img_h)
+            line_rect: Rect = Rect(self.rect.x, line_rect_y, self.rect.w, img_h)
             line_xy: XY = getattr(line_rect, self.init_pos.coord_type)
 
             line_rect.w = img_w
@@ -237,6 +232,17 @@ class TextLabel:
 
         xy: XY = getattr(self.rect, self.init_pos.coord_type)
         self.refresh_rects(xy)
+
+    def set_layer(self: Self, layer: int) -> None:
+        """
+        Sets the object layer.
+
+        Args:
+            layer
+        """
+
+        self.layer = layer
+        self.blit_sequence = [(img, rect, self.layer) for img, rect in zip(self._imgs, self._rects)]
 
     def get_x_at(self: Self, char_i: int) -> int:
         """
@@ -288,7 +294,7 @@ class TextLabel:
             delta time
         """
 
-        img: pg.Surface
+        img: Surface
 
         a: int | None = self._imgs[0].get_alpha()
         if a is None:
@@ -301,3 +307,73 @@ class TextLabel:
 
         for img in self._imgs:
             img.set_alpha(a)
+
+    def reset_animation(self: Self) -> None:
+        """Resets the animation."""
+
+        img: Surface
+
+        for img in self._imgs:
+            img.set_alpha(255)
+
+class HoverableTextLabel(TextLabel):
+    """Class to create a text label that shows another label when hovered."""
+
+    __slots__ = (
+        "_last_mouse_move_time",
+        "hovering_text_label",
+    )
+
+    def __init__(
+            self: Self, pos: RectPos, text: str, hovering_text: str,
+            base_layer: int = BG_LAYER,
+            h: int = 25, bg_color: Color | None = None
+    ) -> None:
+        """
+        Creates the text label and hovering text label.
+
+        Args:
+            position, text, hovering text
+            base_layer (default = BG_LAYER),
+            height (default = 25), background color (default = None)
+        """
+
+        super().__init__(pos, text, base_layer, h, bg_color)
+
+        self._last_mouse_move_time: int = my_vars.ticks
+
+        self.hovering_text_label: TextLabel = TextLabel(
+            RectPos(MOUSE.x, MOUSE.y, "topleft"),
+            hovering_text, base_layer + TOP_LAYER - TEXT_LAYER,
+            h=12, bg_color=BLACK
+        )
+        self.hovering_text_label.rec_set_active(False)
+        self.hovering_text_label.should_follow_parent = False
+
+        self.hover_rects += (self.rect,)
+        self.sub_objs += (self.hovering_text_label,)
+
+    def enter(self: Self) -> None:
+        """Initializes all the relevant data when the object state is entered."""
+
+        super().enter()
+        self._last_mouse_move_time = my_vars.ticks
+
+    def leave(self: Self) -> None:
+        """Clears the relevant data when the object state is leaved."""
+
+        super().leave()
+        self.hovering_text_label.rec_set_active(False)
+
+    def upt(self: Self) -> None:
+        """Hides or shows the hovering text."""
+
+        if MOUSE.hovered_obj != self or (MOUSE.x != MOUSE.prev_x or MOUSE.y != MOUSE.prev_y):
+            self._last_mouse_move_time = my_vars.ticks
+            self.hovering_text_label.rec_set_active(False)
+
+        if MOUSE.hovered_obj == self and (my_vars.ticks - self._last_mouse_move_time >= 750):
+            self.hovering_text_label.rec_move_to(MOUSE.x + 8, MOUSE.y, should_scale=False)
+            if not self.hovering_text_label.is_active:
+                self.hovering_text_label.start_animation()
+                self.hovering_text_label.rec_set_active(True)

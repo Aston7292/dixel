@@ -142,7 +142,7 @@ class TestCheckboxGrid(TestCase):
         """
 
         pos: RectPos = self._checkbox_grid._init_pos
-        num_cols: int = self._checkbox_grid._num_cols
+        num_cols: int = self._checkbox_grid._cols
         layer: int = self._checkbox_grid.layer
         return CheckboxGrid(pos, self._init_info, num_cols, self._inverted_axes, layer)
 
@@ -169,7 +169,7 @@ class TestCheckboxGrid(TestCase):
         expected_objs_info: list[ObjInfo] = [
             ObjInfo(locked_checkbox) for locked_checkbox in locked_checkboxes
         ]
-        self.assertListEqual(checkbox_grid.objs_info, expected_objs_info)
+        self.assertListEqual(checkbox_grid.sub_objs, expected_objs_info)
 
     @mock.patch.object(CheckboxGrid, "set_grid", autospec=True)
     def test_init(self, mock_set_grid: Mock) -> None:
@@ -184,7 +184,7 @@ class TestCheckboxGrid(TestCase):
 
         expected_increment_x: int = -_OFF_IMG.get_width()  - 10
         expected_increment_y: int = -_OFF_IMG.get_height() - 10
-        self.assertEqual(test_checkbox_grid._num_cols, 2)
+        self.assertEqual(test_checkbox_grid._cols, 2)
         self.assertEqual(test_checkbox_grid._increment_x, expected_increment_x)
         self.assertEqual(test_checkbox_grid._increment_y, expected_increment_y)
 
@@ -323,7 +323,7 @@ class TestCheckboxGrid(TestCase):
         mock_locked_checkbox_resize.assert_called_with(locked_checkbox, 2, 3)
 
         # Add checkbox
-        copy_checkbox_grid._num_cols = len(copy_checkbox_grid.checkboxes)
+        copy_checkbox_grid._cols = len(copy_checkbox_grid.checkboxes)
         copy_checkbox_grid.edit(None, _ON_IMG, "2", 2, 3)
 
         increment_x, increment_y = copy_checkbox_grid._increment_x, copy_checkbox_grid._increment_y
@@ -336,7 +336,7 @@ class TestCheckboxGrid(TestCase):
 
         expected_last_x = copy_checkbox_grid._init_pos.x
         expected_last_y: int = self._checkbox_grid._unresized_last_point.y + increment_y
-        copy_checkbox_grid._num_cols = len(copy_checkbox_grid.checkboxes) + 1
+        copy_checkbox_grid._cols = len(copy_checkbox_grid.checkboxes) + 1
         copy_checkbox_grid.edit(None, _ON_IMG, "2", 2, 3)
         self.assertEqual(copy_checkbox_grid._unresized_last_point.x, expected_last_x)
         self.assertEqual(copy_checkbox_grid._unresized_last_point.y, expected_last_y)
@@ -401,7 +401,7 @@ class TestCheckboxGrid(TestCase):
         copy_checkbox_grid: CheckboxGrid = self._copy_checkbox_grid()
 
         max_i: int = len(copy_checkbox_grid.checkboxes) - 1
-        num_cols: int = copy_checkbox_grid._num_cols
+        num_cols: int = copy_checkbox_grid._cols
 
         # Left
 

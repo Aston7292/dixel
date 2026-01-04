@@ -5,6 +5,7 @@ from typing import Any
 
 import pygame as pg
 import numpy as np
+from pygame import Color, Surface, Rect, draw, surfarray, transform
 from numpy import uint8
 from numpy.typing import NDArray
 
@@ -23,7 +24,7 @@ def profile(func: Callable[..., Any]) -> Callable[..., Any]:
     _FUNCS_TOT_TIMES += (0,)
     _FUNCS_NUM_CALLS += (0,)
 
-    def _upt_info(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Any:
+    def _run(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Any:
         """Runs a function and updates its total runtime and number of calls."""
 
         global _FUNCS_TOT_TIMES, _FUNCS_NUM_CALLS
@@ -42,7 +43,7 @@ def profile(func: Callable[..., Any]) -> Callable[..., Any]:
 
         return res
 
-    return _upt_info
+    return _run
 
 
 def print_funcs_profiles() -> None:
@@ -57,7 +58,7 @@ def print_funcs_profiles() -> None:
         print(f"{name}: {avg_time:.4f}ms | calls: {num_calls}")
 
 
-def get_brush_dim_checkbox_info(dim: int) -> tuple[pg.Surface, str]:
+def get_brush_dim_checkbox_info(dim: int) -> tuple[Surface, str]:
     """
     Gets the checkbox info for a brush dimension.
 
@@ -68,18 +69,18 @@ def get_brush_dim_checkbox_info(dim: int) -> tuple[pg.Surface, str]:
     """
 
     img_arr: NDArray[uint8] = np.tile(EMPTY_TILE_ARR, (8, 8, 1))
-    rect: pg.Rect = pg.Rect(0, 0, dim * TILE_W, dim * TILE_H)
+    rect: Rect = Rect(0, 0, dim * TILE_W, dim * TILE_H)
     rect.center = (
         round(img_arr.shape[0] / 2),
         round(img_arr.shape[1] / 2),
     )
 
-    img: pg.Surface = pg.surfarray.make_surface(img_arr)
-    pg.draw.rect(img, BLACK, rect)
-    return pg.transform.scale_by(img, 4).convert(), f"{dim}px\n(CTRL+{dim})"
+    img: Surface = surfarray.make_surface(img_arr)
+    draw.rect(img, BLACK, rect)
+    return transform.scale_by(img, 4).convert(), f"{dim}px\n(CTRL+{dim})"
 
 
-def get_pixels(img: pg.Surface) -> NDArray[uint8]:
+def get_pixels(img: Surface) -> NDArray[uint8]:
     """
     Gets the rgba values of the pixels in an image.
 
@@ -89,13 +90,10 @@ def get_pixels(img: pg.Surface) -> NDArray[uint8]:
         pixels
     """
 
-    return np.dstack((
-        pg.surfarray.pixels3d(img),
-        pg.surfarray.pixels_alpha(img)
-    ))
+    return np.dstack((surfarray.pixels3d(img), surfarray.pixels_alpha(img)))
 
 
-def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
+def add_border(img: Surface, border_color: Color) -> Surface:
     """
     Adds a border to an image.
 
@@ -105,7 +103,7 @@ def add_border(img: pg.Surface, border_color: pg.Color) -> pg.Surface:
         image
     """
 
-    new_img: pg.Surface = img.copy()
+    new_img: Surface = img.copy()
     smallest_dim: int = min(new_img.get_size())
-    pg.draw.rect(new_img, border_color, new_img.get_rect(), width=round(smallest_dim / 10))
+    draw.rect(new_img, border_color, new_img.get_rect(), width=round(smallest_dim / 10))
     return new_img
